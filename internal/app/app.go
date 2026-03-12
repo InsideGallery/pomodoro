@@ -290,9 +290,13 @@ func (g *Game) updateDrag() {
 	}
 
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && my < dragH {
-		g.dragging = true
-		g.dragOffsetX = mx
-		g.dragOffsetY = my
+		// Don't start drag when clicking title bar buttons (right side)
+		btnZone := g.activeScreen != screenMini && mx > g.width-int(ui.S(136))
+		if !btnZone {
+			g.dragging = true
+			g.dragOffsetX = mx
+			g.dragOffsetY = my
+		}
 	}
 
 	if !ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
