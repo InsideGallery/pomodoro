@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Pomodoro
+Comment=Pomodoro Timer
+Exec=pomodoro
+Icon=pomodoro
+Categories=Utility;Clock;
+Keywords=pomodoro;timer;focus;productivity;
+StartupWMClass=Pomodoro
