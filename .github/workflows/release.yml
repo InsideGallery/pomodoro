@@ -148,7 +148,7 @@ jobs:
           path: build/*.tar.gz
 
   build-darwin-amd64:
-    runs-on: macos-13
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -157,9 +157,12 @@ jobs:
         with:
           go-version-file: 'go.mod'
       - name: Build
+        env:
+          GOARCH: amd64
+          CGO_ENABLED: "1"
         run: |
           VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
-          CGO_ENABLED=1 go build -ldflags "-s -w -X main.version=$VERSION" -o build/pomodoro ./cmd/pomodoro/
+          go build -ldflags "-s -w -X main.version=$VERSION" -o build/pomodoro ./cmd/pomodoro/
           tar czf "build/pomodoro-${VERSION}-darwin-amd64.tar.gz" -C build pomodoro
       - uses: actions/upload-artifact@v4
         with:
