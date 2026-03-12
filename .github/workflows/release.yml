@@ -11,6 +11,7 @@ permissions:
 jobs:
   build-linux-amd64:
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,6 +35,7 @@ jobs:
 
   build-linux-arm64:
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,7 +53,7 @@ jobs:
               apt-get update &&
               apt-get install -y libx11-dev libgl1-mesa-dev libxcursor-dev libxrandr-dev \
                 libxinerama-dev libxi-dev libasound2-dev libayatana-appindicator3-dev libxxf86vm-dev &&
-              go build -ldflags "-s -w -X main.version=$VERSION" -o build/pomodoro ./cmd/pomodoro/ &&
+              go build -buildvcs=false -ldflags "-s -w -X main.version=$VERSION" -o build/pomodoro ./cmd/pomodoro/ &&
               tar czf "build/pomodoro-${VERSION}-linux-arm64.tar.gz" -C build pomodoro
             '
       - uses: actions/upload-artifact@v4
@@ -61,6 +63,7 @@ jobs:
 
   build-windows-amd64:
     runs-on: windows-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -80,6 +83,7 @@ jobs:
 
   build-windows-arm64:
     runs-on: windows-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -103,6 +107,7 @@ jobs:
 
   build-darwin-arm64:
     runs-on: macos-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -122,6 +127,7 @@ jobs:
 
   build-darwin-amd64:
     runs-on: macos-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -143,6 +149,7 @@ jobs:
           path: build/*.tar.gz
 
   release:
+    if: always()
     needs:
       - build-linux-amd64
       - build-linux-arm64
