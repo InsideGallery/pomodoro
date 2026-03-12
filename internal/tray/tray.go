@@ -36,11 +36,14 @@ func onReady() {
 	if len(icon) > 0 {
 		systray.SetIcon(icon)
 	}
+
 	systray.SetTitle("Pomodoro")
 	systray.SetTooltip("Pomodoro Timer")
 
 	mShow := systray.AddMenuItem("Show", "Show the timer window")
+
 	systray.AddSeparator()
+
 	mQuit := systray.AddMenuItem("Quit", "Quit the application")
 
 	go func() {

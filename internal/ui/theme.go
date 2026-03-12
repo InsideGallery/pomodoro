@@ -5,13 +5,14 @@ import (
 	"image/color"
 	"math"
 
-	"github.com/InsideGallery/pomodoro/assets"
 	textv2 "github.com/hajimehoshi/ebiten/v2/text/v2"
+
+	"github.com/InsideGallery/pomodoro/assets"
 )
 
 // UIScale is the device scale factor for HiDPI rendering.
 // Set from Layout via ebiten.Monitor().DeviceScaleFactor().
-var UIScale float64 = 1.0
+var UIScale = 1.0
 
 // S scales a logical value by the current device scale factor.
 func S(v float32) float32 {
@@ -109,10 +110,12 @@ var (
 
 func initFonts() {
 	var err error
+
 	FontSourceRegular, err = textv2.NewGoTextFaceSource(bytes.NewReader(assets.FontRegular))
 	if err != nil {
 		panic("failed to parse regular font: " + err.Error())
 	}
+
 	FontSourceBold, err = textv2.NewGoTextFaceSource(bytes.NewReader(assets.FontBold))
 	if err != nil {
 		panic("failed to parse bold font: " + err.Error())
@@ -125,6 +128,7 @@ func Face(bold bool, size float64) *textv2.GoTextFace {
 	if bold {
 		src = FontSourceBold
 	}
+
 	return &textv2.GoTextFace{
 		Source: src,
 		Size:   size * UIScale,
@@ -136,12 +140,14 @@ func ApplyTransparency(t float64) {
 	if t < 0.10 {
 		t = 0.10
 	}
+
 	if t > 0.90 {
 		t = 0.90
 	}
+
 	opaque := 1.0 - t
-	winAlpha := uint8(opaque * 230)   // max ~90% even at 0% transparency setting
-	cardAlpha := uint8(opaque * 240)  // slightly more opaque than window
+	winAlpha := uint8(opaque * 230)  // max ~90% even at 0% transparency setting
+	cardAlpha := uint8(opaque * 240) // slightly more opaque than window
 	borderAlpha := uint8(opaque * 180)
 	ColorWindowBg.A = winAlpha
 	ColorCardBg.A = cardAlpha

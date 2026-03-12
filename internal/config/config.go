@@ -40,6 +40,7 @@ func configPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return filepath.Join(home, ".config", "pomodoro", "config.json"), nil
 }
 
@@ -58,6 +59,7 @@ func Load() Config {
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return Default()
 	}
+
 	return cfg
 }
 
@@ -76,5 +78,5 @@ func Save(cfg Config) error {
 		return err
 	}
 
-	return os.WriteFile(p, data, 0o644)
+	return os.WriteFile(p, data, 0o600)
 }

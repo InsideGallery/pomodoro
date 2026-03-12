@@ -19,3 +19,9 @@ var Fonts embed.FS
 
 //go:embed sounds/*
 var Sounds embed.FS
+
+// AppIcon is the application icon (256x256 PNG) from packaging/.
+// Symlinked or copied at build time; embedded from assets/icon.png.
+//
+//go:embed icon.png
+var AppIcon []byte

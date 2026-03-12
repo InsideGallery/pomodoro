@@ -34,6 +34,31 @@ static void x11_hide(unsigned long wid) {
     XCloseDisplay(dpy);
 }
 
+static void x11_set_above(unsigned long wid, int enable) {
+    Display *dpy = XOpenDisplay(NULL);
+    if (!dpy) return;
+
+    Window win = (Window)wid;
+    Atom wmState = XInternAtom(dpy, "_NET_WM_STATE", False);
+    Atom above = XInternAtom(dpy, "_NET_WM_STATE_ABOVE", False);
+
+    XEvent ev;
+    memset(&ev, 0, sizeof(ev));
+    ev.xclient.type = ClientMessage;
+    ev.xclient.window = win;
+    ev.xclient.message_type = wmState;
+    ev.xclient.format = 32;
+    ev.xclient.data.l[0] = enable ? 1 : 0;
+    ev.xclient.data.l[1] = (long)above;
+    ev.xclient.data.l[2] = 0;
+    ev.xclient.data.l[3] = 1;
+    XSendEvent(dpy, DefaultRootWindow(dpy), False,
+        SubstructureRedirectMask | SubstructureNotifyMask, &ev);
+
+    XFlush(dpy);
+    XCloseDisplay(dpy);
+}
+
 static void x11_show(unsigned long wid) {
     Display *dpy = XOpenDisplay(NULL);
     if (!dpy) return;
@@ -101,6 +126,25 @@ func HideWindow(title string) {
 	}
 	savedWID = wid
 	C.x11_hide(C.ulong(wid))
+}
+
+// SetAlwaysOnTop sets or clears the always-on-top state for the window.
+func SetAlwaysOnTop(title string, enable bool) {
+	wid := savedWID
+	if wid == 0 {
+		wid = FindWindowID(title)
+	}
+
+	if wid == 0 {
+		return
+	}
+
+	flag := C.int(0)
+	if enable {
+		flag = 1
+	}
+
+	C.x11_set_above(C.ulong(wid), flag)
 }
 
 // ShowWindow maps a window and restores it on the taskbar.

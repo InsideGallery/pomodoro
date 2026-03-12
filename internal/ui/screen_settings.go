@@ -6,10 +6,11 @@ import (
 	"math"
 	"time"
 
-	"github.com/InsideGallery/pomodoro/internal/config"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	textv2 "github.com/hajimehoshi/ebiten/v2/text/v2"
+
+	"github.com/InsideGallery/pomodoro/internal/config"
 )
 
 type SettingsScreen struct {
@@ -70,6 +71,7 @@ func (s *SettingsScreen) Relayout() {
 	s.faceLabel = Face(false, 12)
 	s.faceSection = Face(true, 10)
 	s.layout()
+
 	s.scrollY = oldScroll
 	if mx := s.maxScroll(); s.scrollY > mx {
 		s.scrollY = mx
@@ -92,7 +94,7 @@ func (s *SettingsScreen) layout() {
 		X: pad, Y: S(10), W: S(32), H: S(32),
 		Color: ColorBgTertiary, HoverColor: ColorBorder,
 		TextColor: ColorTextPrimary,
-		IconDraw: DrawBackIcon, OnClick: s.OnBack,
+		IconDraw:  DrawBackIcon, OnClick: s.OnBack,
 	}
 
 	// All Y values below are content-relative (0 = top of scrollable area).
@@ -169,6 +171,7 @@ func (s *SettingsScreen) layout() {
 			if s.OnTickVolumeChange != nil {
 				s.OnTickVolumeChange(v)
 			}
+
 			s.save()
 		},
 	}
@@ -183,6 +186,7 @@ func (s *SettingsScreen) layout() {
 			if s.OnAlarmVolumeChange != nil {
 				s.OnAlarmVolumeChange(v)
 			}
+
 			s.save()
 		},
 	}
@@ -198,25 +202,26 @@ func (s *SettingsScreen) layout() {
 
 	s.TickToggle = Toggle{
 		X: toggleX, Y: y, W: toggleW, H: toggleH,
-		Value: s.Cfg.TickEnabled,
+		Value:   s.Cfg.TickEnabled,
 		OnColor: ColorAccentSuccess, OffColor: ColorToggleOff,
 		KnobColor: ColorTextPrimary,
-		Label: "Tick Sound", Face: s.faceLabel, TextColor: ColorTextSecond,
+		Label:     "Tick Sound", Face: s.faceLabel, TextColor: ColorTextSecond,
 		OnChange: func(v bool) {
 			s.Cfg.TickEnabled = v
 			if s.OnTickEnabledChange != nil {
 				s.OnTickEnabledChange(v)
 			}
+
 			s.save()
 		},
 	}
 	y += toggleRowH
 	s.AutoStartToggle = Toggle{
 		X: toggleX, Y: y, W: toggleW, H: toggleH,
-		Value: s.Cfg.AutoStart,
+		Value:   s.Cfg.AutoStart,
 		OnColor: ColorAccentSuccess, OffColor: ColorToggleOff,
 		KnobColor: ColorTextPrimary,
-		Label: "Auto-Start Next", Face: s.faceLabel, TextColor: ColorTextSecond,
+		Label:     "Auto-Start Next", Face: s.faceLabel, TextColor: ColorTextSecond,
 		OnChange: func(v bool) {
 			s.Cfg.AutoStart = v
 			s.save()
@@ -225,19 +230,21 @@ func (s *SettingsScreen) layout() {
 	y += toggleRowH
 	s.ThemeToggle = Toggle{
 		X: toggleX, Y: y, W: toggleW, H: toggleH,
-		Value: s.Cfg.Theme == "light",
+		Value:   s.Cfg.Theme == "light",
 		OnColor: ColorAccentFocus, OffColor: ColorToggleOff,
 		KnobColor: ColorTextPrimary,
-		Label: "Light Theme", Face: s.faceLabel, TextColor: ColorTextSecond,
+		Label:     "Light Theme", Face: s.faceLabel, TextColor: ColorTextSecond,
 		OnChange: func(v bool) {
 			if v {
 				s.Cfg.Theme = "light"
 			} else {
 				s.Cfg.Theme = "dark"
 			}
+
 			if s.OnThemeChange != nil {
 				s.OnThemeChange(s.Cfg.Theme)
 			}
+
 			s.save()
 		},
 	}
@@ -254,6 +261,7 @@ func (s *SettingsScreen) layout() {
 			if s.OnTransparencyChange != nil {
 				s.OnTransparencyChange(v)
 			}
+
 			s.save()
 		},
 	}
@@ -268,7 +276,7 @@ func (s *SettingsScreen) layout() {
 		Label: "Reset Defaults", Face: s.faceLabel,
 		Color: ColorBgTertiary, HoverColor: colorBrighten(ColorAccentDanger, 0.4),
 		TextColor: ColorAccentDanger,
-		OnClick: s.OnResetDefaults,
+		OnClick:   s.OnResetDefaults,
 	}
 	y += resetH + S(16)
 	s.contentH = y
@@ -287,6 +295,7 @@ func (s *SettingsScreen) maxScroll() float32 {
 	if m < 0 {
 		return 0
 	}
+
 	return m
 }
 
@@ -338,15 +347,19 @@ func (s *SettingsScreen) Update() {
 	if wy != 0 {
 		s.scrollY -= float32(wy) * S(30)
 	}
+
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
 		s.scrollY += S(30)
 	}
+
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
 		s.scrollY -= S(30)
 	}
+
 	if s.scrollY < 0 {
 		s.scrollY = 0
 	}
+
 	if mx := s.maxScroll(); s.scrollY > mx {
 		s.scrollY = mx
 	}
@@ -390,6 +403,7 @@ func (s *SettingsScreen) Draw(screen *ebiten.Image) {
 
 	// Header (fixed, not clipped)
 	s.BtnBack.Draw(screen)
+
 	if s.faceHeading != nil {
 		DrawTextCentered(screen, "Settings", s.faceHeading, float64(w/2), Sf(16), ColorTextPrimary)
 	}
@@ -435,10 +449,12 @@ func (s *SettingsScreen) Draw(screen *ebiten.Image) {
 	// Scroll indicator
 	if s.maxScroll() > 0 {
 		visH := s.visibleH()
+
 		barH := visH * visH / s.contentH
 		if barH < S(20) {
 			barH = S(20)
 		}
+
 		barY := s.contentTop() + (visH-barH)*(s.scrollY/s.maxScroll())
 		barX := w - pad - S(4)
 		DrawRoundedRect(screen, barX, barY, S(3), barH, S(2), ColorBorder)

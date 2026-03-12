@@ -55,8 +55,8 @@ type Timer struct {
 	cfg Config
 
 	state       State
-	prePause    State         // state before pause, for resume
-	pendingNext State         // what Start() will begin (Break after focus, Focus after break)
+	prePause    State // state before pause, for resume
+	pendingNext State // what Start() will begin (Break after focus, Focus after break)
 	startedAt   time.Time
 	remaining   time.Duration // set on pause
 	round       int           // completed focus rounds in current cycle
@@ -99,6 +99,7 @@ func (t *Timer) Remaining(now time.Time) time.Duration {
 		if r < 0 {
 			return 0
 		}
+
 		return r
 	default:
 		return 0
@@ -109,9 +110,11 @@ func (t *Timer) TotalDuration() time.Duration {
 	if t.state == StatePaused {
 		return t.durationForState(t.prePause)
 	}
+
 	if t.state == StateIdle {
 		return t.durationForState(t.pendingNext)
 	}
+
 	return t.duration()
 }
 
@@ -133,14 +136,18 @@ func (t *Timer) Progress(now time.Time) float64 {
 	if total == 0 {
 		return 0
 	}
+
 	rem := t.Remaining(now)
+
 	p := 1.0 - float64(rem)/float64(total)
 	if p < 0 {
 		return 0
 	}
+
 	if p > 1 {
 		return 1
 	}
+
 	return p
 }
 
@@ -149,6 +156,7 @@ func (t *Timer) Start(now time.Time) {
 	if t.state != StateIdle {
 		return
 	}
+
 	t.state = t.pendingNext
 	t.startedAt = now
 	t.remaining = 0
@@ -158,6 +166,7 @@ func (t *Timer) Pause(now time.Time) {
 	if !t.state.IsRunning() {
 		return
 	}
+
 	t.remaining = t.Remaining(now)
 	t.prePause = t.state
 	t.state = StatePaused
@@ -167,6 +176,7 @@ func (t *Timer) Resume(now time.Time) {
 	if t.state != StatePaused {
 		return
 	}
+
 	t.state = t.prePause
 	t.startedAt = now.Add(-t.duration() + t.remaining)
 	t.remaining = 0
@@ -183,10 +193,12 @@ func (t *Timer) Skip(now time.Time) {
 	if t.state == StateIdle {
 		return
 	}
+
 	current := t.state
 	if t.state == StatePaused {
 		current = t.prePause
 	}
+
 	t.complete(current, now)
 }
 
@@ -194,6 +206,7 @@ func (t *Timer) Update(now time.Time) {
 	if !t.state.IsRunning() {
 		return
 	}
+
 	if t.Remaining(now) <= 0 {
 		t.complete(t.state, now)
 	}
@@ -227,6 +240,7 @@ func (t *Timer) nextState(completed State) State {
 			t.round = 0
 			return StateLongBreak
 		}
+
 		return StateBreak
 	case StateBreak, StateLongBreak:
 		return StateFocus

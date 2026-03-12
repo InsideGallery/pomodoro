@@ -33,13 +33,13 @@ func MeasureText(s string, face *textv2.GoTextFace) (float64, float64) {
 // Button is a clickable rounded rectangle with a label.
 type Button struct {
 	X, Y, W, H float32
-	Label       string
-	Color       color.Color
-	HoverColor  color.Color
-	TextColor   color.Color
-	Face        *textv2.GoTextFace
-	OnClick     func()
-	IconDraw    func(dst *ebiten.Image, cx, cy, size float32, clr color.Color) // optional icon instead of label
+	Label      string
+	Color      color.Color
+	HoverColor color.Color
+	TextColor  color.Color
+	Face       *textv2.GoTextFace
+	OnClick    func()
+	IconDraw   func(dst *ebiten.Image, cx, cy, size float32, clr color.Color) // optional icon instead of label
 
 	hovered bool
 	pressed bool
@@ -52,12 +52,14 @@ func (b *Button) Update() {
 	if b.hovered && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		b.pressed = true
 	}
+
 	if b.pressed && inpututil.IsMouseButtonJustReleased(ebiten.MouseButtonLeft) {
 		b.pressed = false
 		if b.hovered && b.OnClick != nil {
 			b.OnClick()
 		}
 	}
+
 	if !ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		b.pressed = false
 	}
@@ -68,9 +70,11 @@ func (b *Button) Draw(dst *ebiten.Image) {
 	if b.hovered {
 		clr = b.HoverColor
 	}
+
 	if b.pressed {
 		clr = colorBrighten(clr, 0.8)
 	}
+
 	DrawRoundedRect(dst, b.X, b.Y, b.W, b.H, RadiusButton, clr)
 
 	if b.IconDraw != nil {
@@ -93,7 +97,7 @@ func (b *Button) hit(mx, my int) bool {
 
 // Slider is a horizontal slider for float64 values.
 type Slider struct {
-	X, Y, W, H float32
+	X, Y, W, H  float32
 	Min, Max    float64
 	Value       float64
 	TrackColor  color.Color
@@ -115,6 +119,7 @@ func (s *Slider) Update() {
 			s.dragging = true
 		}
 	}
+
 	if !ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		s.dragging = false
 	}
@@ -124,9 +129,11 @@ func (s *Slider) Update() {
 		if t < 0 {
 			t = 0
 		}
+
 		if t > 1 {
 			t = 1
 		}
+
 		newVal := s.Min + t*(s.Max-s.Min)
 		if newVal != s.Value {
 			s.Value = newVal
@@ -161,6 +168,7 @@ func (s *Slider) Draw(dst *ebiten.Image) {
 	if s.Max > s.Min {
 		t = float32((s.Value - s.Min) / (s.Max - s.Min))
 	}
+
 	filledW := s.W * t
 	if filledW > trackH {
 		DrawRoundedRect(dst, s.X, trackY, filledW, trackH, trackH/2, s.KnobColor)
@@ -178,26 +186,28 @@ func (s *Slider) formatVal() string {
 	if s.FormatValue != nil {
 		return s.FormatValue(s.Value)
 	}
+
 	return fmt.Sprintf("%.0f%%", (s.Value-s.Min)/(s.Max-s.Min)*100)
 }
 
 func (s *Slider) hitTrack(mx, my int) bool {
 	pad := float32(12)
 	r := image.Rect(int(s.X-pad), int(s.Y-pad), int(s.X+s.W+pad), int(s.Y+s.H+pad))
+
 	return image.Pt(mx, my).In(r)
 }
 
 // Toggle is an on/off switch.
 type Toggle struct {
 	X, Y, W, H float32
-	Value       bool
-	OnColor     color.Color
-	OffColor    color.Color
-	KnobColor   color.Color
-	Label       string
-	Face        *textv2.GoTextFace
-	TextColor   color.Color
-	OnChange    func(bool)
+	Value      bool
+	OnColor    color.Color
+	OffColor   color.Color
+	KnobColor  color.Color
+	Label      string
+	Face       *textv2.GoTextFace
+	TextColor  color.Color
+	OnChange   func(bool)
 }
 
 func (t *Toggle) Update() {
@@ -208,6 +218,7 @@ func (t *Toggle) Update() {
 		if lx < 0 {
 			lx = 0
 		}
+
 		r := image.Rect(lx, int(t.Y)-4, int(t.X+t.W), int(t.Y+t.H)+4)
 		if image.Pt(mx, my).In(r) {
 			t.Value = !t.Value
@@ -222,10 +233,12 @@ func (t *Toggle) Draw(dst *ebiten.Image) {
 	// Label to the left
 	if t.Face != nil && t.Label != "" {
 		_, th := textv2.Measure(t.Label, t.Face, 0)
+
 		lx := float64(t.X) - 200
 		if lx < 0 {
 			lx = 0
 		}
+
 		ly := float64(t.Y) + (float64(t.H)-th)/2
 		DrawText(dst, t.Label, t.Face, lx, ly, t.TextColor)
 	}
@@ -234,13 +247,16 @@ func (t *Toggle) Draw(dst *ebiten.Image) {
 	if t.Value {
 		trackColor = t.OnColor
 	}
+
 	DrawRoundedRect(dst, t.X, t.Y, t.W, t.H, t.H/2, trackColor)
 
 	knobR := t.H * 0.38
+
 	knobX := t.X + knobR + 3
 	if t.Value {
 		knobX = t.X + t.W - knobR - 3
 	}
+
 	knobY := t.Y + t.H/2
 	DrawCircle(dst, knobX, knobY, knobR, t.KnobColor)
 }
@@ -256,6 +272,7 @@ func (d *DurationSlider) Minutes() int {
 
 func colorBrighten(c color.Color, factor float64) color.Color {
 	r, g, b, a := c.RGBA()
+
 	return color.RGBA{
 		R: clampByte(float64(r>>8) * factor),
 		G: clampByte(float64(g>>8) * factor),
@@ -266,6 +283,7 @@ func colorBrighten(c color.Color, factor float64) color.Color {
 
 func colorWithAlpha(c color.Color, alpha float64) color.Color {
 	r, g, b, _ := c.RGBA()
+
 	return color.RGBA{
 		R: uint8(r >> 8),
 		G: uint8(g >> 8),
@@ -278,8 +296,10 @@ func clampByte(v float64) uint8 {
 	if v > 255 {
 		return 255
 	}
+
 	if v < 0 {
 		return 0
 	}
+
 	return uint8(v)
 }

@@ -21,6 +21,7 @@ func GenerateIcon(size int) []byte {
 		for x := 0; x < size; x++ {
 			dx := float64(x) - cx
 			dy := float64(y) - cy
+
 			dist := math.Sqrt(dx*dx + dy*dy)
 			if dist <= r {
 				if dist >= r-2 {
@@ -35,9 +36,11 @@ func GenerateIcon(size int) []byte {
 	// Draw a small clock hand
 	for i := 0; i < int(r*0.6); i++ {
 		hx := int(cx) + 0
+
 		hy := int(cy) - i
 		if hy >= 0 && hy < size {
 			img.Set(hx, hy, purple)
+
 			if hx+1 < size {
 				img.Set(hx+1, hy, purple)
 			}
@@ -45,6 +48,8 @@ func GenerateIcon(size int) []byte {
 	}
 
 	var buf bytes.Buffer
+
 	_ = png.Encode(&buf, img)
+
 	return buf.Bytes()
 }

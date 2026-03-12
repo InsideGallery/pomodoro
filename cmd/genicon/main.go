@@ -49,6 +49,7 @@ func main() {
 	for y := 0; y < size; y++ {
 		for x := 0; x < size; x++ {
 			dx := float64(x) - cx
+
 			dy := float64(y) - cy
 			if math.Sqrt(dx*dx+dy*dy) <= 6 {
 				img.Set(x, y, purple)
@@ -60,11 +61,13 @@ func main() {
 	if len(os.Args) > 1 {
 		path = os.Args[1]
 	}
+
 	f, err := os.Create(path)
 	if err != nil {
 		panic(err)
 	}
 	defer f.Close()
+
 	if err := png.Encode(f, img); err != nil {
 		panic(err)
 	}
@@ -76,6 +79,7 @@ func drawLine(img *image.RGBA, x1, y1, x2, y2 float64, width float64, clr color.
 		t := float64(i) / float64(steps)
 		px := x1 + (x2-x1)*t
 		py := y1 + (y2-y1)*t
+
 		for dy := -width / 2; dy <= width/2; dy++ {
 			for dx := -width / 2; dx <= width/2; dx++ {
 				if dx*dx+dy*dy <= (width/2)*(width/2) {

@@ -1,0 +1,135 @@
+version: "2"
+run:
+  tests: true
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - dogsled
+    - dupl
+    - errcheck
+    - forbidigo
+    - goconst
+    - gocritic
+    - gocyclo
+    - gosec
+    - govet
+    - ineffassign
+    - ireturn
+    - lll
+    - misspell
+    - mnd
+    - revive
+    - staticcheck
+    - unconvert
+    - unused
+    - whitespace
+    - wsl_v5
+  settings:
+    forbidigo:
+      forbid:
+        - pattern: ^print.*$
+        - pattern: ^fmt\.Print.*$
+          msg: Do not commit print statements.
+        - pattern: ^log\.Print.*$
+      exclude-godoc-examples: false
+      analyze-types: true
+    ireturn:
+      allow:
+        - anon
+        - error
+        - empty
+        - stdlib
+        - generic
+    lll:
+      line-length: 120
+      tab-width: 1
+    wsl:
+      strict-append: false
+      allow-assign-and-call: true
+      allow-assign-and-anything: true
+      force-case-trailing-whitespace: 0
+      allow-cuddle-declarations: true
+      allow-cuddle-with-calls:
+        - Lock
+        - RLock
+      allow-cuddle-with-rhs:
+        - Unlock
+        - RUnlock
+      force-err-cuddling: false
+      error-variable-names:
+        - err
+      force-short-decl-cuddling: false
+    gosec:
+      excludes:
+        - G109
+        - G115
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - bodyclose
+          - dogsled
+          - dupl
+          - errcheck
+          - lll
+          - mnd
+          - wsl
+        path: _test\.go
+      - linters:
+          - mnd
+        path: internal/ui/
+      - linters:
+          - mnd
+          - forbidigo
+        path: internal/app/
+      - linters:
+          - mnd
+        path: internal/audio/
+      - linters:
+          - mnd
+        path: internal/tray/
+      - linters:
+          - mnd
+        path: internal/config/
+      - linters:
+          - mnd
+        path: internal/timer/
+      - linters:
+          - mnd
+        path: cmd/
+      - linters:
+          - staticcheck
+        text: "SA1019.*AppendVerticesAndIndicesFor"
+    paths:
+      - third_party$
+      - builtin$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  new-from-rev: ""
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
+  settings:
+    gci:
+      sections:
+        - standard
+        - blank
+        - dot
+        - default
+        - prefix(github.com/InsideGallery/pomodoro)
+      custom-order: true
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$

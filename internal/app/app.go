@@ -7,15 +7,16 @@ import (
 	"os"
 	"time"
 
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	textv2 "github.com/hajimehoshi/ebiten/v2/text/v2"
+
 	"github.com/InsideGallery/pomodoro/internal/audio"
 	"github.com/InsideGallery/pomodoro/internal/config"
 	"github.com/InsideGallery/pomodoro/internal/platform"
 	"github.com/InsideGallery/pomodoro/internal/timer"
 	"github.com/InsideGallery/pomodoro/internal/tray"
 	"github.com/InsideGallery/pomodoro/internal/ui"
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
-	textv2 "github.com/hajimehoshi/ebiten/v2/text/v2"
 )
 
 const (
@@ -52,13 +53,11 @@ type Game struct {
 	faceMini *textv2.GoTextFace
 
 	// Hidden to tray state
-	hidden     bool
-	savedWinX  int
-	savedWinY  int
+	hidden bool
 
-	width, height          int
-	initialized            bool
-	pendingSettingsReinit  bool
+	width, height         int
+	initialized           bool
+	pendingSettingsReinit bool
 }
 
 func New() *Game {
@@ -82,11 +81,12 @@ func New() *Game {
 		height:       DefaultWindowHeight,
 	}
 
-	tmr.OnComplete = func(completed timer.State) {
+	tmr.OnComplete = func(_ timer.State) {
 		if g.audio != nil {
 			g.audio.PlayAlarm()
 			g.audio.StopTick()
 		}
+
 		if g.tmr.State().IsRunning() {
 			g.startTick()
 		}
@@ -101,6 +101,7 @@ func (g *Game) initAudio() {
 		log.Printf("audio init failed: %v", err)
 		return
 	}
+
 	g.audio = am
 	g.audio.SetTickVolume(g.cfg.TickVolume)
 	g.audio.SetAlarmVolume(g.cfg.AlarmVolume)
@@ -154,6 +155,7 @@ func (g *Game) initScreens() {
 		g.cfg = def
 		_ = config.Save(g.cfg)
 		g.applyConfig()
+
 		if g.audio != nil {
 			g.audio.SetTickVolume(g.cfg.TickVolume)
 			g.audio.SetAlarmVolume(g.cfg.AlarmVolume)
@@ -168,6 +170,7 @@ func (g *Game) initScreens() {
 
 func (g *Game) onStartPause() {
 	now := time.Now()
+
 	switch g.tmr.State() {
 	case timer.StateIdle:
 		g.tmr.Start(now)
@@ -188,6 +191,7 @@ func (g *Game) onReset() {
 
 func (g *Game) onSkip() {
 	g.tmr.Skip(time.Now())
+
 	if g.tmr.State().IsRunning() {
 		g.startTick()
 	} else {
@@ -229,43 +233,55 @@ func (g *Game) hideToTray() {
 	if g.hidden {
 		return
 	}
+
 	g.hidden = true
+
 	platform.HideWindow(windowTitle)
 }
 
 func (g *Game) showFromTray() {
 	g.hidden = false
+
 	platform.ShowWindow(windowTitle)
 }
 
 func (g *Game) enterMini() {
 	g.prevScreen = g.activeScreen
 	g.activeScreen = screenMini
+
 	ebiten.SetWindowSize(MiniWindowWidth, MiniWindowHeight)
+	platform.SetAlwaysOnTop(windowTitle, true)
 }
 
 func (g *Game) exitMini() {
+	platform.SetAlwaysOnTop(windowTitle, false)
+
 	g.activeScreen = g.prevScreen
 	if g.activeScreen == screenMini {
 		g.activeScreen = screenTimer
 	}
+
 	ebiten.SetWindowSize(DefaultWindowWidth, DefaultWindowHeight)
 }
 
 func (g *Game) updateDrag() {
 	mx, my := ebiten.CursorPosition()
+
 	dragH := int(ui.S(48))
 	if g.activeScreen == screenMini {
 		dragH = g.height // entire mini window is draggable
 	}
+
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && my < dragH {
 		g.dragging = true
 		g.dragOffsetX = mx
 		g.dragOffsetY = my
 	}
+
 	if !ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		g.dragging = false
 	}
+
 	if g.dragging {
 		wx, wy := ebiten.WindowPosition()
 		dx := mx - g.dragOffsetX
@@ -315,17 +331,21 @@ func (g *Game) Update() error {
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) && g.activeScreen == screenTimer {
 		g.onStartPause()
 	}
+
 	if inpututil.IsKeyJustPressed(ebiten.KeyR) && g.activeScreen == screenTimer {
 		g.onReset()
 	}
+
 	if inpututil.IsKeyJustPressed(ebiten.KeyS) && g.activeScreen == screenTimer {
 		g.showSettings()
 	}
+
 	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
-		if g.activeScreen == screenSettings {
+		switch g.activeScreen {
+		case screenSettings:
 			g.applyConfig()
 			g.activeScreen = screenTimer
-		} else if g.activeScreen == screenMini {
+		case screenMini:
 			g.exitMini()
 		}
 	}
@@ -349,12 +369,18 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) updateMini() {
-	// Click anywhere in mini mode to expand
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		mx, _ := ebiten.CursorPosition()
+
 		// Right side: expand button area
 		if mx > g.width-int(ui.S(50)) {
 			g.exitMini()
+			return
+		}
+
+		// Left side: play/pause button area
+		if mx < int(ui.S(44)) {
+			g.onStartPause()
 		}
 	}
 }
@@ -362,10 +388,12 @@ func (g *Game) updateMini() {
 func (g *Game) Draw(screen *ebiten.Image) {
 	w := float32(g.width)
 	h := float32(g.height)
+
 	r := ui.S(12)
 	if g.activeScreen == screenMini {
 		r = ui.S(8)
 	}
+
 	ui.DrawRoundedRect(screen, 0, 0, w, h, r, ui.ColorWindowBg)
 	ui.DrawRoundedRectStroke(screen, 0, 0, w, h, r, ui.S(1), ui.ColorCardBorder)
 
@@ -383,33 +411,38 @@ func (g *Game) drawMini(screen *ebiten.Image) {
 	w := float32(g.width)
 	h := float32(g.height)
 
-	// Timer text
+	// Play/pause button on the left
+	ppW := ui.S(36)
+	ppX := ui.S(8)
+	ppY := ui.S(8)
+	ppH := h - ui.S(16)
+	ui.DrawRoundedRect(screen, ppX, ppY, ppW, ppH, ui.S(6), ui.ColorBgTertiary)
+
+	state := g.tmr.State()
+	if state.IsRunning() {
+		ui.DrawPauseIcon(screen, ppX+ppW/2, ppY+ppH/2, ui.S(18), ui.ColorTextPrimary)
+	} else {
+		ui.DrawPlayIcon(screen, ppX+ppW/2, ppY+ppH/2, ui.S(18), ui.ColorTextPrimary)
+	}
+
+	// Timer text centered
 	now := time.Now()
+
 	rem := g.tmr.Remaining(now)
 	if rem < 0 {
 		rem = 0
 	}
+
 	totalSecs := int(rem.Seconds())
 	mins := totalSecs / 60
 	secs := totalSecs % 60
 	timerText := fmt.Sprintf("%02d:%02d", mins, secs)
 
-	state := g.tmr.State()
-	stateText := state.String()
-	if state == timer.StateIdle {
-		stateText = g.tmr.PendingNext().String()
-	}
+	timerFace := ui.Face(true, 18)
+	tw, _ := textv2.Measure(timerText, timerFace, 0)
+	ui.DrawText(screen, timerText, timerFace, float64(w)/2-tw/2, float64(h/2)-Sf(10), ui.ColorTextPrimary)
 
-	if g.faceMini != nil {
-		clr := ui.ColorTextPrimary
-		ui.DrawText(screen, stateText, g.faceMini, Sf(12), float64(h/2)-Sf(8), ui.ColorTextSecond)
-
-		timerFace := ui.Face(true, 18)
-		tw, _ := textv2.Measure(timerText, timerFace, 0)
-		ui.DrawText(screen, timerText, timerFace, float64(w)/2-tw/2, float64(h/2)-Sf(10), clr)
-	}
-
-	// Expand button on right
+	// Expand button on the right
 	btnW := ui.S(36)
 	btnX := w - ui.S(8) - btnW
 	btnY := ui.S(8)
@@ -425,6 +458,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	if m := ebiten.Monitor(); m != nil {
 		scale = m.DeviceScaleFactor()
 	}
+
 	ui.UIScale = scale
 
 	w := int(math.Ceil(float64(outsideWidth) * scale))
@@ -432,14 +466,17 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 
 	if w != g.width || h != g.height {
 		g.width = w
+
 		g.height = h
 		if g.initialized {
 			if g.activeScreen != screenMini {
 				g.timerScreen.Resize(w, h)
 				g.settingsScreen.Resize(w, h)
 			}
+
 			g.faceMini = ui.Face(true, 12)
 		}
 	}
+
 	return w, h
 }

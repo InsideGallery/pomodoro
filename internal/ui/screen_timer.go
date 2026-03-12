@@ -6,9 +6,10 @@ import (
 	"math"
 	"time"
 
-	"github.com/InsideGallery/pomodoro/internal/timer"
 	"github.com/hajimehoshi/ebiten/v2"
 	textv2 "github.com/hajimehoshi/ebiten/v2/text/v2"
+
+	"github.com/InsideGallery/pomodoro/internal/timer"
 )
 
 type TimerScreen struct {
@@ -26,7 +27,7 @@ type TimerScreen struct {
 	OnClose    func()
 	OnMini     func()
 
-	BtnMini     Button
+	BtnMini Button
 
 	faceTimer *textv2.GoTextFace
 	faceMode  *textv2.GoTextFace
@@ -117,6 +118,7 @@ func (s *TimerScreen) Update() {
 	if !s.initialized {
 		return
 	}
+
 	s.updateStartButton()
 	s.BtnClose.Update()
 	s.BtnMini.Update()
@@ -193,6 +195,7 @@ func (s *TimerScreen) Draw(screen *ebiten.Image) {
 	// Ring progress
 	progress := s.Timer.Progress(now)
 	accentClr := s.accentForState(state)
+
 	if progress > 0 {
 		startAngle := -math.Pi / 2
 		endAngle := startAngle + progress*2*math.Pi
@@ -210,10 +213,12 @@ func (s *TimerScreen) Draw(screen *ebiten.Image) {
 	if state == timer.StateIdle {
 		displayState = s.Timer.PendingNext()
 	}
+
 	modeText := displayState.String()
 	if state == timer.StatePaused {
 		modeText = "Paused"
 	}
+
 	if s.faceMode != nil {
 		DrawTextCentered(screen, modeText, s.faceMode,
 			float64(ringCX), float64(ringCY)-float64(outerR)*0.38, accentClr)
@@ -224,6 +229,7 @@ func (s *TimerScreen) Draw(screen *ebiten.Image) {
 	if rem < 0 {
 		rem = 0
 	}
+
 	totalSecs := int(rem.Seconds())
 	mins := totalSecs / 60
 	secs := totalSecs % 60
@@ -239,7 +245,9 @@ func (s *TimerScreen) Draw(screen *ebiten.Image) {
 	// --- Hint below ring ---
 	if state == timer.StateIdle {
 		pending := s.Timer.PendingNext()
+
 		var hintText string
+
 		switch pending {
 		case timer.StateBreak:
 			hintText = "Time for a break"
@@ -248,6 +256,7 @@ func (s *TimerScreen) Draw(screen *ebiten.Image) {
 		default:
 			hintText = "Ready to focus"
 		}
+
 		if s.faceSmall != nil {
 			DrawTextCentered(screen, hintText, s.faceSmall,
 				float64(ringCX), float64(ringCY)+float64(outerR)+Sf(18), ColorTextSecond)
@@ -269,6 +278,7 @@ func (s *TimerScreen) drawRoundDots(screen *ebiten.Image, cx, cy float32, total,
 	if total <= 0 {
 		return
 	}
+
 	dotR := S(4)
 	gap := S(12)
 	totalW := float32(total)*dotR*2 + float32(total-1)*gap

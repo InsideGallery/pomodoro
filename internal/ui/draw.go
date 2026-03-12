@@ -13,10 +13,12 @@ func DrawRoundedRect(dst *ebiten.Image, x, y, w, h, radius float32, clr color.Co
 	if w <= 0 || h <= 0 {
 		return
 	}
+
 	var p vector.Path
 	roundedRectPath(&p, x, y, w, h, radius)
 
 	vs, is := p.AppendVerticesAndIndicesForFilling(nil, nil)
+
 	r, g, b, a := colorToFloat32(clr)
 	for i := range vs {
 		vs[i].ColorR = r
@@ -24,6 +26,7 @@ func DrawRoundedRect(dst *ebiten.Image, x, y, w, h, radius float32, clr color.Co
 		vs[i].ColorB = b
 		vs[i].ColorA = a
 	}
+
 	dst.DrawTriangles(vs, is, whitePixel(), &ebiten.DrawTrianglesOptions{
 		AntiAlias: true,
 	})
@@ -34,6 +37,7 @@ func DrawRoundedRectStroke(dst *ebiten.Image, x, y, w, h, radius, strokeWidth fl
 	if w <= 0 || h <= 0 {
 		return
 	}
+
 	var p vector.Path
 	roundedRectPath(&p, x, y, w, h, radius)
 
@@ -42,6 +46,7 @@ func DrawRoundedRectStroke(dst *ebiten.Image, x, y, w, h, radius, strokeWidth fl
 		LineJoin: vector.LineJoinRound,
 	}
 	vs, is := p.AppendVerticesAndIndicesForStroke(nil, nil, so)
+
 	r, g, b, a := colorToFloat32(clr)
 	for i := range vs {
 		vs[i].ColorR = r
@@ -49,6 +54,7 @@ func DrawRoundedRectStroke(dst *ebiten.Image, x, y, w, h, radius, strokeWidth fl
 		vs[i].ColorB = b
 		vs[i].ColorA = a
 	}
+
 	dst.DrawTriangles(vs, is, whitePixel(), &ebiten.DrawTrianglesOptions{
 		AntiAlias: true,
 	})
@@ -104,7 +110,9 @@ func DrawArc(dst *ebiten.Image, cx, cy, outerR, innerR float32, startAngle, endA
 }
 
 // DrawGradientArc draws an arc with color gradient from startClr to endClr.
-func DrawGradientArc(dst *ebiten.Image, cx, cy, outerR, innerR float32, startAngle, endAngle float64, startClr, endClr color.Color) {
+func DrawGradientArc(dst *ebiten.Image, cx, cy, outerR, innerR float32,
+	startAngle, endAngle float64, startClr, endClr color.Color,
+) {
 	if endAngle <= startAngle {
 		return
 	}
@@ -185,11 +193,14 @@ func DrawSettingsIcon(dst *ebiten.Image, cx, cy, size float32, clr color.Color) 
 func DrawMinimizeIcon(dst *ebiten.Image, cx, cy, size float32, clr color.Color) {
 	half := size * 0.4
 	sw := size * 0.12
+
 	var p vector.Path
 	p.MoveTo(cx-half, cy)
 	p.LineTo(cx+half, cy)
+
 	so := &vector.StrokeOptions{Width: sw, LineCap: vector.LineCapRound}
 	vs, is := p.AppendVerticesAndIndicesForStroke(nil, nil, so)
+
 	r, g, b, a := colorToFloat32(clr)
 	for i := range vs {
 		vs[i].ColorR = r
@@ -197,6 +208,7 @@ func DrawMinimizeIcon(dst *ebiten.Image, cx, cy, size float32, clr color.Color) 
 		vs[i].ColorB = b
 		vs[i].ColorA = a
 	}
+
 	dst.DrawTriangles(vs, is, whitePixel(), &ebiten.DrawTrianglesOptions{AntiAlias: true})
 }
 
@@ -215,6 +227,7 @@ func DrawExpandIcon(dst *ebiten.Image, cx, cy, size float32, clr color.Color) {
 
 	so := &vector.StrokeOptions{Width: sw, LineJoin: vector.LineJoinRound}
 	vs, is := p.AppendVerticesAndIndicesForStroke(nil, nil, so)
+
 	r, g, b, a := colorToFloat32(clr)
 	for i := range vs {
 		vs[i].ColorR = r
@@ -222,10 +235,12 @@ func DrawExpandIcon(dst *ebiten.Image, cx, cy, size float32, clr color.Color) {
 		vs[i].ColorB = b
 		vs[i].ColorA = a
 	}
+
 	dst.DrawTriangles(vs, is, whitePixel(), &ebiten.DrawTrianglesOptions{AntiAlias: true})
 
 	// Diagonal arrow (bottom-left to top-right)
 	var p2 vector.Path
+
 	ar := half * 0.5
 	p2.MoveTo(cx-ar, cy+ar)
 	p2.LineTo(cx+ar, cy-ar)
@@ -236,6 +251,7 @@ func DrawExpandIcon(dst *ebiten.Image, cx, cy, size float32, clr color.Color) {
 	p2.LineTo(cx+ar, cy-ar+half*0.35)
 
 	so2 := &vector.StrokeOptions{Width: sw, LineCap: vector.LineCapRound}
+
 	vs2, is2 := p2.AppendVerticesAndIndicesForStroke(nil, nil, so2)
 	for i := range vs2 {
 		vs2[i].ColorR = r
@@ -243,7 +259,42 @@ func DrawExpandIcon(dst *ebiten.Image, cx, cy, size float32, clr color.Color) {
 		vs2[i].ColorB = b
 		vs2[i].ColorA = a
 	}
+
 	dst.DrawTriangles(vs2, is2, whitePixel(), &ebiten.DrawTrianglesOptions{AntiAlias: true})
+}
+
+// DrawPlayIcon draws a play triangle (pointing right).
+func DrawPlayIcon(dst *ebiten.Image, cx, cy, size float32, clr color.Color) {
+	half := size * 0.4
+
+	var p vector.Path
+
+	p.MoveTo(cx-half*0.6, cy-half)
+	p.LineTo(cx+half, cy)
+	p.LineTo(cx-half*0.6, cy+half)
+	p.Close()
+
+	vs, is := p.AppendVerticesAndIndicesForFilling(nil, nil)
+
+	r, g, b, a := colorToFloat32(clr)
+	for i := range vs {
+		vs[i].ColorR = r
+		vs[i].ColorG = g
+		vs[i].ColorB = b
+		vs[i].ColorA = a
+	}
+
+	dst.DrawTriangles(vs, is, whitePixel(), &ebiten.DrawTrianglesOptions{AntiAlias: true})
+}
+
+// DrawPauseIcon draws two vertical bars.
+func DrawPauseIcon(dst *ebiten.Image, cx, cy, size float32, clr color.Color) {
+	barW := size * 0.2
+	barH := size * 0.7
+	gap := size * 0.15
+
+	DrawRoundedRect(dst, cx-gap-barW, cy-barH/2, barW, barH, barW/4, clr)
+	DrawRoundedRect(dst, cx+gap, cy-barH/2, barW, barH, barW/4, clr)
 }
 
 // DrawBackIcon draws a left-arrow back icon.
@@ -263,6 +314,7 @@ func DrawBackIcon(dst *ebiten.Image, cx, cy, size float32, clr color.Color) {
 		LineCap:  vector.LineCapRound,
 	}
 	vs, is := p.AppendVerticesAndIndicesForStroke(nil, nil, so)
+
 	r, g, b, a := colorToFloat32(clr)
 	for i := range vs {
 		vs[i].ColorR = r
@@ -270,6 +322,7 @@ func DrawBackIcon(dst *ebiten.Image, cx, cy, size float32, clr color.Color) {
 		vs[i].ColorB = b
 		vs[i].ColorA = a
 	}
+
 	dst.DrawTriangles(vs, is, whitePixel(), &ebiten.DrawTrianglesOptions{
 		AntiAlias: true,
 	})
@@ -292,6 +345,7 @@ func DrawCloseIcon(dst *ebiten.Image, cx, cy, size float32, clr color.Color) {
 		LineCap:  vector.LineCapRound,
 	}
 	vs, is := p.AppendVerticesAndIndicesForStroke(nil, nil, so)
+
 	r, g, b, a := colorToFloat32(clr)
 	for i := range vs {
 		vs[i].ColorR = r
@@ -299,6 +353,7 @@ func DrawCloseIcon(dst *ebiten.Image, cx, cy, size float32, clr color.Color) {
 		vs[i].ColorB = b
 		vs[i].ColorA = a
 	}
+
 	dst.DrawTriangles(vs, is, whitePixel(), &ebiten.DrawTrianglesOptions{
 		AntiAlias: true,
 	})
@@ -308,9 +363,11 @@ func roundedRectPath(p *vector.Path, x, y, w, h, r float32) {
 	if r > w/2 {
 		r = w / 2
 	}
+
 	if r > h/2 {
 		r = h / 2
 	}
+
 	p.MoveTo(x+r, y)
 	p.LineTo(x+w-r, y)
 	p.ArcTo(x+w, y, x+w, y+r, r)
@@ -330,6 +387,7 @@ func whitePixel() *ebiten.Image {
 		whiteImg = ebiten.NewImage(3, 3)
 		whiteImg.Fill(color.White)
 	}
+
 	return whiteImg
 }
 
@@ -338,9 +396,11 @@ func colorToFloat32(clr color.Color) (r, g, b, a float32) {
 	if ca == 0 {
 		return 0, 0, 0, 0
 	}
+
 	a = float32(ca) / 0xFFFF
 	r = float32(cr) / 0xFFFF * a
 	g = float32(cg) / 0xFFFF * a
 	b = float32(cb) / 0xFFFF * a
+
 	return
 }

@@ -5,19 +5,20 @@ import (
 	"io"
 	"sync"
 
-	"github.com/InsideGallery/pomodoro/assets"
 	"github.com/hajimehoshi/ebiten/v2/audio"
 	"github.com/hajimehoshi/ebiten/v2/audio/mp3"
+
+	"github.com/InsideGallery/pomodoro/assets"
 )
 
 const sampleRate = 48000
 
 type Manager struct {
-	mu      sync.Mutex
-	ctx     *audio.Context
-	tick    *audio.Player
-	alarm   *audio.Player
-	tickBuf []byte
+	mu       sync.Mutex
+	ctx      *audio.Context
+	tick     *audio.Player
+	alarm    *audio.Player
+	tickBuf  []byte
 	alarmBuf []byte
 
 	tickVolume  float64
@@ -32,6 +33,7 @@ func NewManager() (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	tickBuf, err := io.ReadAll(tickStream)
 	if err != nil {
 		return nil, err
@@ -41,6 +43,7 @@ func NewManager() (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	alarmBuf, err := io.ReadAll(alarmStream)
 	if err != nil {
 		return nil, err
@@ -145,27 +148,32 @@ func (m *Manager) SetTickEnabled(enabled bool) {
 func (m *Manager) TickVolume() float64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	return m.tickVolume
 }
 
 func (m *Manager) AlarmVolume() float64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	return m.alarmVolume
 }
 
 func (m *Manager) TickEnabled() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	return m.tickEnabled
 }
 
-func clamp(v, min, max float64) float64 {
-	if v < min {
-		return min
+func clamp(v, lo, hi float64) float64 {
+	if v < lo {
+		return lo
 	}
-	if v > max {
-		return max
+
+	if v > hi {
+		return hi
 	}
+
 	return v
 }

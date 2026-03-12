@@ -1,0 +1,137 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libgl1-mesa-dev libxcursor-dev libxrandr-dev \
+            libxinerama-dev libxi-dev libasound2-dev libayatana-appindicator3-dev libxxf86vm-dev
+      - name: golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.4.0
+          golangci-lint run -v ./...
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libgl1-mesa-dev libxcursor-dev libxrandr-dev \
+            libxinerama-dev libxi-dev libasound2-dev libayatana-appindicator3-dev libxxf86vm-dev
+      - name: Install coverage tools
+        run: |
+          go install github.com/boumenot/gocover-cobertura@latest
+          go install github.com/vladopajic/go-test-coverage/v2@latest
+      - name: Test with coverage
+        run: |
+          GOMAXPROCS=$(nproc) go test -coverprofile=coverage.out -cover -race -p $(nproc) -parallel=$(nproc) ./...
+          go-test-coverage --config=./.testcoverage.yml
+          gocover-cobertura < coverage.out > coverage.xml
+      - name: Bench
+        run: go test -bench=. -run="^$$" ./...
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.xml
+
+  build-linux:
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libgl1-mesa-dev libxcursor-dev libxrandr-dev \
+            libxinerama-dev libxi-dev libasound2-dev libayatana-appindicator3-dev libxxf86vm-dev
+      - name: Build AppImage
+        run: make appimage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pomodoro-linux-x86_64.AppImage
+          path: build/*.AppImage
+
+  build-windows:
+    needs: [lint, test]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: Build
+        shell: bash
+        run: |
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+          go build -ldflags "-s -w -H windowsgui -X main.version=$VERSION" -o build/pomodoro.exe ./cmd/pomodoro/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pomodoro-windows-x86_64.exe
+          path: build/pomodoro.exe
+
+  build-macos:
+    needs: [lint, test]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: Build
+        run: |
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+          CGO_ENABLED=1 go build -ldflags "-s -w -X main.version=$VERSION" -o build/pomodoro ./cmd/pomodoro/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pomodoro-macos-arm64
+          path: build/pomodoro
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true
