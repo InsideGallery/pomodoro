@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libgl1-mesa-dev libxcursor-dev libxrandr-dev \
+            libxinerama-dev libxi-dev libasound2-dev libayatana-appindicator3-dev libxxf86vm-dev
+      - name: golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.4.0
+          golangci-lint run -v ./...
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libgl1-mesa-dev libxcursor-dev libxrandr-dev \
+            libxinerama-dev libxi-dev libasound2-dev libayatana-appindicator3-dev libxxf86vm-dev
+      - name: Install coverage tools
+        run: |
+          go install github.com/boumenot/gocover-cobertura@latest
+          go install github.com/vladopajic/go-test-coverage/v2@latest
+      - name: Test with coverage
+        run: |
+          GOMAXPROCS=$(nproc) go test -coverprofile=coverage.out -cover -race -p $(nproc) -parallel=$(nproc) ./...
+          go-test-coverage --config=./.testcoverage.yml
+          gocover-cobertura < coverage.out > coverage.xml
+      - name: Bench
+        run: go test -bench=. -run="^$$" ./...
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.xml
