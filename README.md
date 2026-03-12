@@ -1,21 +1,46 @@
 # Pomodoro
 
-A minimal, distraction-free Pomodoro timer built with Go and [Ebiten](https://ebitengine.org/).
+A beautiful, distraction-free Pomodoro timer that stays out of your way and helps you stay in the zone.
 
-Single binary, no runtime dependencies, transparent borderless window with system tray integration.
+Built with Go and [Ebiten](https://ebitengine.org/). Single binary, no runtime dependencies — just download and focus.
 
 ![icon](packaging/pomodoro.png)
+
+## Screenshots
+
+| Dark Theme | Light Theme | Settings |
+|:---:|:---:|:---:|
+| ![Dark timer](assets/screenshots/Screenshot%20from%202026-03-12%2017-51-06.png) | ![Light timer](assets/screenshots/Screenshot%20from%202026-03-12%2017-51-29.png) | ![Dark settings](assets/screenshots/Screenshot%20from%202026-03-12%2017-51-11.png) |
+
+| Mini Mode | Light Settings |
+|:---:|:---:|
+| ![Mini mode](assets/screenshots/Screenshot%20from%202026-03-12%2017-51-01.png) | ![Light settings](assets/screenshots/Screenshot%20from%202026-03-12%2017-51-25.png) |
+
+## Why Pomodoro?
+
+Most timer apps are either bloated Electron wrappers or ugly CLI tools. This one is different.
+
+**It's gorgeous.** A smooth progress ring, clean typography, and a transparent borderless window that floats on your desktop like it belongs there. Switch between dark and light themes, dial in the transparency — make it yours.
+
+**It sounds right.** A gentle tick keeps you aware that time is moving without breaking your concentration. When the session ends, an alarm brings you back. Both sounds have independent volume controls — or turn them off entirely if you prefer silence.
+
+**It disappears when you don't need it.** Shrink to **mini mode** — a tiny floating counter in the corner of your screen that shows the remaining time without stealing focus. Or close the window entirely and let the **system tray** icon keep working in the background. Click to restore anytime.
+
+**It just works.** One binary, zero dependencies. No accounts, no subscriptions, no telemetry. Your settings are a plain JSON file. It starts instantly and uses barely any resources.
 
 ## Features
 
 - **Focus / Break / Long Break** cycle with configurable durations
 - **Dark and Light themes** with adjustable window transparency
-- **System tray** — close to tray, restore on click
-- **Mini mode** — compact floating timer
-- **HiDPI support** — crisp rendering on high-density displays
-- **Audio** — tick sound during focus, alarm on completion (adjustable volume)
+- **Tick sound** during focus sessions — stay aware of time passing without looking at the screen
+- **Alarm sound** on session completion — never miss a break or overshoot a focus block
+- **Independent volume controls** for tick and alarm — fine-tune or mute each one separately
+- **Mini mode** — a compact floating timer that stays out of your way
+- **System tray** — close to tray, restore on click, keeps running in the background
+- **HiDPI support** — crisp vector rendering on high-density displays
 - **Keyboard shortcuts** — Space (start/pause), R (reset), S (settings), Escape (back)
 - **AppImage** packaging for Linux
+- **Cross-platform** — builds for Linux, macOS, and Windows
 
 ## Install
 
