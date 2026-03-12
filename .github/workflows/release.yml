@@ -44,9 +44,26 @@ jobs:
       - name: Setup arm64 cross-compilation
         run: |
           sudo dpkg --add-architecture arm64
-          sudo sed -i 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list.d/*.list
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ $(lsb_release -cs) main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ $(lsb_release -cs)-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
+
+          # Restrict existing DEB822 sources to amd64 only
+          if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+            if grep -q '^Architectures:' /etc/apt/sources.list.d/ubuntu.sources; then
+              sudo sed -i 's/^Architectures: .*/Architectures: amd64/' /etc/apt/sources.list.d/ubuntu.sources
+            else
+              sudo sed -i '/^Types:/a Architectures: amd64' /etc/apt/sources.list.d/ubuntu.sources
+            fi
+          fi
+
+          # Add arm64 ports as a separate source
+          CODENAME=$(lsb_release -cs)
+          cat <<SOURCES | sudo tee /etc/apt/sources.list.d/arm64-ports.sources
+          Types: deb
+          URIs: http://ports.ubuntu.com/
+          Suites: ${CODENAME} ${CODENAME}-updates
+          Components: main restricted universe multiverse
+          Architectures: arm64
+          SOURCES
+
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
             libx11-dev:arm64 libgl1-mesa-dev:arm64 libxcursor-dev:arm64 libxrandr-dev:arm64 \
