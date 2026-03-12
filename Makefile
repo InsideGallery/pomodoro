@@ -54,6 +54,7 @@ install: build
 	install -Dm755 $(BINARY) /usr/local/bin/$(APP_NAME)
 	install -Dm644 packaging/pomodoro.desktop /usr/local/share/applications/$(APP_NAME).desktop
 	install -Dm644 packaging/pomodoro.png /usr/local/share/icons/hicolor/256x256/apps/$(APP_NAME).png
+	install -Dm644 packaging/io.github.InsideGallery.Pomodoro.metainfo.xml /usr/local/share/metainfo/io.github.InsideGallery.Pomodoro.metainfo.xml
 
 ## Clean build artifacts
 clean:

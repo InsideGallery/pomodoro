@@ -2,6 +2,7 @@ package platform
 
 /*
 #cgo linux pkg-config: x11
+#include <stdlib.h>
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
 #include <string.h>
@@ -87,33 +88,57 @@ static void x11_show(unsigned long wid) {
     XFlush(dpy);
     XCloseDisplay(dpy);
 }
+
+static unsigned long x11_find_window(const char *title) {
+    Display *dpy = XOpenDisplay(NULL);
+    if (!dpy) return 0;
+
+    Window root = DefaultRootWindow(dpy);
+    Atom netClientList = XInternAtom(dpy, "_NET_CLIENT_LIST", False);
+    Atom netWmName = XInternAtom(dpy, "_NET_WM_NAME", False);
+    Atom utf8String = XInternAtom(dpy, "UTF8_STRING", False);
+
+    Atom actualType;
+    int actualFormat;
+    unsigned long nItems, bytesAfter;
+    unsigned char *data = NULL;
+    unsigned long result = 0;
+
+    if (XGetWindowProperty(dpy, root, netClientList, 0, 1024, False,
+            XA_WINDOW, &actualType, &actualFormat, &nItems, &bytesAfter, &data) == Success && data) {
+        Window *windows = (Window *)data;
+        for (unsigned long i = 0; i < nItems; i++) {
+            unsigned char *name = NULL;
+            Atom nameType;
+            int nameFormat;
+            unsigned long nameItems, nameBytesAfter;
+
+            if (XGetWindowProperty(dpy, windows[i], netWmName, 0, 256, False,
+                    utf8String, &nameType, &nameFormat, &nameItems, &nameBytesAfter, &name) == Success && name) {
+                if (strstr((char *)name, title) != NULL) {
+                    result = (unsigned long)windows[i];
+                    XFree(name);
+                    break;
+                }
+                XFree(name);
+            }
+        }
+        XFree(data);
+    }
+
+    XCloseDisplay(dpy);
+    return result;
+}
 */
 import "C"
 
-import (
-	"fmt"
-	"os/exec"
-	"strings"
-)
+import "unsafe"
 
-// FindWindowID finds the X11 window ID by title using wmctrl.
+// FindWindowID finds the X11 window ID by title using _NET_CLIENT_LIST.
 func FindWindowID(title string) uint64 {
-	out, err := exec.Command("wmctrl", "-l").Output()
-	if err != nil {
-		return 0
-	}
-	for _, line := range strings.Split(string(out), "\n") {
-		if strings.Contains(line, title) {
-			fields := strings.Fields(line)
-			if len(fields) >= 1 {
-				var wid uint64
-				if _, err := fmt.Sscanf(fields[0], "0x%x", &wid); err == nil {
-					return wid
-				}
-			}
-		}
-	}
-	return 0
+	cs := C.CString(title)
+	defer C.free(unsafe.Pointer(cs))
+	return uint64(C.x11_find_window(cs))
 }
 
 var savedWID uint64

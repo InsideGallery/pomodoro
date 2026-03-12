@@ -1,0 +1,170 @@
+[
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/davecgh/go-spew/@v/v1.1.0.zip",
+    "dest": "vendor-dl/github.com/davecgh/go-spew/@v/",
+    "dest-filename": "v1.1.0.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/ebitengine/gomobile/@v/v0.0.0-20250923094054-ea854a63cce1.zip",
+    "dest": "vendor-dl/github.com/ebitengine/gomobile/@v/",
+    "dest-filename": "v0.0.0-20250923094054-ea854a63cce1.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/ebitengine/hideconsole/@v/v1.0.0.zip",
+    "dest": "vendor-dl/github.com/ebitengine/hideconsole/@v/",
+    "dest-filename": "v1.0.0.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/ebitengine/oto/v3/@v/v3.4.0.zip",
+    "dest": "vendor-dl/github.com/ebitengine/oto/v3/@v/",
+    "dest-filename": "v3.4.0.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/ebitengine/purego/@v/v0.9.0.zip",
+    "dest": "vendor-dl/github.com/ebitengine/purego/@v/",
+    "dest-filename": "v0.9.0.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/getlantern/context/@v/v0.0.0-20190109183933-c447772a6520.zip",
+    "dest": "vendor-dl/github.com/getlantern/context/@v/",
+    "dest-filename": "v0.0.0-20190109183933-c447772a6520.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/getlantern/errors/@v/v0.0.0-20190325191628-abdb3e3e36f7.zip",
+    "dest": "vendor-dl/github.com/getlantern/errors/@v/",
+    "dest-filename": "v0.0.0-20190325191628-abdb3e3e36f7.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/getlantern/golog/@v/v0.0.0-20190830074920-4ef2e798c2d7.zip",
+    "dest": "vendor-dl/github.com/getlantern/golog/@v/",
+    "dest-filename": "v0.0.0-20190830074920-4ef2e798c2d7.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/getlantern/hex/@v/v0.0.0-20190417191902-c6586a6fe0b7.zip",
+    "dest": "vendor-dl/github.com/getlantern/hex/@v/",
+    "dest-filename": "v0.0.0-20190417191902-c6586a6fe0b7.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/getlantern/hidden/@v/v0.0.0-20190325191715-f02dbb02be55.zip",
+    "dest": "vendor-dl/github.com/getlantern/hidden/@v/",
+    "dest-filename": "v0.0.0-20190325191715-f02dbb02be55.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/getlantern/ops/@v/v0.0.0-20190325191751-d70cb0d6f85f.zip",
+    "dest": "vendor-dl/github.com/getlantern/ops/@v/",
+    "dest-filename": "v0.0.0-20190325191751-d70cb0d6f85f.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/getlantern/systray/@v/v1.2.2.zip",
+    "dest": "vendor-dl/github.com/getlantern/systray/@v/",
+    "dest-filename": "v1.2.2.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/go-stack/stack/@v/v1.8.0.zip",
+    "dest": "vendor-dl/github.com/go-stack/stack/@v/",
+    "dest-filename": "v1.8.0.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/go-text/typesetting/@v/v0.3.0.zip",
+    "dest": "vendor-dl/github.com/go-text/typesetting/@v/",
+    "dest-filename": "v0.3.0.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/go-text/typesetting-utils/@v/v0.0.0-20241103174707-87a29e9e6066.zip",
+    "dest": "vendor-dl/github.com/go-text/typesetting-utils/@v/",
+    "dest-filename": "v0.0.0-20241103174707-87a29e9e6066.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/hajimehoshi/bitmapfont/v4/@v/v4.1.0.zip",
+    "dest": "vendor-dl/github.com/hajimehoshi/bitmapfont/v4/@v/",
+    "dest-filename": "v4.1.0.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/hajimehoshi/ebiten/v2/@v/v2.9.9.zip",
+    "dest": "vendor-dl/github.com/hajimehoshi/ebiten/v2/@v/",
+    "dest-filename": "v2.9.9.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/hajimehoshi/go-mp3/@v/v0.3.4.zip",
+    "dest": "vendor-dl/github.com/hajimehoshi/go-mp3/@v/",
+    "dest-filename": "v0.3.4.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/jezek/xgb/@v/v1.1.1.zip",
+    "dest": "vendor-dl/github.com/jezek/xgb/@v/",
+    "dest-filename": "v1.1.1.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/oxtoacart/bpool/@v/v0.0.0-20190530202638-03653db5a59c.zip",
+    "dest": "vendor-dl/github.com/oxtoacart/bpool/@v/",
+    "dest-filename": "v0.0.0-20190530202638-03653db5a59c.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/pierrec/lz4/v4/@v/v4.1.22.zip",
+    "dest": "vendor-dl/github.com/pierrec/lz4/v4/@v/",
+    "dest-filename": "v4.1.22.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/pmezard/go-difflib/@v/v1.0.0.zip",
+    "dest": "vendor-dl/github.com/pmezard/go-difflib/@v/",
+    "dest-filename": "v1.0.0.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/rivo/uniseg/@v/v0.4.7.zip",
+    "dest": "vendor-dl/github.com/rivo/uniseg/@v/",
+    "dest-filename": "v0.4.7.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/stretchr/testify/@v/v1.3.0.zip",
+    "dest": "vendor-dl/github.com/stretchr/testify/@v/",
+    "dest-filename": "v1.3.0.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/golang.org/x/image/@v/v0.31.0.zip",
+    "dest": "vendor-dl/golang.org/x/image/@v/",
+    "dest-filename": "v0.31.0.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/golang.org/x/sync/@v/v0.17.0.zip",
+    "dest": "vendor-dl/golang.org/x/sync/@v/",
+    "dest-filename": "v0.17.0.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/golang.org/x/sys/@v/v0.36.0.zip",
+    "dest": "vendor-dl/golang.org/x/sys/@v/",
+    "dest-filename": "v0.36.0.zip"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/golang.org/x/text/@v/v0.29.0.zip",
+    "dest": "vendor-dl/golang.org/x/text/@v/",
+    "dest-filename": "v0.29.0.zip"
+  }
+]
