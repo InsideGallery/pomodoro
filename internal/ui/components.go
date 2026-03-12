@@ -108,23 +108,43 @@ type Slider struct {
 	OnChange    func(float64)
 	FormatValue func(float64) string // custom value formatter
 
-	dragging bool
+	dragging   bool
+	dragStartX float32 // cursor X when drag started
+	dragMoved  bool    // true once cursor moved past threshold
 }
 
 func (s *Slider) Update() {
 	mx, my := ebiten.CursorPosition()
 
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		if s.hitTrack(mx, my) {
+		if s.hitKnob(mx, my) {
+			// Clicking the knob starts dragging immediately
 			s.dragging = true
+			s.dragMoved = true
+			s.dragStartX = float32(mx)
+		} else if s.hitTrack(mx, my) {
+			// Clicking the track requires movement before changing value
+			s.dragging = true
+			s.dragMoved = false
+			s.dragStartX = float32(mx)
 		}
 	}
 
 	if !ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		s.dragging = false
+		s.dragMoved = false
 	}
 
 	if s.dragging {
+		// Require cursor to move at least 3px before snapping value
+		if !s.dragMoved {
+			if abs32(float32(mx)-s.dragStartX) < 3 {
+				return
+			}
+
+			s.dragMoved = true
+		}
+
 		t := float64(float32(mx)-s.X) / float64(s.W)
 		if t < 0 {
 			t = 0
@@ -142,6 +162,30 @@ func (s *Slider) Update() {
 			}
 		}
 	}
+}
+
+func (s *Slider) hitKnob(mx, my int) bool {
+	t := float32(0)
+	if s.Max > s.Min {
+		t = float32((s.Value - s.Min) / (s.Max - s.Min))
+	}
+
+	knobX := s.X + s.W*t
+	knobY := s.Y + s.H/2
+	knobR := s.H * 0.3
+
+	dx := float32(mx) - knobX
+	dy := float32(my) - knobY
+
+	return dx*dx+dy*dy <= (knobR+S(4))*(knobR+S(4))
+}
+
+func abs32(v float32) float32 {
+	if v < 0 {
+		return -v
+	}
+
+	return v
 }
 
 func (s *Slider) Draw(dst *ebiten.Image) {

@@ -15,11 +15,21 @@ const (
 var (
 	ActionCh = make(chan Action, 4)
 	icon     []byte
+	ready    bool
 )
 
-// SetIcon sets the tray icon data (PNG bytes).
+// SetIcon sets the tray icon data (PNG bytes) before Run.
 func SetIcon(data []byte) {
 	icon = data
+}
+
+// UpdateIcon changes the tray icon at runtime.
+func UpdateIcon(data []byte) {
+	icon = data
+
+	if ready {
+		systray.SetIcon(data)
+	}
 }
 
 // Run starts the systray. Call from a goroutine — it blocks.
@@ -33,6 +43,8 @@ func Quit() {
 }
 
 func onReady() {
+	ready = true
+
 	if len(icon) > 0 {
 		systray.SetIcon(icon)
 	}

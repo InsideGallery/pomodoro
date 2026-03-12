@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"image"
+	"image/color"
 	"image/png"
 	"log"
 
@@ -15,7 +16,7 @@ import (
 
 func main() {
 	// Start system tray in background
-	tray.SetIcon(tray.GenerateIcon(32))
+	tray.SetIcon(tray.GenerateIcon(32, color.RGBA{R: 0x8B, G: 0x8B, B: 0x9E, A: 0xFF}))
 
 	go tray.Run()
 

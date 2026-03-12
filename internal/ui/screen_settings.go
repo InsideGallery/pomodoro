@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"image"
 	"math"
-	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -110,36 +109,36 @@ func (s *SettingsScreen) layout() {
 
 	s.FocusSlider = Slider{
 		X: sliderX, Y: y, W: sliderW, H: sliderH,
-		Min: 1, Max: 60, Value: float64(s.Cfg.FocusDuration / time.Minute),
+		Min: 1, Max: 60, Value: float64(s.Cfg.FocusMinutes),
 		TrackColor: ColorSliderTrack, KnobColor: ColorAccentFocus,
 		Label: "Focus Duration", Face: s.faceLabel, TextColor: ColorTextSecond,
 		FormatValue: minFmt,
 		OnChange: func(v float64) {
-			s.Cfg.FocusDuration = time.Duration(math.Round(v)) * time.Minute
+			s.Cfg.FocusMinutes = int(math.Round(v))
 			s.save()
 		},
 	}
 	y += rowH
 	s.BreakSlider = Slider{
 		X: sliderX, Y: y, W: sliderW, H: sliderH,
-		Min: 1, Max: 30, Value: float64(s.Cfg.BreakDuration / time.Minute),
+		Min: 1, Max: 30, Value: float64(s.Cfg.BreakMinutes),
 		TrackColor: ColorSliderTrack, KnobColor: ColorAccentBreak,
 		Label: "Short Break", Face: s.faceLabel, TextColor: ColorTextSecond,
 		FormatValue: minFmt,
 		OnChange: func(v float64) {
-			s.Cfg.BreakDuration = time.Duration(math.Round(v)) * time.Minute
+			s.Cfg.BreakMinutes = int(math.Round(v))
 			s.save()
 		},
 	}
 	y += rowH
 	s.LongBreakSlider = Slider{
 		X: sliderX, Y: y, W: sliderW, H: sliderH,
-		Min: 1, Max: 60, Value: float64(s.Cfg.LongBreakDuration / time.Minute),
+		Min: 1, Max: 60, Value: float64(s.Cfg.LongBreakMinutes),
 		TrackColor: ColorSliderTrack, KnobColor: ColorGradBreakEnd,
 		Label: "Long Break", Face: s.faceLabel, TextColor: ColorTextSecond,
 		FormatValue: minFmt,
 		OnChange: func(v float64) {
-			s.Cfg.LongBreakDuration = time.Duration(math.Round(v)) * time.Minute
+			s.Cfg.LongBreakMinutes = int(math.Round(v))
 			s.save()
 		},
 	}

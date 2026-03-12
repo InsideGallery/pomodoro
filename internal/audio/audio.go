@@ -24,6 +24,7 @@ type Manager struct {
 	tickVolume  float64
 	alarmVolume float64
 	tickEnabled bool
+	tickStopped bool
 }
 
 func NewManager() (*Manager, error) {
@@ -67,6 +68,8 @@ func (m *Manager) PlayTick() {
 		return
 	}
 
+	m.tickStopped = false
+
 	if m.tick == nil {
 		m.tick = m.ctx.NewPlayerF32FromBytes(m.tickBuf)
 		m.tick.SetVolume(m.tickVolume)
@@ -82,8 +85,11 @@ func (m *Manager) StopTick() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.tick != nil && m.tick.IsPlaying() {
+	m.tickStopped = true
+
+	if m.tick != nil {
 		m.tick.Pause()
+		m.tick.SetPosition(0) //nolint:errcheck
 	}
 }
 
@@ -91,7 +97,7 @@ func (m *Manager) UpdateTick() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.tick == nil || !m.tickEnabled {
+	if m.tick == nil || !m.tickEnabled || m.tickStopped {
 		return
 	}
 

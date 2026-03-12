@@ -2,7 +2,7 @@ package app
 
 import (
 	"fmt"
-	"log"
+	"image/color"
 	"math"
 	"os"
 	"time"
@@ -55,6 +55,9 @@ type Game struct {
 	// Hidden to tray state
 	hidden bool
 
+	// Tray icon state tracking
+	lastTrayState timer.State
+
 	width, height         int
 	initialized           bool
 	pendingSettingsReinit bool
@@ -66,30 +69,33 @@ func New() *Game {
 	ui.ApplyTransparency(cfg.Transparency)
 
 	tmr := timer.New(timer.Config{
-		FocusDuration:     cfg.FocusDuration,
-		BreakDuration:     cfg.BreakDuration,
-		LongBreakDuration: cfg.LongBreakDuration,
+		FocusDuration:     cfg.FocusDuration(),
+		BreakDuration:     cfg.BreakDuration(),
+		LongBreakDuration: cfg.LongBreakDuration(),
 		RoundsBeforeLong:  cfg.RoundsBeforeLong,
 		AutoStart:         cfg.AutoStart,
 	})
 
+	// Restore persisted timer state
+	st := config.LoadState()
+	tmr.Restore(st.State, st.PrePause, st.PendingNext, st.Round, st.RemainingSec, time.Now())
+
 	g := &Game{
-		cfg:          cfg,
-		tmr:          tmr,
-		activeScreen: screenTimer,
-		width:        DefaultWindowWidth,
-		height:       DefaultWindowHeight,
+		cfg:           cfg,
+		tmr:           tmr,
+		activeScreen:  screenTimer,
+		width:         DefaultWindowWidth,
+		height:        DefaultWindowHeight,
+		lastTrayState: timer.StateIdle,
 	}
 
 	tmr.OnComplete = func(_ timer.State) {
 		if g.audio != nil {
-			g.audio.PlayAlarm()
 			g.audio.StopTick()
+			g.audio.PlayAlarm()
 		}
 
-		if g.tmr.State().IsRunning() {
-			g.startTick()
-		}
+		g.saveState()
 	}
 
 	return g
@@ -98,7 +104,6 @@ func New() *Game {
 func (g *Game) initAudio() {
 	am, err := audio.NewManager()
 	if err != nil {
-		log.Printf("audio init failed: %v", err)
 		return
 	}
 
@@ -116,6 +121,13 @@ func (g *Game) initScreens() {
 	g.timerScreen.OnSettings = func() { g.showSettings() }
 	g.timerScreen.OnClose = func() { g.hideToTray() }
 	g.timerScreen.OnMini = func() { g.enterMini() }
+	g.timerScreen.OnSetRound = func(r int) {
+		g.tmr.SetRound(r)
+		g.saveState()
+	}
+	g.timerScreen.OnAdjustTime = func(rem time.Duration) {
+		g.tmr.SetRemaining(rem, time.Now())
+	}
 	g.timerScreen.Init(g.width, g.height)
 
 	g.settingsScreen.Cfg = &g.cfg
@@ -182,11 +194,14 @@ func (g *Game) onStartPause() {
 		g.tmr.Pause(now)
 		g.stopTick()
 	}
+
+	g.saveState()
 }
 
 func (g *Game) onReset() {
 	g.tmr.Reset()
 	g.stopTick()
+	g.saveState()
 }
 
 func (g *Game) onSkip() {
@@ -197,6 +212,8 @@ func (g *Game) onSkip() {
 	} else {
 		g.stopTick()
 	}
+
+	g.saveState()
 }
 
 func (g *Game) startTick() {
@@ -219,9 +236,9 @@ func (g *Game) showSettings() {
 
 func (g *Game) applyConfig() {
 	g.tmr.SetConfig(timer.Config{
-		FocusDuration:     g.cfg.FocusDuration,
-		BreakDuration:     g.cfg.BreakDuration,
-		LongBreakDuration: g.cfg.LongBreakDuration,
+		FocusDuration:     g.cfg.FocusDuration(),
+		BreakDuration:     g.cfg.BreakDuration(),
+		LongBreakDuration: g.cfg.LongBreakDuration(),
 		RoundsBeforeLong:  g.cfg.RoundsBeforeLong,
 		AutoStart:         g.cfg.AutoStart,
 	})
@@ -298,11 +315,49 @@ func (g *Game) processTrayActions() {
 		case tray.ActionShow:
 			g.showFromTray()
 		case tray.ActionQuit:
+			g.saveState()
 			tray.Quit()
 			os.Exit(0)
 		}
 	default:
 	}
+}
+
+func (g *Game) updateTrayIcon() {
+	st := g.tmr.State()
+	if st == g.lastTrayState {
+		return
+	}
+
+	g.lastTrayState = st
+
+	var clr color.RGBA
+
+	switch st {
+	case timer.StateFocus:
+		clr = color.RGBA{R: 0x6C, G: 0x5C, B: 0xE7, A: 0xFF} // purple
+	case timer.StateBreak:
+		clr = color.RGBA{R: 0x00, G: 0xCE, B: 0xC9, A: 0xFF} // teal
+	case timer.StateLongBreak:
+		clr = color.RGBA{R: 0x81, G: 0xEC, B: 0xEC, A: 0xFF} // light teal
+	case timer.StatePaused:
+		clr = color.RGBA{R: 0xFF, G: 0xC1, B: 0x07, A: 0xFF} // yellow
+	default:
+		clr = color.RGBA{R: 0x8B, G: 0x8B, B: 0x9E, A: 0xFF} // gray
+	}
+
+	tray.UpdateIcon(tray.GenerateIcon(32, clr))
+}
+
+func (g *Game) saveState() {
+	state, prePause, pendingNext, round, remainingSec := g.tmr.Snapshot(time.Now())
+	_ = config.SaveState(config.TimerState{
+		Round:        round,
+		PendingNext:  pendingNext,
+		State:        state,
+		PrePause:     prePause,
+		RemainingSec: remainingSec,
+	})
 }
 
 func (g *Game) Update() error {
@@ -322,11 +377,13 @@ func (g *Game) Update() error {
 
 	// Handle window close → hide to tray
 	if ebiten.IsWindowBeingClosed() {
+		g.saveState()
 		g.hideToTray()
 	}
 
 	g.processTrayActions()
 	g.updateDrag()
+	g.updateTrayIcon()
 
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) && g.activeScreen == screenTimer {
 		g.onStartPause()
@@ -350,9 +407,16 @@ func (g *Game) Update() error {
 		}
 	}
 
+	prevState := g.tmr.State()
 	g.tmr.Update(time.Now())
+	curState := g.tmr.State()
 
-	if g.audio != nil && g.tmr.State().IsRunning() {
+	if g.audio != nil && curState.IsRunning() {
+		// State changed (e.g. auto-start after completion) — restart tick
+		if curState != prevState {
+			g.startTick()
+		}
+
 		g.audio.UpdateTick()
 	}
 

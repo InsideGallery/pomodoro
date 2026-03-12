@@ -76,6 +76,70 @@ func (t *Timer) Round() int         { return t.round }
 func (t *Timer) Config() Config     { return t.cfg }
 func (t *Timer) PendingNext() State { return t.pendingNext }
 func (t *Timer) SetConfig(c Config) { t.cfg = c }
+func (t *Timer) SetRound(r int)     { t.round = r }
+
+// SetRemaining adjusts the remaining time of a running or paused timer.
+func (t *Timer) SetRemaining(rem time.Duration, now time.Time) {
+	if rem < 0 {
+		rem = 0
+	}
+
+	switch t.state {
+	case StatePaused:
+		t.remaining = rem
+	case StateFocus, StateBreak, StateLongBreak:
+		t.startedAt = now.Add(rem - t.duration())
+	}
+}
+
+// Snapshot returns the current timer state for persistence.
+func (t *Timer) Snapshot(now time.Time) (state, prePause, pendingNext string, round int, remainingSec float64) {
+	state = t.state.String()
+	prePause = t.prePause.String()
+	pendingNext = t.pendingNext.String()
+	round = t.round
+	remainingSec = t.Remaining(now).Seconds()
+
+	return
+}
+
+// Restore loads timer state from persisted values.
+func (t *Timer) Restore(state, prePause, pendingNext string, round int, remainingSec float64, _ time.Time) {
+	t.round = round
+	t.pendingNext = parseState(pendingNext)
+	t.prePause = parseState(prePause)
+
+	// pendingNext must never be Idle — it's what Start() transitions to
+	if t.pendingNext == StateIdle {
+		t.pendingNext = StateFocus
+	}
+
+	s := parseState(state)
+
+	// Only restore idle/paused states — don't resume a running timer across restarts
+	switch s {
+	case StatePaused:
+		t.state = StatePaused
+		t.remaining = time.Duration(remainingSec * float64(time.Second))
+	default:
+		t.state = StateIdle
+	}
+}
+
+func parseState(s string) State {
+	switch s {
+	case "Focus":
+		return StateFocus
+	case "Break":
+		return StateBreak
+	case "Long Break":
+		return StateLongBreak
+	case "Paused":
+		return StatePaused
+	default:
+		return StateIdle
+	}
+}
 
 func (t *Timer) duration() time.Duration {
 	switch t.state {

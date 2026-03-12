@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	textv2 "github.com/hajimehoshi/ebiten/v2/text/v2"
 
 	"github.com/InsideGallery/pomodoro/internal/timer"
@@ -20,12 +21,14 @@ type TimerScreen struct {
 	BtnSettings Button
 	BtnClose    Button
 
-	OnStart    func()
-	OnReset    func()
-	OnSkip     func()
-	OnSettings func()
-	OnClose    func()
-	OnMini     func()
+	OnStart      func()
+	OnReset      func()
+	OnSkip       func()
+	OnSettings   func()
+	OnClose      func()
+	OnMini       func()
+	OnSetRound   func(int)
+	OnAdjustTime func(time.Duration)
 
 	BtnMini Button
 
@@ -33,6 +36,17 @@ type TimerScreen struct {
 	faceMode  *textv2.GoTextFace
 	faceSmall *textv2.GoTextFace
 	faceBtn   *textv2.GoTextFace
+
+	// Ring geometry (computed in Draw, used by Update for drag detection)
+	ringCX, ringCY float32
+	outerR         float32
+	ringW          float32
+	ringDragging   bool
+
+	// Dot geometry
+	dotCenters []float32 // X positions of each dot
+	dotY       float32
+	dotR       float32
 
 	initialized bool
 	width       int
@@ -120,6 +134,8 @@ func (s *TimerScreen) Update() {
 	}
 
 	s.updateStartButton()
+	s.updateRingDrag()
+	s.updateDotClick()
 	s.BtnClose.Update()
 	s.BtnMini.Update()
 	s.BtnSettings.Update()
@@ -128,11 +144,95 @@ func (s *TimerScreen) Update() {
 	s.BtnReset.Update()
 }
 
+func (s *TimerScreen) updateRingDrag() {
+	if s.outerR == 0 {
+		return
+	}
+
+	mx, my := ebiten.CursorPosition()
+	fmx := float32(mx)
+	fmy := float32(my)
+
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		dx := fmx - s.ringCX
+		dy := fmy - s.ringCY
+		dist := float32(math.Sqrt(float64(dx*dx + dy*dy)))
+		innerR := s.outerR - s.ringW
+
+		// Click must be near the ring band
+		if dist >= innerR-S(10) && dist <= s.outerR+S(10) {
+			state := s.Timer.State()
+			if state.IsRunning() || state == timer.StatePaused {
+				s.ringDragging = true
+			}
+		}
+	}
+
+	if !ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+		s.ringDragging = false
+	}
+
+	if s.ringDragging {
+		dx := float64(fmx - s.ringCX)
+		dy := float64(fmy - s.ringCY)
+		angle := math.Atan2(dy, dx)
+
+		// Convert from math angle to progress (top = 0, clockwise)
+		progress := (angle + math.Pi/2) / (2 * math.Pi)
+		if progress < 0 {
+			progress++
+		}
+
+		total := s.Timer.TotalDuration()
+		rem := time.Duration(float64(total) * (1 - progress))
+
+		if rem < time.Second {
+			rem = time.Second
+		}
+
+		if s.OnAdjustTime != nil {
+			s.OnAdjustTime(rem)
+		}
+	}
+}
+
+func (s *TimerScreen) updateDotClick() {
+	if !inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) || len(s.dotCenters) == 0 {
+		return
+	}
+
+	// Only allow changing round when idle
+	if s.Timer.State() != timer.StateIdle {
+		return
+	}
+
+	mx, my := ebiten.CursorPosition()
+	fmx := float32(mx)
+	fmy := float32(my)
+
+	hitR := s.dotR + S(8) // generous hit area
+	if fmy < s.dotY-hitR || fmy > s.dotY+hitR {
+		return
+	}
+
+	for i, cx := range s.dotCenters {
+		if fmx >= cx-hitR && fmx <= cx+hitR {
+			if s.OnSetRound != nil {
+				s.OnSetRound(i)
+			}
+
+			return
+		}
+	}
+}
+
 func (s *TimerScreen) updateStartButton() {
 	state := s.Timer.State()
+
 	switch state {
 	case timer.StateIdle:
 		pending := s.Timer.PendingNext()
+
 		switch pending {
 		case timer.StateBreak, timer.StateLongBreak:
 			s.BtnStart.Label = "Break"
@@ -182,15 +282,15 @@ func (s *TimerScreen) Draw(screen *ebiten.Image) {
 	s.BtnSettings.Draw(screen)
 
 	// --- Progress ring ---
-	ringCX := w / 2
-	ringCY := cardY + cardH*0.38
+	s.ringCX = w / 2
+	s.ringCY = cardY + cardH*0.38
 	maxR := math.Min(float64(cardW)*0.28, float64(cardH)*0.26)
-	outerR := float32(maxR)
-	ringW := S(14)
-	innerR := outerR - ringW
+	s.outerR = float32(maxR)
+	s.ringW = S(14)
+	innerR := s.outerR - s.ringW
 
 	// Ring track
-	DrawArc(screen, ringCX, ringCY, outerR, innerR, 0, 2*math.Pi, ColorBgTertiary)
+	DrawArc(screen, s.ringCX, s.ringCY, s.outerR, innerR, 0, 2*math.Pi, ColorBgTertiary)
 
 	// Ring progress
 	progress := s.Timer.Progress(now)
@@ -200,12 +300,12 @@ func (s *TimerScreen) Draw(screen *ebiten.Image) {
 		startAngle := -math.Pi / 2
 		endAngle := startAngle + progress*2*math.Pi
 		startClr, endClr := s.gradientForState(state)
-		DrawGradientArc(screen, ringCX, ringCY, outerR, innerR, startAngle, endAngle, startClr, endClr)
+		DrawGradientArc(screen, s.ringCX, s.ringCY, s.outerR, innerR, startAngle, endAngle, startClr, endClr)
 
-		capMidR := outerR - ringW/2
-		capX := ringCX + capMidR*float32(math.Cos(endAngle))
-		capY := ringCY + capMidR*float32(math.Sin(endAngle))
-		DrawCircle(screen, capX, capY, ringW/2, endClr)
+		capMidR := s.outerR - s.ringW/2
+		capX := s.ringCX + capMidR*float32(math.Cos(endAngle))
+		capY := s.ringCY + capMidR*float32(math.Sin(endAngle))
+		DrawCircle(screen, capX, capY, s.ringW/2, endClr)
 	}
 
 	// --- Mode label inside ring ---
@@ -221,7 +321,7 @@ func (s *TimerScreen) Draw(screen *ebiten.Image) {
 
 	if s.faceMode != nil {
 		DrawTextCentered(screen, modeText, s.faceMode,
-			float64(ringCX), float64(ringCY)-float64(outerR)*0.38, accentClr)
+			float64(s.ringCX), float64(s.ringCY)-float64(s.outerR)*0.38, accentClr)
 	}
 
 	// --- Timer digits ---
@@ -237,8 +337,8 @@ func (s *TimerScreen) Draw(screen *ebiten.Image) {
 
 	if s.faceTimer != nil {
 		tw, th := textv2.Measure(timerText, s.faceTimer, 0)
-		tx := float64(ringCX) - tw/2
-		ty := float64(ringCY) - th/2 + float64(outerR)*0.08
+		tx := float64(s.ringCX) - tw/2
+		ty := float64(s.ringCY) - th/2 + float64(s.outerR)*0.08
 		DrawText(screen, timerText, s.faceTimer, tx, ty, ColorTextPrimary)
 	}
 
@@ -259,14 +359,15 @@ func (s *TimerScreen) Draw(screen *ebiten.Image) {
 
 		if s.faceSmall != nil {
 			DrawTextCentered(screen, hintText, s.faceSmall,
-				float64(ringCX), float64(ringCY)+float64(outerR)+Sf(18), ColorTextSecond)
+				float64(s.ringCX), float64(s.ringCY)+float64(s.outerR)+Sf(18), ColorTextSecond)
 		}
 	}
 
 	// --- Round dots ---
 	cfg := s.Timer.Config()
-	dotY := ringCY + outerR + S(44)
-	s.drawRoundDots(screen, ringCX, dotY, cfg.RoundsBeforeLong, s.Timer.Round(), accentClr)
+	s.dotY = s.ringCY + s.outerR + S(44)
+	s.dotR = S(4)
+	s.drawRoundDots(screen, s.ringCX, s.dotY, cfg.RoundsBeforeLong, s.Timer.Round(), accentClr)
 
 	// --- Buttons ---
 	s.BtnStart.Draw(screen)
@@ -279,17 +380,20 @@ func (s *TimerScreen) drawRoundDots(screen *ebiten.Image, cx, cy float32, total,
 		return
 	}
 
-	dotR := S(4)
 	gap := S(12)
-	totalW := float32(total)*dotR*2 + float32(total-1)*gap
-	startX := cx - totalW/2 + dotR
+	totalW := float32(total)*s.dotR*2 + float32(total-1)*gap
+	startX := cx - totalW/2 + s.dotR
+
+	s.dotCenters = make([]float32, total)
 
 	for i := 0; i < total; i++ {
-		x := startX + float32(i)*(dotR*2+gap)
+		x := startX + float32(i)*(s.dotR*2+gap)
+		s.dotCenters[i] = x
+
 		if i < completed {
-			DrawCircle(screen, x, cy, dotR, accentClr)
+			DrawCircle(screen, x, cy, s.dotR, accentClr)
 		} else {
-			DrawCircle(screen, x, cy, dotR, ColorBorder)
+			DrawCircle(screen, x, cy, s.dotR, ColorBorder)
 		}
 	}
 }
