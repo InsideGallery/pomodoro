@@ -3,7 +3,7 @@ VERSION  := $(shell git describe --tags --always --dirty 2>/dev/null || echo "de
 BUILD_DIR := build
 APPDIR    := $(BUILD_DIR)/AppDir
 BINARY    := $(BUILD_DIR)/$(APP_NAME)
-APPIMAGE  := $(BUILD_DIR)/$(APP_NAME)-$(VERSION)-x86_64.AppImage
+APPIMAGE  := $(BUILD_DIR)/$(APP_NAME)-$(VERSION)-linux-amd64.AppImage
 APPIMAGETOOL := $(BUILD_DIR)/appimagetool
 
 LDFLAGS := -s -w -X main.version=$(VERSION)

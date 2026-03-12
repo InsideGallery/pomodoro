@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  build-linux:
+  build-linux-amd64:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,10 +29,47 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN: 1
       - uses: actions/upload-artifact@v4
         with:
-          name: pomodoro-linux-x86_64.AppImage
+          name: pomodoro-linux-amd64
           path: build/*.AppImage
 
-  build-windows:
+  build-linux-arm64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: Setup arm64 cross-compilation
+        run: |
+          sudo dpkg --add-architecture arm64
+          sudo sed -i 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list.d/*.list
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ $(lsb_release -cs) main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ $(lsb_release -cs)-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+            libx11-dev:arm64 libgl1-mesa-dev:arm64 libxcursor-dev:arm64 libxrandr-dev:arm64 \
+            libxinerama-dev:arm64 libxi-dev:arm64 libasound2-dev:arm64 \
+            libayatana-appindicator3-dev:arm64 libxxf86vm-dev:arm64
+      - name: Build
+        env:
+          GOOS: linux
+          GOARCH: arm64
+          CC: aarch64-linux-gnu-gcc
+          CXX: aarch64-linux-gnu-g++
+          CGO_ENABLED: "1"
+          PKG_CONFIG_PATH: /usr/lib/aarch64-linux-gnu/pkgconfig
+        run: |
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+          go build -ldflags "-s -w -X main.version=$VERSION" -o build/pomodoro ./cmd/pomodoro/
+          tar czf "build/pomodoro-${VERSION}-linux-arm64.tar.gz" -C build pomodoro
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pomodoro-linux-arm64
+          path: build/*.tar.gz
+
+  build-windows-amd64:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -45,13 +82,36 @@ jobs:
         shell: bash
         run: |
           VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
-          go build -ldflags "-s -w -H windowsgui -X main.version=$VERSION" -o build/pomodoro.exe ./cmd/pomodoro/
+          go build -ldflags "-s -w -H windowsgui -X main.version=$VERSION" -o "build/pomodoro-${VERSION}-windows-amd64.exe" ./cmd/pomodoro/
       - uses: actions/upload-artifact@v4
         with:
-          name: pomodoro-windows-x86_64.exe
-          path: build/pomodoro.exe
+          name: pomodoro-windows-amd64
+          path: build/*.exe
 
-  build-macos:
+  build-windows-arm64:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: Build
+        shell: bash
+        env:
+          GOOS: windows
+          GOARCH: arm64
+          CGO_ENABLED: "0"
+        run: |
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+          go build -ldflags "-s -w -H windowsgui -X main.version=$VERSION" -o "build/pomodoro-${VERSION}-windows-arm64.exe" ./cmd/pomodoro/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pomodoro-windows-arm64
+          path: build/*.exe
+
+  build-darwin-arm64:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -64,13 +124,39 @@ jobs:
         run: |
           VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
           CGO_ENABLED=1 go build -ldflags "-s -w -X main.version=$VERSION" -o build/pomodoro ./cmd/pomodoro/
+          tar czf "build/pomodoro-${VERSION}-darwin-arm64.tar.gz" -C build pomodoro
       - uses: actions/upload-artifact@v4
         with:
-          name: pomodoro-macos-arm64
-          path: build/pomodoro
+          name: pomodoro-darwin-arm64
+          path: build/*.tar.gz
+
+  build-darwin-amd64:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: Build
+        run: |
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+          CGO_ENABLED=1 go build -ldflags "-s -w -X main.version=$VERSION" -o build/pomodoro ./cmd/pomodoro/
+          tar czf "build/pomodoro-${VERSION}-darwin-amd64.tar.gz" -C build pomodoro
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pomodoro-darwin-amd64
+          path: build/*.tar.gz
 
   release:
-    needs: [build-linux, build-windows, build-macos]
+    needs:
+      - build-linux-amd64
+      - build-linux-arm64
+      - build-windows-amd64
+      - build-windows-arm64
+      - build-darwin-arm64
+      - build-darwin-amd64
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
