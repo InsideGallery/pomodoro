@@ -1,52 +1,71 @@
-# Pomodoro
+# 🍅 Pomodoro: Lightweight Productivity Timer
 
-A beautiful, distraction-free Pomodoro timer that stays out of your way and helps you stay in the zone.
+A minimalist, cross-platform Pomodoro timer built with Go and the [Ebiten](https://ebitengine.org/) game engine for butter-smooth, hardware-accelerated performance — no Electron overhead.
 
-Built with Go and [Ebiten](https://ebitengine.org/). Single binary, no runtime dependencies — just download and focus.
+![Go Version](https://img.shields.io/github/go-mod/go-version/InsideGallery/pomodoro)
+![License](https://img.shields.io/github/license/InsideGallery/pomodoro)
+![Platform](https://img.shields.io/badge/platform-linux%20%7C%20windows%20%7C%20macos-lightgrey)
 
-![icon](packaging/pomodoro.png)
+---
 
-## Screenshots
+## 📸 Interface
 
-| Dark Theme | Light Theme | Settings |
-|:---:|:---:|:---:|
-| ![Dark timer](assets/screenshots/Screenshot%20from%202026-03-12%2017-51-06.png) | ![Light timer](assets/screenshots/Screenshot%20from%202026-03-12%2017-51-29.png) | ![Dark settings](assets/screenshots/Screenshot%20from%202026-03-12%2017-51-11.png) |
-
-| Mini Mode | Light Settings |
+| Dark Mode | Light Mode |
 |:---:|:---:|
-| ![Mini mode](assets/screenshots/Screenshot%20from%202026-03-12%2017-51-01.png) | ![Light settings](assets/screenshots/Screenshot%20from%202026-03-12%2017-51-25.png) |
+| <img src="assets/screenshots/Screenshot%20from%202026-03-13%2018-08-19.png" width="300"> | <img src="assets/screenshots/Screenshot%20from%202026-03-13%2018-08-35.png" width="300"> |
 
-## Why Pomodoro?
+| Dark Settings | Light Settings |
+|:---:|:---:|
+| <img src="assets/screenshots/Screenshot%20from%202026-03-13%2018-08-25.png" width="300"> | <img src="assets/screenshots/Screenshot%20from%202026-03-13%2018-08-32.png" width="300"> |
 
-Most timer apps are either bloated Electron wrappers or ugly CLI tools. This one is different.
+| Mini Mode (Dark) | Mini Mode (Light) |
+|:---:|:---:|
+| <img src="assets/screenshots/Screenshot%20from%202026-03-13%2018-07-35.png" width="250"> | <img src="assets/screenshots/Screenshot%20from%202026-03-13%2018-08-39.png" width="250"> |
 
-**It's gorgeous.** A smooth progress ring, clean typography, and a transparent borderless window that floats on your desktop like it belongs there. Switch between dark and light themes, dial in the transparency — make it yours.
+---
 
-**It sounds right.** A gentle tick keeps you aware that time is moving without breaking your concentration. When the session ends, an alarm brings you back. Both sounds have independent volume controls — or turn them off entirely if you prefer silence.
+## ✨ Key Features
 
-**It disappears when you don't need it.** Shrink to **mini mode** — a tiny floating counter in the corner of your screen that shows the remaining time without stealing focus. Or close the window entirely and let the **system tray** icon keep working in the background. Click to restore anytime.
+- 🚀 **Game Engine Powered** — Leveraging Ebiten for hardware-accelerated rendering at 60 FPS
+- 💎 **Dual Modes** — Switch between an immersive full mode and a non-intrusive minimalist overlay
+- 📌 **Always on Top** — Mini mode stays visible over your IDE or browser, keeping you focused
+- 🍃 **Lightweight** — No Electron overhead. Small binary size and minimal RAM usage
+- 🎨 **Fully Customizable** — Adjustable focus/break times, dark/light themes, sound volumes, and window transparency
+- 🔊 **Ambient Tick & Alarm** — Gentle tick keeps you aware of time; alarm brings you back. Independent volume controls for each
+- 🖥️ **System Tray** — Close to tray, restore on click, keeps running in the background
+- ⌨️ **Keyboard Shortcuts** — Space (start/pause), R (reset), S (settings), M (mini mode), Escape (back)
+- 📦 **Single Binary** — No runtime dependencies. One file, zero setup. Settings stored in plain JSON
+- 🖼️ **HiDPI Support** — Crisp vector rendering on high-density displays
 
-**It just works.** One binary, zero dependencies. No accounts, no subscriptions, no telemetry. Your settings are a plain JSON file. It starts instantly and uses barely any resources.
+---
 
-## Features
+## 🤔 Why Go + Ebiten?
 
-- **Focus / Break / Long Break** cycle with configurable durations
-- **Dark and Light themes** with adjustable window transparency
-- **Tick sound** during focus sessions — stay aware of time passing without looking at the screen
-- **Alarm sound** on session completion — never miss a break or overshoot a focus block
-- **Independent volume controls** for tick and alarm — fine-tune or mute each one separately
-- **Mini mode** — a compact floating timer that stays out of your way
-- **System tray** — close to tray, restore on click, keeps running in the background
-- **HiDPI support** — crisp vector rendering on high-density displays
-- **Keyboard shortcuts** — Space (start/pause), R (reset), S (settings), Escape (back)
-- **AppImage** packaging for Linux
-- **Cross-platform** — builds for Linux, macOS, and Windows
+Most desktop timers are either bloated Electron wrappers or ugly CLI tools. This one is different.
 
-## Install
+Go delivers a small, fast, self-contained binary with no runtime dependencies. Ebiten provides GPU-accelerated rendering, so the UI stays buttery smooth even during heavy system loads — all in under 10 MB of RAM.
 
-### From source
+The result: a native-feeling desktop app that starts instantly, barely touches your CPU, and looks gorgeous doing it.
 
-Requires Go 1.25+ and C compiler.
+---
+
+## 📥 Installation
+
+### Download Binary
+
+Grab the latest executable for your platform from the [Releases](https://github.com/InsideGallery/pomodoro/releases) page.
+
+### AppImage (Linux)
+
+```bash
+# Download from Releases, then:
+chmod +x pomodoro-*-x86_64.AppImage
+./pomodoro-*-x86_64.AppImage
+```
+
+### Build from Source
+
+Requires Go 1.25+ and a C compiler.
 
 **Linux** (needs X11 and audio dev libraries):
 ```bash
@@ -60,23 +79,18 @@ make build
 go build -o pomodoro ./cmd/pomodoro/
 ```
 
-### AppImage (Linux)
-
-```bash
-make appimage
-# Output: build/pomodoro-<version>-x86_64.AppImage
-```
-
-### System install (Linux)
+### System Install (Linux)
 
 ```bash
 sudo make install
 # Installs binary, .desktop file, and icon
 ```
 
-## Configuration
+---
 
-Settings are stored in `~/.config/pomodoro/config.json`:
+## ⚙️ Configuration
+
+Settings are stored in `~/.config/pomodoro/config.json` and can be adjusted from the in-app settings screen (press **S** or click the gear icon).
 
 | Setting | Default |
 |---|---|
@@ -90,9 +104,9 @@ Settings are stored in `~/.config/pomodoro/config.json`:
 | Theme | dark |
 | Transparency | 10% |
 
-All settings are adjustable from the in-app settings screen (press S or click the gear icon).
+---
 
-## Building
+## 🛠️ Building
 
 ```bash
 make build      # Build binary
@@ -102,6 +116,16 @@ make icon       # Regenerate app icon
 make clean      # Remove build artifacts
 ```
 
-## License
+---
 
-See [LICENSE](LICENSE).
+## 📋 Roadmap
+
+- [ ] D-Bus notifications for Linux
+- [ ] Custom sound file support
+- [ ] Pomodoro session statistics and history
+
+---
+
+## 📄 License
+
+[Apache License 2.0](LICENSE)

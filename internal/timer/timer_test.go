@@ -317,7 +317,7 @@ func TestRestoreRunningStateAsPaused(t *testing.T) {
 	// Snapshot while running with ~15s remaining
 	state, prePause, pendingNext, round, remainingSec := tm.Snapshot(now.Add(10 * time.Second))
 
-	if state != "Focus" {
+	if state != StateFocus.String() {
 		t.Fatalf("expected snapshot state Focus, got %s", state)
 	}
 
@@ -351,7 +351,7 @@ func TestRestorePausedState(t *testing.T) {
 
 	state, prePause, pendingNext, round, remainingSec := tm.Snapshot(now.Add(10 * time.Second))
 
-	if state != "Paused" {
+	if state != StatePaused.String() {
 		t.Fatalf("expected snapshot state Paused, got %s", state)
 	}
 
