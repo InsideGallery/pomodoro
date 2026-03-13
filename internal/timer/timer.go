@@ -116,10 +116,14 @@ func (t *Timer) Restore(state, prePause, pendingNext string, round int, remainin
 
 	s := parseState(state)
 
-	// Only restore idle/paused states — don't resume a running timer across restarts
+	// Restore paused and running states; running states resume as paused.
 	switch s {
 	case StatePaused:
 		t.state = StatePaused
+		t.remaining = time.Duration(remainingSec * float64(time.Second))
+	case StateFocus, StateBreak, StateLongBreak:
+		t.state = StatePaused
+		t.prePause = s
 		t.remaining = time.Duration(remainingSec * float64(time.Second))
 	default:
 		t.state = StateIdle

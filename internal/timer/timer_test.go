@@ -309,6 +309,77 @@ func TestResumeIgnoredWhenNotPaused(t *testing.T) {
 	}
 }
 
+func TestRestoreRunningStateAsPaused(t *testing.T) {
+	tm := New(testConfig())
+	now := time.Now()
+	tm.Start(now)
+
+	// Snapshot while running with ~15s remaining
+	state, prePause, pendingNext, round, remainingSec := tm.Snapshot(now.Add(10 * time.Second))
+
+	if state != "Focus" {
+		t.Fatalf("expected snapshot state Focus, got %s", state)
+	}
+
+	// Restore into a fresh timer
+	tm2 := New(testConfig())
+	tm2.Restore(state, prePause, pendingNext, round, remainingSec, time.Now())
+
+	if tm2.State() != StatePaused {
+		t.Fatalf("expected restored state Paused, got %s", tm2.State())
+	}
+
+	rem := tm2.Remaining(time.Now())
+	if rem < 14*time.Second || rem > 16*time.Second {
+		t.Fatalf("expected ~15s remaining, got %s", rem)
+	}
+
+	// Resume should return to Focus
+	resumeAt := time.Now()
+	tm2.Resume(resumeAt)
+
+	if tm2.State() != StateFocus {
+		t.Fatalf("expected Focus after resume, got %s", tm2.State())
+	}
+}
+
+func TestRestorePausedState(t *testing.T) {
+	tm := New(testConfig())
+	now := time.Now()
+	tm.Start(now)
+	tm.Pause(now.Add(10 * time.Second))
+
+	state, prePause, pendingNext, round, remainingSec := tm.Snapshot(now.Add(10 * time.Second))
+
+	if state != "Paused" {
+		t.Fatalf("expected snapshot state Paused, got %s", state)
+	}
+
+	tm2 := New(testConfig())
+	tm2.Restore(state, prePause, pendingNext, round, remainingSec, time.Now())
+
+	if tm2.State() != StatePaused {
+		t.Fatalf("expected Paused, got %s", tm2.State())
+	}
+
+	rem := tm2.Remaining(time.Now())
+	if rem < 14*time.Second || rem > 16*time.Second {
+		t.Fatalf("expected ~15s remaining, got %s", rem)
+	}
+}
+
+func TestRestoreIdleState(t *testing.T) {
+	tm := New(testConfig())
+	state, prePause, pendingNext, round, remainingSec := tm.Snapshot(time.Now())
+
+	tm2 := New(testConfig())
+	tm2.Restore(state, prePause, pendingNext, round, remainingSec, time.Now())
+
+	if tm2.State() != StateIdle {
+		t.Fatalf("expected Idle, got %s", tm2.State())
+	}
+}
+
 func TestFullCycleNoAutoStart(t *testing.T) {
 	tm := New(testConfig())
 	now := time.Now()
