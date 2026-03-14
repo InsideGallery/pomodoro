@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"image/color"
+	"log/slog"
 	"math"
 	"time"
 
@@ -21,22 +22,39 @@ const (
 	SceneName      = "lockscreen"
 	windowTitle    = "Pomodoro"
 	escTapsToExit  = 3
-	escResetWindow = 2 * time.Second // ESC taps must happen within this window
+	escResetWindow = 2 * time.Second
 )
 
-// Scene is the long-break lock screen scene.
+// LabelEntity is a text label in the Registry.
+type LabelEntity struct {
+	GetX, GetY func() float64
+	FaceSize   float64
+	Bold       bool
+	Color      func() color.Color
+	Text       func() string
+}
+
+// ProgressEntity is a progress bar in the Registry.
+type ProgressEntity struct {
+	X, Y, W, H float32
+	Progress   func() float64
+	TrackColor color.RGBA
+	FillColor  color.Color
+}
+
 type Scene struct {
 	*scene.BaseScene
 
 	lock     Lock
 	breakDur time.Duration
-	locked   bool // if true, require ESC×3 to exit; if false, auto-exit on complete
+	locked   bool
 	onDone   func()
 
 	escCount int
 	lastEsc  time.Time
 
 	width, height int
+	entityIDSeq   uint64
 }
 
 func NewScene(bus *event.Bus, switchToSelf func(), onDone func()) *Scene {
@@ -48,7 +66,6 @@ func NewScene(bus *event.Bus, switchToSelf func(), onDone func()) *Scene {
 		onDone:   onDone,
 	}
 
-	// Self-activate on long break start if enabled
 	bus.Subscribe(event.LongBreakStarted, func(_ event.Event) {
 		if s.locked {
 			switchToSelf()
@@ -68,6 +85,12 @@ func NewScene(bus *event.Bus, switchToSelf func(), onDone func()) *Scene {
 func (s *Scene) Name() string    { return SceneName }
 func (s *Scene) IsEnabled() bool { return s.locked }
 
+func (s *Scene) nextID() uint64 {
+	s.entityIDSeq++
+
+	return s.entityIDSeq
+}
+
 func (s *Scene) Init(ctx context.Context) {
 	s.BaseScene = scene.NewBaseScene(ctx, nil)
 }
@@ -82,6 +105,7 @@ func (s *Scene) Load() error {
 
 	s.lock.Start(s.breakDur, time.Now())
 	s.escCount = 0
+	s.createEntities()
 
 	ebiten.SetFullscreen(true)
 
@@ -118,12 +142,10 @@ func (s *Scene) Update() error {
 		return nil
 	}
 
-	// Soft-lock: reclaim focus if window lost it (e.g. Alt+Tab)
 	if !ebiten.IsFocused() {
 		platform.RaiseWindow(windowTitle)
 	}
 
-	// Locked mode: ESC×3 within 2 seconds to force-exit
 	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
 		if now.Sub(s.lastEsc) > escResetWindow {
 			s.escCount = 0
@@ -141,51 +163,95 @@ func (s *Scene) Update() error {
 	return nil
 }
 
-func (s *Scene) Draw(screen *ebiten.Image) {
+func (s *Scene) createEntities() {
+	for _, key := range s.Registry.GetKeys() {
+		s.Registry.TruncateGroup(key)
+	}
+
 	w := float32(s.width)
 	h := float32(s.height)
-	now := time.Now()
 
-	// Opaque dark background
-	ui.DrawRoundedRect(screen, 0, 0, w, h, 0, color.RGBA{R: 0x10, G: 0x10, B: 0x18, A: 0xF0})
+	if err := s.Registry.Add("label", s.nextID(), &LabelEntity{
+		GetX:     func() float64 { return float64(w/2) - ui.Sf(80) },
+		GetY:     func() float64 { return float64(h/2) - ui.Sf(100) },
+		FaceSize: 32, Bold: true,
+		Color: func() color.Color { return ui.ColorTextPrimary },
+		Text:  func() string { return "Long Break" },
+	}); err != nil {
+		slog.Warn("registry add", "group", "label", "error", err)
+	}
 
-	faceTitle := ui.Face(true, 32)
-	faceTime := ui.Face(true, 48)
-	faceHint := ui.Face(false, 14)
+	if err := s.Registry.Add("label", s.nextID(), &LabelEntity{
+		GetX:     func() float64 { return float64(w/2) - ui.Sf(70) },
+		GetY:     func() float64 { return float64(h/2) - ui.Sf(20) },
+		FaceSize: 48, Bold: true,
+		Color: func() color.Color { return ui.ColorAccentBreak },
+		Text: func() string {
+			rem := s.lock.Remaining(time.Now())
+			totalSecs := int(rem.Seconds())
 
-	ui.DrawText(screen, "Long Break", faceTitle,
-		float64(w/2)-ui.Sf(80), float64(h/2)-ui.Sf(100),
-		ui.ColorTextPrimary)
-
-	rem := s.lock.Remaining(now)
-	totalSecs := int(rem.Seconds())
-	mins := totalSecs / 60
-	secs := totalSecs % 60
-	timeText := fmt.Sprintf("%02d:%02d", mins, secs)
-
-	ui.DrawText(screen, timeText, faceTime,
-		float64(w/2)-ui.Sf(70), float64(h/2)-ui.Sf(20),
-		ui.ColorAccentBreak)
+			return fmt.Sprintf("%02d:%02d", totalSecs/60, totalSecs%60)
+		},
+	}); err != nil {
+		slog.Warn("registry add", "group", "label", "error", err)
+	}
 
 	barW := ui.S(300)
 	barH := ui.S(8)
 	barX := (w - barW) / 2
 	barY := h/2 + ui.S(40)
-	progress := s.lock.Progress(now)
 
-	ui.DrawRoundedRect(screen, barX, barY, barW, barH, ui.S(4),
-		color.RGBA{R: 0x30, G: 0x30, B: 0x40, A: 0xFF})
-	ui.DrawRoundedRect(screen, barX, barY, barW*float32(progress), barH, ui.S(4),
-		ui.ColorAccentBreak)
-
-	hintText := "Relax and rest your eyes"
-	if s.locked {
-		hintText = "Relax and rest your eyes  (ESC×3 to unlock)"
+	if err := s.Registry.Add("progress", s.nextID(), &ProgressEntity{
+		X: barX, Y: barY, W: barW, H: barH,
+		Progress:   func() float64 { return s.lock.Progress(time.Now()) },
+		TrackColor: color.RGBA{R: 0x30, G: 0x30, B: 0x40, A: 0xFF},
+		FillColor:  ui.ColorAccentBreak,
+	}); err != nil {
+		slog.Warn("registry add", "group", "progress", "error", err)
 	}
 
-	ui.DrawText(screen, hintText, faceHint,
-		float64(w/2)-ui.Sf(120), float64(h/2)+ui.Sf(80),
-		ui.ColorTextSecond)
+	if err := s.Registry.Add("label", s.nextID(), &LabelEntity{
+		GetX:     func() float64 { return float64(w/2) - ui.Sf(120) },
+		GetY:     func() float64 { return float64(h/2) + ui.Sf(80) },
+		FaceSize: 14, Bold: false,
+		Color: func() color.Color { return ui.ColorTextSecond },
+		Text: func() string {
+			if s.locked {
+				return "Relax and rest your eyes  (ESC×3 to unlock)"
+			}
+
+			return "Relax and rest your eyes"
+		},
+	}); err != nil {
+		slog.Warn("registry add", "group", "label", "error", err)
+	}
+}
+
+func (s *Scene) Draw(screen *ebiten.Image) {
+	w := float32(s.width)
+	h := float32(s.height)
+
+	ui.DrawRoundedRect(screen, 0, 0, w, h, 0, color.RGBA{R: 0x10, G: 0x10, B: 0x18, A: 0xF0})
+
+	for le := range s.Registry.Iterator("label") {
+		l, ok := le.(*LabelEntity)
+		if !ok {
+			continue
+		}
+
+		face := ui.Face(l.Bold, l.FaceSize)
+		ui.DrawText(screen, l.Text(), face, l.GetX(), l.GetY(), l.Color())
+	}
+
+	for pe := range s.Registry.Iterator("progress") {
+		p, ok := pe.(*ProgressEntity)
+		if !ok {
+			continue
+		}
+
+		ui.DrawRoundedRect(screen, p.X, p.Y, p.W, p.H, ui.S(4), p.TrackColor)
+		ui.DrawRoundedRect(screen, p.X, p.Y, p.W*float32(p.Progress()), p.H, ui.S(4), p.FillColor)
+	}
 }
 
 func (s *Scene) Layout(outsideWidth, outsideHeight int) (int, int) {

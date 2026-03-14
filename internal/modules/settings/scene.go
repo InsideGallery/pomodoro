@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"image/color"
+	"log/slog"
 	"math"
 
 	"github.com/InsideGallery/game-core/geometry/shapes"
@@ -13,7 +14,6 @@ import (
 	ssystems "github.com/InsideGallery/pomodoro/internal/modules/settings/systems"
 	"github.com/InsideGallery/pomodoro/pkg/config"
 	"github.com/InsideGallery/pomodoro/pkg/event"
-	"github.com/InsideGallery/pomodoro/pkg/logger"
 	"github.com/InsideGallery/pomodoro/pkg/pluggable"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 	"github.com/InsideGallery/pomodoro/pkg/systems"
@@ -192,7 +192,7 @@ func (s *Scene) createEntities() {
 	}
 
 	if err := s.Registry.Add("fixed_button", s.nextID(), back); err != nil {
-		logger.Warn("registry add", "group", "fixed_button", "error", err)
+		slog.Warn("registry add", "group", "fixed_button", "error", err)
 	}
 
 	// Back button zone (no scroll offset — fixed position)
@@ -364,7 +364,7 @@ func (s *Scene) createEntities() {
 
 func (s *Scene) addSection(text string, clr color.RGBA, y float32) {
 	if err := s.Registry.Add("section", s.nextID(), &ssystems.SectionLabel{Text: text, Color: clr, Y: y}); err != nil {
-		logger.Warn("registry add", "group", "section", "error", err)
+		slog.Warn("registry add", "group", "section", "error", err)
 	}
 }
 
@@ -445,6 +445,6 @@ func (s *Scene) addToggle(label string, x, y, w, h float32, value bool,
 
 func (s *Scene) save() {
 	if err := config.Save(s.cfg); err != nil {
-		logger.Warn("save config", "error", err)
+		slog.Warn("save config", "error", err)
 	}
 }

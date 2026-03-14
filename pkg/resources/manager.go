@@ -10,12 +10,11 @@ import (
 	"image"
 	"image/png"
 	"io/fs"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 
 	"github.com/hajimehoshi/ebiten/v2"
-
-	"github.com/InsideGallery/pomodoro/pkg/logger"
 )
 
 // Kind identifies the type of resource.
@@ -138,7 +137,7 @@ func (m *Manager) LoadAsync(tasks []LoadTask) {
 		for _, task := range tasks {
 			val, err := task.Load()
 			if err != nil {
-				logger.Warn("resource load", "key", task.Key, "error", err)
+				slog.Warn("resource load", "key", task.Key, "error", err)
 			} else {
 				m.Set(task.Key, val)
 			}

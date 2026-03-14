@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"image/color"
+	"log/slog"
 	"math"
 	"time"
 
@@ -13,7 +14,6 @@ import (
 
 	"github.com/InsideGallery/pomodoro/pkg/config"
 	"github.com/InsideGallery/pomodoro/pkg/event"
-	"github.com/InsideGallery/pomodoro/pkg/logger"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 	"github.com/InsideGallery/pomodoro/pkg/ui"
 )
@@ -40,7 +40,7 @@ func NewScene(bus *event.Bus, onDone func()) *Scene {
 
 	store := NewStore(DefaultPath())
 	if err := store.Load(); err != nil {
-		logger.Warn("metrics load", "error", err)
+		slog.Warn("metrics load", "error", err)
 	}
 
 	s := &Scene{
@@ -77,7 +77,7 @@ func NewScene(bus *event.Bus, onDone func()) *Scene {
 		}
 
 		if err := store.Save(); err != nil {
-			logger.Warn("metrics save", "error", err)
+			slog.Warn("metrics save", "error", err)
 		}
 	})
 
@@ -105,7 +105,7 @@ func NewScene(bus *event.Bus, onDone func()) *Scene {
 		}
 
 		if err := store.Save(); err != nil {
-			logger.Warn("metrics save", "error", err)
+			slog.Warn("metrics save", "error", err)
 		}
 	})
 
@@ -121,7 +121,7 @@ func NewScene(bus *event.Bus, onDone func()) *Scene {
 		}
 
 		if err := store.Save(); err != nil {
-			logger.Warn("metrics save", "error", err)
+			slog.Warn("metrics save", "error", err)
 		}
 	})
 
@@ -143,7 +143,7 @@ func (s *Scene) Init(ctx context.Context) {
 
 func (s *Scene) Load() error {
 	if err := s.store.Load(); err != nil {
-		logger.Warn("metrics load", "error", err)
+		slog.Warn("metrics load", "error", err)
 	}
 
 	s.tab = 0

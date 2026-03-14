@@ -4,35 +4,46 @@ import (
 	"context"
 	"fmt"
 	"image/color"
+	"log/slog"
 	"math"
 	"time"
 
+	"github.com/InsideGallery/game-core/geometry/shapes"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 
 	"github.com/InsideGallery/pomodoro/pkg/config"
 	"github.com/InsideGallery/pomodoro/pkg/event"
-	"github.com/InsideGallery/pomodoro/pkg/logger"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
+	"github.com/InsideGallery/pomodoro/pkg/systems"
 	"github.com/InsideGallery/pomodoro/pkg/ui"
 )
 
 const SceneName = "minigame"
 
-// Scene is the Button Hunt mini-game scene.
+// TargetEntity is a clickable target in the Registry.
+type TargetEntity struct {
+	X, Y   float64
+	Radius float64
+	Alive  bool
+	Color  color.RGBA
+}
+
 type Scene struct {
 	*scene.BaseScene
 
+	input     *systems.InputSystem
 	game      Game
 	enabled   bool
 	gameOver  bool
 	bestScore int
 	breakDur  time.Duration
 	onSave    func(int)
-	onDone    func() // called when game ends, to switch back to timer
+	onDone    func()
 
 	width, height int
+	entityIDSeq   uint64
 }
 
 func NewScene(bus *event.Bus, switchToSelf func(), onDone func()) *Scene {
@@ -48,13 +59,12 @@ func NewScene(bus *event.Bus, switchToSelf func(), onDone func()) *Scene {
 
 			loadedSt.MinigameBestScore = best
 			if err := config.SaveState(loadedSt); err != nil {
-				logger.Warn("save state", "error", err)
+				slog.Warn("save state", "error", err)
 			}
 		},
 		onDone: onDone,
 	}
 
-	// Self-activate on break start if enabled
 	bus.Subscribe(event.BreakStarted, func(_ event.Event) {
 		if s.enabled {
 			switchToSelf()
@@ -74,14 +84,22 @@ func NewScene(bus *event.Bus, switchToSelf func(), onDone func()) *Scene {
 func (s *Scene) Name() string   { return SceneName }
 func (s *Scene) IsActive() bool { return s.enabled }
 
+func (s *Scene) nextID() uint64 {
+	s.entityIDSeq++
+
+	return s.entityIDSeq
+}
+
 func (s *Scene) Init(ctx context.Context) {
 	s.BaseScene = scene.NewBaseScene(ctx, nil)
+	s.input = systems.NewInputSystem(s.RTree)
+
+	s.Systems.Add("input", s.input)
 }
 
 func (s *Scene) Load() error {
 	s.gameOver = false
 
-	// Get screen dimensions before going fullscreen
 	if mon := ebiten.Monitor(); mon != nil {
 		mw, mh := mon.Size()
 		scale := mon.DeviceScaleFactor()
@@ -89,10 +107,11 @@ func (s *Scene) Load() error {
 		s.height = int(float64(mh) * scale)
 	}
 
-	// Load latest best score
 	st := config.LoadState()
 	s.bestScore = st.MinigameBestScore
 	s.game.Start(s.width, s.height, s.bestScore, s.breakDur, time.Now())
+
+	s.syncTargetsToRegistry()
 
 	ebiten.SetFullscreen(true)
 
@@ -130,9 +149,23 @@ func (s *Scene) Update() error {
 		return nil
 	}
 
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		mx, my := ebiten.CursorPosition()
-		s.game.Click(float64(mx), float64(my))
+	// InputSystem handles click detection via RTree
+	if err := s.input.Update(s.Ctx); err != nil {
+		return err
+	}
+
+	// Check if we need to spawn more targets (alive count <= 1)
+	alive := 0
+
+	for _, t := range s.game.Targets {
+		if t.Alive {
+			alive++
+		}
+	}
+
+	if alive <= 1 && len(s.game.Targets) > 0 {
+		s.game.SpawnBatch()
+		s.syncTargetsToRegistry()
 	}
 
 	return nil
@@ -150,15 +183,62 @@ func (s *Scene) saveIfRecord() {
 	}
 }
 
+// syncTargetsToRegistry creates entities and RTree zones from game targets.
+func (s *Scene) syncTargetsToRegistry() {
+	s.input.ClearZones()
+
+	for _, key := range s.Registry.GetKeys() {
+		s.Registry.TruncateGroup(key)
+	}
+
+	for i, t := range s.game.Targets {
+		if !t.Alive {
+			continue
+		}
+
+		clr := palette[i%len(palette)]
+		te := &TargetEntity{X: t.X, Y: t.Y, Radius: t.Radius, Alive: true, Color: clr}
+		idx := i
+
+		id := s.nextID()
+		if err := s.Registry.Add("target", id, te); err != nil {
+			slog.Warn("registry add", "group", "target", "error", err)
+
+			continue
+		}
+
+		// Smaller targets get higher priority (lower number = checked first)
+		s.input.AddZone(&systems.Zone{
+			Spatial:  shapes.NewSphere(shapes.NewPoint(t.X, t.Y), t.Radius),
+			Priority: int(t.Radius), // smallest radius = highest priority
+			OnClick: func() {
+				s.game.Targets[idx].Alive = false
+				te.Alive = false
+				s.game.Score++
+			},
+		})
+	}
+}
+
 func (s *Scene) Draw(screen *ebiten.Image) {
-	// Fully transparent background
 	if s.gameOver {
 		s.drawGameOver(screen)
 
 		return
 	}
 
-	s.drawTargets(screen)
+	// Draw targets from Registry
+	for te := range s.Registry.Iterator("target") {
+		t, ok := te.(*TargetEntity)
+		if !ok || !t.Alive {
+			continue
+		}
+
+		border := color.RGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xBB}
+		vector.FillCircle(screen, float32(t.X), float32(t.Y), float32(t.Radius+2), border, true)
+		vector.FillCircle(screen, float32(t.X), float32(t.Y), float32(t.Radius), t.Color, true)
+	}
+
 	s.drawHUD(screen)
 }
 
@@ -191,23 +271,8 @@ var palette = []color.RGBA{
 	{R: 0x00, G: 0xD2, B: 0xD3, A: 0xFF},
 }
 
-func (s *Scene) drawTargets(dst *ebiten.Image) {
-	for i, t := range s.game.Targets {
-		if !t.Alive {
-			continue
-		}
-
-		clr := palette[i%len(palette)]
-
-		border := color.RGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xBB}
-		vector.FillCircle(dst, float32(t.X), float32(t.Y), float32(t.Radius+2), border, true)
-		vector.FillCircle(dst, float32(t.X), float32(t.Y), float32(t.Radius), clr, true)
-	}
-}
-
 func (s *Scene) drawHUD(dst *ebiten.Image) {
 	now := time.Now()
-
 	rem := s.game.Remaining(now)
 	totalSecs := int(rem.Seconds())
 	mins := totalSecs / 60

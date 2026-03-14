@@ -3,6 +3,7 @@ package timer
 import (
 	"context"
 	"image/color"
+	"log/slog"
 	"math"
 	"time"
 
@@ -16,7 +17,6 @@ import (
 	"github.com/InsideGallery/pomodoro/pkg/config"
 	"github.com/InsideGallery/pomodoro/pkg/ecs"
 	"github.com/InsideGallery/pomodoro/pkg/event"
-	"github.com/InsideGallery/pomodoro/pkg/logger"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 	"github.com/InsideGallery/pomodoro/pkg/systems"
 	"github.com/InsideGallery/pomodoro/pkg/ui"
@@ -310,7 +310,7 @@ func (s *Scene) createEntities() {
 	}
 
 	if err := s.Registry.Add("mode_label", s.nextID(), modeLabel); err != nil {
-		logger.Warn("registry add", "group", "mode_label", "error", err)
+		slog.Warn("registry add", "group", "mode_label", "error", err)
 	}
 
 	// --- Timer text ---
@@ -322,7 +322,7 @@ func (s *Scene) createEntities() {
 	}
 
 	if err := s.Registry.Add("timer_text", s.nextID(), timerText); err != nil {
-		logger.Warn("registry add", "group", "timer_text", "error", err)
+		slog.Warn("registry add", "group", "timer_text", "error", err)
 	}
 
 	// --- Hint ---
@@ -347,7 +347,7 @@ func (s *Scene) createEntities() {
 	}
 
 	if err := s.Registry.Add("hint", s.nextID(), hint); err != nil {
-		logger.Warn("registry add", "group", "hint", "error", err)
+		slog.Warn("registry add", "group", "hint", "error", err)
 	}
 
 	// --- Round dots ---
@@ -470,7 +470,7 @@ func (s *Scene) saveState() {
 	st.RemainingSec = remainingSec
 
 	if err := config.SaveState(st); err != nil {
-		logger.Warn("save state", "error", err)
+		slog.Warn("save state", "error", err)
 	}
 }
 

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"image/color"
+	"log/slog"
 	"math"
 	"os"
 
@@ -15,7 +16,6 @@ import (
 	timerscene "github.com/InsideGallery/pomodoro/internal/modules/timer"
 	"github.com/InsideGallery/pomodoro/internal/tray"
 	"github.com/InsideGallery/pomodoro/pkg/event"
-	"github.com/InsideGallery/pomodoro/pkg/logger"
 	"github.com/InsideGallery/pomodoro/pkg/platform"
 	"github.com/InsideGallery/pomodoro/pkg/pluggable"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
@@ -57,7 +57,7 @@ func (g *Game) initApp() {
 
 	switchScene := func(name string) {
 		if err := g.manager.SwitchSceneTo(name); err != nil {
-			logger.Warn("switch scene", "name", name, "error", err)
+			slog.Warn("switch scene", "name", name, "error", err)
 		}
 	}
 
@@ -80,7 +80,7 @@ func (g *Game) initApp() {
 
 	loader := pluggable.NewLoader(pluggable.DefaultPluginDir())
 	if err := loader.Load(); err != nil {
-		logger.Warn("load plugins", "error", err)
+		slog.Warn("load plugins", "error", err)
 	}
 
 	allPlugins = append(allPlugins, loader.Modules()...)
@@ -175,7 +175,7 @@ func (g *Game) showFromTray() {
 
 	if cur := g.manager.Scene(); cur != nil && cur.Name() != "timer" {
 		if err := g.manager.SwitchSceneTo("timer"); err != nil {
-			logger.Warn("switch scene", "name", "timer", "error", err)
+			slog.Warn("switch scene", "name", "timer", "error", err)
 		}
 
 		ebiten.SetWindowSize(DefaultWindowWidth, DefaultWindowHeight)
