@@ -41,7 +41,7 @@ func NewScene(bus *event.Bus, switchToSelf func(), onDone func()) *Scene {
 	st := config.LoadState()
 
 	s := &Scene{
-		enabled:   cfg.MinigameEnabled,
+		enabled:   cfg.PluginEnabled("minigame_enabled", false),
 		bestScore: st.MinigameBestScore,
 		breakDur:  cfg.BreakDuration(),
 		onSave: func(best int) {
@@ -61,7 +61,7 @@ func NewScene(bus *event.Bus, switchToSelf func(), onDone func()) *Scene {
 
 	bus.Subscribe(event.ConfigChanged, func(e event.Event) {
 		if c, ok := e.Data.(config.Config); ok {
-			s.enabled = c.MinigameEnabled
+			s.enabled = c.PluginEnabled("minigame_enabled", false)
 			s.breakDur = c.BreakDuration()
 		}
 	})

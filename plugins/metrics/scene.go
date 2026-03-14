@@ -44,7 +44,7 @@ func NewScene(bus *event.Bus, onDone func()) *Scene {
 
 	s := &Scene{
 		store:   store,
-		enabled: cfg.MetricsEnabled,
+		enabled: cfg.PluginEnabled("metrics_enabled", false),
 		onDone:  onDone,
 	}
 
@@ -83,7 +83,7 @@ func NewScene(bus *event.Bus, onDone func()) *Scene {
 
 		store.RecordBreakStart()
 
-		if cfg.MinigameEnabled {
+		if cfg.PluginEnabled("minigame_enabled", false) {
 			gameStartedAt = time.Now()
 
 			store.RecordGameStart()
@@ -120,7 +120,7 @@ func NewScene(bus *event.Bus, onDone func()) *Scene {
 
 	bus.Subscribe(event.ConfigChanged, func(e event.Event) {
 		if c, ok := e.Data.(config.Config); ok {
-			s.enabled = c.MetricsEnabled
+			s.enabled = c.PluginEnabled("metrics_enabled", false)
 		}
 	})
 

@@ -46,7 +46,7 @@ func NewScene(bus *event.Bus, switchToSelf func(), onDone func()) *Scene {
 
 	s := &Scene{
 		breakDur: cfg.LongBreakDuration(),
-		locked:   cfg.LockBreakScreen,
+		locked:   cfg.PluginEnabled("lock_break_screen", false),
 		onDone:   onDone,
 	}
 
@@ -60,7 +60,7 @@ func NewScene(bus *event.Bus, switchToSelf func(), onDone func()) *Scene {
 	bus.Subscribe(event.ConfigChanged, func(e event.Event) {
 		if c, ok := e.Data.(config.Config); ok {
 			s.breakDur = c.LongBreakDuration()
-			s.locked = c.LockBreakScreen
+			s.locked = c.PluginEnabled("lock_break_screen", false)
 		}
 	})
 

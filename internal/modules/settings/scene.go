@@ -9,6 +9,7 @@ import (
 
 	"github.com/InsideGallery/pomodoro/pkg/config"
 	"github.com/InsideGallery/pomodoro/pkg/event"
+	"github.com/InsideGallery/pomodoro/pkg/pluggable"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 	"github.com/InsideGallery/pomodoro/pkg/systems"
 	"github.com/InsideGallery/pomodoro/pkg/ui"
@@ -26,16 +27,18 @@ type Scene struct {
 	bus    *event.Bus
 
 	onSwitchScene func(string)
+	plugins       []pluggable.Module
 
 	width, height int
 	pendingReinit bool
 }
 
-func NewScene(bus *event.Bus, onSwitchScene func(string)) *Scene {
+func NewScene(bus *event.Bus, onSwitchScene func(string), plugins []pluggable.Module) *Scene {
 	return &Scene{
 		cfg:           config.Load(),
 		bus:           bus,
 		onSwitchScene: onSwitchScene,
+		plugins:       plugins,
 	}
 }
 
@@ -57,7 +60,6 @@ func (s *Scene) Init(ctx context.Context) {
 	s.screen.OnTickVolumeChange = func(_ float64) { s.publishConfig() }
 	s.screen.OnAlarmVolumeChange = func(_ float64) { s.publishConfig() }
 	s.screen.OnTickEnabledChange = func(_ bool) { s.publishConfig() }
-	s.screen.OnMinigameChange = func(_ bool) { s.publishConfig() }
 	s.screen.OnThemeChange = func(theme string) {
 		ui.SetTheme(ui.ThemeID(theme))
 		ui.ApplyTransparency(s.cfg.Transparency)
@@ -84,8 +86,6 @@ func (s *Scene) Load() error {
 	s.cfg = config.Load()
 	s.screen.Cfg = &s.cfg
 
-	// On first load, width/height may be 0 (Layout not yet called).
-	// Use fallback from Ebiten's current window size.
 	if s.width == 0 || s.height == 0 {
 		w, h := ebiten.WindowSize()
 		scale := 1.0
@@ -96,6 +96,28 @@ func (s *Scene) Load() error {
 
 		s.width = int(float64(w) * scale)
 		s.height = int(float64(h) * scale)
+	}
+
+	// Create plugin toggles from loaded plugins
+	s.screen.PluginToggles = nil
+
+	for _, mod := range s.plugins {
+		key := mod.ConfigKey()
+		name := mod.Name()
+
+		s.screen.PluginToggles = append(s.screen.PluginToggles, ui.Toggle{
+			Value:     s.cfg.PluginEnabled(key, mod.DefaultEnabled()),
+			OnColor:   ui.ColorAccentBreak,
+			OffColor:  ui.ColorToggleOff,
+			KnobColor: ui.ColorTextPrimary,
+			Label:     name,
+		})
+
+		idx := len(s.screen.PluginToggles) - 1
+		s.screen.PluginToggles[idx].OnChange = func(v bool) {
+			s.cfg.SetPlugin(key, v)
+			s.publishConfig()
+		}
 	}
 
 	s.screen.Init(s.width, s.height)
@@ -121,11 +143,24 @@ func (s *Scene) Update() error {
 		return nil
 	}
 
-	// Handle scroll, then update InputSystem offset
+	// Back button is in the fixed header — check it directly (not via RTree)
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		mx, my := ebiten.CursorPosition()
+		bk := s.screen.BtnBack
+
+		if mx >= int(bk.X) && mx <= int(bk.X+bk.W) && my >= int(bk.Y) && my <= int(bk.Y+bk.H) {
+			if bk.OnClick != nil {
+				bk.OnClick()
+			}
+
+			return nil
+		}
+	}
+
+	// Handle scroll, then update InputSystem offset for scrollable widgets
 	s.screen.HandleScroll()
 	s.input.SetScrollOffset(s.screen.ScrollOffset())
 
-	// Run InputSystem for click/drag/hover detection
 	if err := s.input.Update(s.Ctx); err != nil {
 		return err
 	}

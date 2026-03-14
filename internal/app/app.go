@@ -67,14 +67,12 @@ func (g *Game) initApp() {
 		func() { switchScene("mini") },
 	)
 
-	ss := settings.NewScene(g.bus, switchScene)
 	mn := mini.NewScene(ts, switchToTimer)
 
-	g.manager.Add(ctx, ts, ss, mn)
-
-	// Load external plugins (minigame, lockscreen, metrics, and any user plugins)
+	// Load external plugins
 	loader := pluggable.NewLoader(pluggable.DefaultPluginDir())
-	_ = loader.Load()
+
+	_ = loader.Load() // non-fatal: app runs without plugins
 
 	for _, mod := range loader.Modules() {
 		scenes := mod.Scenes(g.bus, pluggable.SceneSwitcher(switchScene))
@@ -93,7 +91,15 @@ func (g *Game) initApp() {
 		}
 	}
 
-	_ = g.manager.SwitchSceneTo("timer")
+	// Settings scene receives loaded plugins for dynamic toggles
+	ss := settings.NewScene(g.bus, switchScene, loader.Modules())
+
+	g.manager.Add(ctx, ts, ss, mn)
+
+	if err := g.manager.SwitchSceneTo("timer"); err != nil {
+		// Fatal: can't start without timer scene
+		panic("failed to switch to timer: " + err.Error())
+	}
 
 	// Tray icon updates via events
 	g.subscribeTrayIconUpdates()

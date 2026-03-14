@@ -8,19 +8,39 @@ import (
 )
 
 type Config struct {
-	FocusMinutes     int     `json:"focus_minutes"`
-	BreakMinutes     int     `json:"break_minutes"`
-	LongBreakMinutes int     `json:"long_break_minutes"`
-	RoundsBeforeLong int     `json:"rounds_before_long"`
-	AutoStart        bool    `json:"auto_start"`
-	TickVolume       float64 `json:"tick_volume"`
-	AlarmVolume      float64 `json:"alarm_volume"`
-	TickEnabled      bool    `json:"tick_enabled"`
-	Theme            string  `json:"theme"`
-	Transparency     float64 `json:"transparency"`
-	MinigameEnabled  bool    `json:"minigame_enabled"`
-	LockBreakScreen  bool    `json:"lock_break_screen"`
-	MetricsEnabled   bool    `json:"metrics_enabled"`
+	FocusMinutes     int             `json:"focus_minutes"`
+	BreakMinutes     int             `json:"break_minutes"`
+	LongBreakMinutes int             `json:"long_break_minutes"`
+	RoundsBeforeLong int             `json:"rounds_before_long"`
+	AutoStart        bool            `json:"auto_start"`
+	TickVolume       float64         `json:"tick_volume"`
+	AlarmVolume      float64         `json:"alarm_volume"`
+	TickEnabled      bool            `json:"tick_enabled"`
+	Theme            string          `json:"theme"`
+	Transparency     float64         `json:"transparency"`
+	Plugins          map[string]bool `json:"plugins"` // plugin_key → enabled
+}
+
+// PluginEnabled returns whether a plugin is enabled (with default fallback).
+func (c Config) PluginEnabled(key string, defaultVal bool) bool {
+	if c.Plugins == nil {
+		return defaultVal
+	}
+
+	if v, ok := c.Plugins[key]; ok {
+		return v
+	}
+
+	return defaultVal
+}
+
+// SetPlugin enables/disables a plugin by key.
+func (c *Config) SetPlugin(key string, enabled bool) {
+	if c.Plugins == nil {
+		c.Plugins = make(map[string]bool)
+	}
+
+	c.Plugins[key] = enabled
 }
 
 func (c Config) FocusDuration() time.Duration { return time.Duration(c.FocusMinutes) * time.Minute }
