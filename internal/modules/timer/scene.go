@@ -2,17 +2,22 @@ package timer
 
 import (
 	"context"
+	"image/color"
 	"math"
 	"time"
 
+	"github.com/InsideGallery/game-core/geometry/shapes"
 	"github.com/hajimehoshi/ebiten/v2"
+	textv2 "github.com/hajimehoshi/ebiten/v2/text/v2"
 
 	"github.com/InsideGallery/pomodoro/internal/audio"
 	tsystems "github.com/InsideGallery/pomodoro/internal/modules/timer/systems"
 	"github.com/InsideGallery/pomodoro/internal/timer"
 	"github.com/InsideGallery/pomodoro/pkg/config"
+	"github.com/InsideGallery/pomodoro/pkg/ecs"
 	"github.com/InsideGallery/pomodoro/pkg/event"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
+	"github.com/InsideGallery/pomodoro/pkg/systems"
 	"github.com/InsideGallery/pomodoro/pkg/ui"
 )
 
@@ -22,7 +27,6 @@ const (
 	WindowHeight = 560
 )
 
-// Scene is the main timer scene. It owns the timer domain, audio, and state persistence.
 type Scene struct {
 	*scene.BaseScene
 
@@ -30,17 +34,16 @@ type Scene struct {
 	audio *audio.Manager
 	bus   *event.Bus
 	tick  *tsystems.TickSystem
-
-	screen ui.TimerScreen
+	input *systems.InputSystem
 
 	onSwitchScene func(string)
 	onClose       func()
 	onMini        func()
 
 	width, height int
+	entityIDSeq   uint64
 }
 
-// NewScene creates the timer scene. It owns timer creation, audio, and state.
 func NewScene(
 	bus *event.Bus,
 	onSwitchScene func(string),
@@ -86,7 +89,6 @@ func NewScene(
 		s.saveState()
 	}
 
-	// React to config changes
 	bus.Subscribe(event.ConfigChanged, func(e event.Event) {
 		if c, ok := e.Data.(config.Config); ok {
 			tmr.SetConfig(timer.Config{
@@ -104,23 +106,21 @@ func NewScene(
 
 func (s *Scene) Name() string { return SceneName }
 
-// OnStartPause returns the start/pause callback for use by mini mode.
 func (s *Scene) OnStartPause() func() { return s.tick.OnStartPause }
 
-// TimerRemaining returns the current timer remaining duration.
 func (s *Scene) TimerRemaining() time.Duration { return s.tmr.Remaining(time.Now()) }
 
-// TimerStateString returns the current timer state as a string.
 func (s *Scene) TimerStateString() string { return s.tmr.State().String() }
 
-// TimerIsRunning returns whether the timer is currently running.
 func (s *Scene) TimerIsRunning() bool { return s.tmr.State().IsRunning() }
 
 func (s *Scene) Init(ctx context.Context) {
 	s.BaseScene = scene.NewBaseScene(ctx, s.bus)
+	s.input = systems.NewInputSystem(s.RTree)
 
 	s.initAudio()
 
+	s.Systems.Add("input", s.input)
 	s.Systems.Add("keyboard", &tsystems.KeyboardSystem{
 		OnStartPause: s.tick.OnStartPause,
 		OnReset:      s.tick.OnReset,
@@ -128,27 +128,12 @@ func (s *Scene) Init(ctx context.Context) {
 	})
 	s.Systems.Add("tick", s.tick)
 	s.Systems.Add("render", &tsystems.RenderSystem{
-		Screen: &s.screen,
-		Tmr:    s.tmr,
+		Reg: s.Registry,
+		Tmr: s.tmr,
 	})
 }
 
 func (s *Scene) Load() error {
-	s.screen.Timer = s.tmr
-	s.screen.OnStart = s.tick.OnStartPause
-	s.screen.OnReset = s.tick.OnReset
-	s.screen.OnSkip = s.tick.OnSkip
-	s.screen.OnSettings = func() { s.onSwitchScene("settings") }
-	s.screen.OnClose = s.onClose
-	s.screen.OnMini = s.onMini
-	s.screen.OnSetRound = func(r int) {
-		s.tmr.SetRound(r)
-		s.saveState()
-	}
-
-	s.screen.OnAdjustTime = func(rem time.Duration) {
-		s.tmr.SetRemaining(rem, time.Now())
-	}
 	if s.width == 0 || s.height == 0 {
 		w, h := ebiten.WindowSize()
 		scale := 1.0
@@ -161,7 +146,7 @@ func (s *Scene) Load() error {
 		s.height = int(float64(h) * scale)
 	}
 
-	s.screen.Init(s.width, s.height)
+	s.createEntities()
 
 	return nil
 }
@@ -195,10 +180,253 @@ func (s *Scene) Layout(outsideWidth, outsideHeight int) (int, int) {
 	if w != s.width || h != s.height {
 		s.width = w
 		s.height = h
-		s.screen.Resize(w, h)
+		s.createEntities() // re-layout
 	}
 
 	return w, h
+}
+
+func (s *Scene) nextID() uint64 {
+	s.entityIDSeq++
+
+	return s.entityIDSeq
+}
+
+func (s *Scene) createEntities() {
+	// Clear previous entities and RTree zones
+	s.input.ClearZones()
+
+	for _, key := range s.Registry.GetKeys() {
+		s.Registry.TruncateGroup(key)
+	}
+
+	w := float32(s.width)
+	h := float32(s.height)
+	pad := ui.S(24)
+	cardY := ui.S(48)
+	cardH := h - cardY - pad
+	cardW := w - pad*2
+	iconS := ui.S(32)
+
+	faceTimer := ui.Face(true, 56)
+	faceMode := ui.Face(true, 13)
+	faceSmall := ui.Face(false, 12)
+	faceBtn := ui.Face(true, 13)
+
+	// --- Title bar buttons ---
+	s.addButton("button", w-pad-iconS, ui.S(10), iconS, iconS,
+		color.RGBA{}, color.RGBA{R: 0xFF, G: 0x6B, B: 0x6B, A: 0x30},
+		ui.ColorTextSecond, "", nil, ui.DrawCloseIcon, s.onClose)
+
+	s.addButton("button", w-pad-iconS*2-ui.S(8), ui.S(10), iconS, iconS,
+		color.RGBA{}, ui.ColorBgTertiary,
+		ui.ColorTextSecond, "", nil, ui.DrawMinimizeIcon, s.onMini)
+
+	s.addButton("button", w-pad-iconS*3-ui.S(16), ui.S(10), iconS, iconS,
+		color.RGBA{}, ui.ColorBgTertiary,
+		ui.ColorTextSecond, "", nil, ui.DrawSettingsIcon,
+		func() { s.onSwitchScene("settings") })
+
+	// --- Control buttons ---
+	btnW := ui.S(96)
+	btnH := ui.S(40)
+	gap := ui.S(10)
+	totalW := btnW*3 + gap*2
+	startX := (w - totalW) / 2
+	btnY := h - pad - btnH - ui.S(16)
+
+	s.addButton("button", startX, btnY, btnW, btnH,
+		ui.ColorAccentSuccess, ui.ColorAccentSuccess,
+		ui.ColorBgPrimary, "Focus", faceBtn, nil, s.tick.OnStartPause)
+
+	s.addButton("button", startX+btnW+gap, btnY, btnW, btnH,
+		ui.ColorBgTertiary, ui.ColorBorder,
+		ui.ColorTextPrimary, "Skip", faceBtn, nil, s.tick.OnSkip)
+
+	s.addButton("button", startX+(btnW+gap)*2, btnY, btnW, btnH,
+		ui.ColorBgTertiary, ui.ColorBgTertiary,
+		ui.ColorAccentDanger, "Reset", faceBtn, nil, s.tick.OnReset)
+
+	// --- Ring ---
+	ringCX := float64(w / 2)
+	ringCY := float64(cardY + cardH*0.38)
+	maxR := math.Min(float64(cardW)*0.28, float64(cardH)*0.26)
+
+	ring := &tsystems.RingEntityData{CX: ringCX, CY: ringCY, OuterR: maxR, TrackColor: ui.ColorBgTertiary}
+
+	if err := s.Registry.Add("ring", s.nextID(), ring); err == nil {
+		// Ring drag zone
+		s.input.AddZone(&systems.Zone{
+			Spatial:     box(ringCX-maxR, ringCY-maxR, maxR*2, maxR*2),
+			OnDragStart: func() {},
+			OnDrag: func(mx, my int) {
+				state := s.tmr.State()
+				if !state.IsRunning() && state != timer.StatePaused {
+					return
+				}
+
+				dx := float64(mx) - ringCX
+				dy := float64(my) - ringCY
+				angle := math.Atan2(dy, dx)
+				progress := (angle + math.Pi/2) / (2 * math.Pi)
+
+				if progress < 0 {
+					progress++
+				}
+
+				total := s.tmr.TotalDuration()
+				rem := time.Duration(float64(total) * (1 - progress))
+
+				if rem < time.Second {
+					rem = time.Second
+				}
+
+				s.tmr.SetRemaining(rem, time.Now())
+			},
+			OnDragEnd: func() {},
+		})
+	}
+
+	// --- Mode label ---
+	modeLabel := &ecs.ModeLabelEntity{
+		Pos:  ecs.Position{X: ringCX, Y: ringCY - maxR*0.38},
+		Face: faceMode,
+		ColorFunc: func() color.Color {
+			return s.accentForState(s.tmr.State())
+		},
+		TextFunc: func() string {
+			state := s.tmr.State()
+			if state == timer.StateIdle {
+				return s.tmr.PendingNext().String()
+			}
+
+			if state == timer.StatePaused {
+				return "Paused"
+			}
+
+			return state.String()
+		},
+	}
+
+	_ = s.Registry.Add("mode_label", s.nextID(), modeLabel)
+
+	// --- Timer text ---
+	timerText := &ecs.TimerTextEntity{
+		Pos:       ecs.Position{X: ringCX, Y: ringCY + maxR*0.08},
+		Face:      faceTimer,
+		Color:     ui.ColorTextPrimary,
+		Remaining: func() time.Duration { return s.tmr.Remaining(time.Now()) },
+	}
+
+	_ = s.Registry.Add("timer_text", s.nextID(), timerText)
+
+	// --- Hint ---
+	hint := &ecs.HintEntity{
+		Pos:   ecs.Position{X: ringCX, Y: ringCY + maxR + ui.Sf(18)},
+		Face:  faceSmall,
+		Color: ui.ColorTextSecond,
+		TextFunc: func() string {
+			if s.tmr.State() != timer.StateIdle {
+				return ""
+			}
+
+			switch s.tmr.PendingNext() {
+			case timer.StateBreak:
+				return "Time for a break"
+			case timer.StateLongBreak:
+				return "Time for a long break"
+			default:
+				return "Ready to focus"
+			}
+		},
+	}
+
+	_ = s.Registry.Add("hint", s.nextID(), hint)
+
+	// --- Round dots ---
+	dotY := ringCY + maxR + ui.Sf(44)
+	dots := &tsystems.RoundDotsEntityData{CX: ringCX, CY: dotY}
+
+	if err := s.Registry.Add("round_dots", s.nextID(), dots); err == nil {
+		// Create clickable zones for each dot
+		total := s.tmr.Config().RoundsBeforeLong
+		if total > 0 {
+			dotR := ui.S(4)
+			dotGap := ui.S(12)
+			dotTotalW := float64(total)*float64(dotR*2) + float64(total-1)*float64(dotGap)
+			dotStartX := ringCX - dotTotalW/2 + float64(dotR)
+
+			for i := range total {
+				idx := i
+				cx := dotStartX + float64(i)*(float64(dotR*2+dotGap))
+				hitR := float64(dotR + ui.S(8))
+
+				s.input.AddZone(&systems.Zone{
+					Spatial: box(cx-hitR, dotY-hitR, hitR*2, hitR*2),
+					OnClick: func() {
+						state := s.tmr.State()
+						if state == timer.StateIdle || state == timer.StatePaused {
+							s.tmr.SetRound(idx)
+							s.saveState()
+						}
+					},
+				})
+			}
+		}
+	}
+}
+
+func (s *Scene) addButton(
+	group string,
+	x, y, w, h float32,
+	clr, hoverClr color.Color,
+	textClr color.Color,
+	label string,
+	face *textv2.GoTextFace,
+	iconDraw func(*ebiten.Image, float32, float32, float32, color.Color),
+	onClick func(),
+) {
+	btn := &ecs.ButtonEntity{
+		Pos:        ecs.Position{X: float64(x), Y: float64(y)},
+		Size:       ecs.Size{W: float64(w), H: float64(h)},
+		Color:      clr,
+		HoverColor: hoverClr,
+		TextColor:  textClr,
+		Label:      label,
+		Face:       face,
+		OnClick:    onClick,
+	}
+
+	if iconDraw != nil {
+		btn.IconDraw = iconDraw
+	}
+
+	id := s.nextID()
+
+	if err := s.Registry.Add(group, id, btn); err != nil {
+		return
+	}
+
+	zone := &systems.Zone{
+		Spatial: box(float64(x), float64(y), float64(w), float64(h)),
+		OnClick: onClick,
+		OnHover: func(hovered bool) { btn.Hovered = hovered },
+	}
+
+	s.input.AddZone(zone)
+}
+
+func (s *Scene) accentForState(st timer.State) color.Color {
+	switch st {
+	case timer.StateFocus:
+		return ui.ColorAccentFocus
+	case timer.StateBreak:
+		return ui.ColorAccentBreak
+	case timer.StateLongBreak:
+		return ui.ColorGradBreakEnd
+	default:
+		return ui.ColorTextSecond
+	}
 }
 
 func (s *Scene) initAudio() {
@@ -225,7 +453,7 @@ func (s *Scene) initAudio() {
 }
 
 func (s *Scene) saveState() {
-	st := config.LoadState() // preserve other modules' fields
+	st := config.LoadState()
 
 	state, prePause, pendingNext, round, remainingSec := s.tmr.Snapshot(time.Now())
 	st.Round = round
@@ -235,4 +463,8 @@ func (s *Scene) saveState() {
 	st.RemainingSec = remainingSec
 
 	_ = config.SaveState(st)
+}
+
+func box(x, y, w, h float64) shapes.Spatial { //nolint:ireturn // returns spatial for RTree
+	return shapes.NewBox(shapes.NewPoint(x, y), w, h)
 }

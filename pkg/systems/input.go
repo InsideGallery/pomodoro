@@ -12,8 +12,8 @@ import (
 // ClickHandler is called when a clickable zone is clicked.
 type ClickHandler func()
 
-// DragHandler is called each frame while dragging, with mouse X position.
-type DragHandler func(mx int)
+// DragHandler is called each frame while dragging, with mouse position.
+type DragHandler func(mx, my int)
 
 // HoverHandler is called each frame with whether the zone is hovered.
 type HoverHandler func(hovered bool)
@@ -106,7 +106,7 @@ func (s *InputSystem) Update(_ context.Context) error {
 			s.dragging = false
 			s.dragZone = nil
 		} else if s.dragZone.OnDrag != nil {
-			s.dragZone.OnDrag(mx)
+			s.dragZone.OnDrag(mx, my)
 		}
 
 		return nil

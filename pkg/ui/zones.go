@@ -52,7 +52,7 @@ func SliderZone(s *Slider) *systems.Zone {
 			float64(s.W)+pad*2, float64(s.H)+pad*2,
 		),
 		OnDragStart: func() {},
-		OnDrag: func(mx int) {
+		OnDrag: func(mx, _ int) {
 			t := float64(float32(mx)-s.X) / float64(s.W)
 			if t < 0 {
 				t = 0
