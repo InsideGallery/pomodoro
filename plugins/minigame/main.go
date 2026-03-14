@@ -5,20 +5,21 @@ package main
 import (
 	"github.com/InsideGallery/pomodoro/pkg/event"
 	"github.com/InsideGallery/pomodoro/pkg/pluggable"
+	mg "github.com/InsideGallery/pomodoro/pkg/plugins/minigame"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 )
 
-var Plugin pluggable.Module = &minigamePlugin{} //nolint:gochecknoglobals // plugin contract
+var Plugin pluggable.Module = &wrapper{} //nolint:gochecknoglobals // plugin contract
 
-type minigamePlugin struct{}
+type wrapper struct{}
 
-func (p *minigamePlugin) Name() string                 { return "minigame" }
-func (p *minigamePlugin) ConfigKey() string            { return "minigame_enabled" }
-func (p *minigamePlugin) DefaultEnabled() bool         { return false }
-func (p *minigamePlugin) TrayItems() map[string]string { return nil }
+func (w *wrapper) Name() string                 { return "minigame" }
+func (w *wrapper) ConfigKey() string            { return "minigame_enabled" }
+func (w *wrapper) DefaultEnabled() bool         { return false }
+func (w *wrapper) TrayItems() map[string]string { return nil }
 
-func (p *minigamePlugin) Scenes(bus *event.Bus, switchScene pluggable.SceneSwitcher) []scene.Scene {
+func (w *wrapper) Scenes(bus *event.Bus, switchScene pluggable.SceneSwitcher) []scene.Scene {
 	return []scene.Scene{
-		NewScene(bus, func() { switchScene("minigame") }, func() { switchScene("timer") }),
+		mg.NewScene(bus, func() { switchScene("minigame") }, func() { switchScene("timer") }),
 	}
 }

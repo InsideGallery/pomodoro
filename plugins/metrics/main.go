@@ -5,20 +5,21 @@ package main
 import (
 	"github.com/InsideGallery/pomodoro/pkg/event"
 	"github.com/InsideGallery/pomodoro/pkg/pluggable"
+	mt "github.com/InsideGallery/pomodoro/pkg/plugins/metrics"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 )
 
-var Plugin pluggable.Module = &metricsPlugin{} //nolint:gochecknoglobals // plugin contract
+var Plugin pluggable.Module = &wrapper{} //nolint:gochecknoglobals // plugin contract
 
-type metricsPlugin struct{}
+type wrapper struct{}
 
-func (p *metricsPlugin) Name() string                 { return "metrics" }
-func (p *metricsPlugin) ConfigKey() string            { return "metrics_enabled" }
-func (p *metricsPlugin) DefaultEnabled() bool         { return false }
-func (p *metricsPlugin) TrayItems() map[string]string { return map[string]string{"Metrics": "metrics"} }
+func (w *wrapper) Name() string                 { return "metrics" }
+func (w *wrapper) ConfigKey() string            { return "metrics_enabled" }
+func (w *wrapper) DefaultEnabled() bool         { return false }
+func (w *wrapper) TrayItems() map[string]string { return map[string]string{"Metrics": "metrics"} }
 
-func (p *metricsPlugin) Scenes(bus *event.Bus, switchScene pluggable.SceneSwitcher) []scene.Scene {
+func (w *wrapper) Scenes(bus *event.Bus, switchScene pluggable.SceneSwitcher) []scene.Scene {
 	return []scene.Scene{
-		NewScene(bus, func() { switchScene("timer") }),
+		mt.NewScene(bus, func() { switchScene("timer") }),
 	}
 }

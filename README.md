@@ -27,60 +27,63 @@ A minimalist, cross-platform Pomodoro timer built with Go and the [Ebiten](https
 ## Key Features
 
 - **Game Engine Powered** — Leveraging Ebiten for hardware-accelerated rendering at 60 FPS
-- **ECS Architecture** — Entity-Component-System design using [InsideGallery/core](https://github.com/InsideGallery/core) with Scene Manager, RTree spatial indexing, and event-driven communication
-- **Dual Modes** — Switch between an immersive full mode and a non-intrusive minimalist overlay
-- **Always on Top** — Mini mode stays visible over your IDE or browser
-- **Mini-Game** — Button Hunt game during short breaks: find and click randomly placed targets on a transparent fullscreen overlay
-- **Lock Screen** — Optional fullscreen lock during long breaks with soft-lock (always-on-top + focus reclaim, ESC x3 to exit)
-- **Usage Metrics** — Track focus hours, break time, games played, sessions started (total/monthly/weekly)
-- **Lightweight** — No Electron overhead. Small binary, minimal RAM
+- **ECS Architecture** — Entity-Component-System with Scene Manager, RTree spatial indexing, event-driven communication
+- **Plugin System** — Features as plugins: compiled-in (Windows) or `.so` runtime loading (Linux/macOS)
+- **Dual Modes** — Full mode and compact mini-mode overlay
+- **Mini-Game** — Button Hunt during breaks: find targets on transparent fullscreen overlay
+- **Lock Screen** — Fullscreen lock during long breaks (soft-lock with ESC x3 exit)
+- **Usage Metrics** — Track focus hours, break time, games played (total/monthly/weekly)
 - **Fully Customizable** — Focus/break times, dark/light themes, sound volumes, transparency
-- **Ambient Tick & Alarm** — Gentle tick keeps you aware; alarm brings you back
-- **System Tray** — Close to tray, Show/Metrics/Quit from tray menu
-- **Keyboard Shortcuts** — Space (start/pause), R (reset), S (settings), Escape (back)
-- **Single Binary** — No runtime dependencies. Settings stored in plain JSON
+- **System Tray** — Close to tray, dynamic menu items from plugins
+- **Cross-Platform** — Linux, macOS, Windows. Single binary, all plugins compiled in.
 - **HiDPI Support** — Crisp vector rendering on high-density displays
-- **Plugin-Ready Architecture** — Modular scene system designed for future external .so plugins
 
 ---
 
 ## Architecture
 
-Built on an ECS (Entity-Component-System) + Scene pattern:
-
-- **Scenes**: Timer, Settings, Mini-Game, Lock Screen, Metrics — each self-contained with own lifecycle
-- **Systems**: Ordered execution of Update/Draw per scene (InputSystem, TickSystem, RenderSystem)
-- **RTree**: Spatial indexing for efficient click/collision detection via [InsideGallery/game-core](https://github.com/InsideGallery/game-core)
-- **Event Bus**: Cross-scene communication without module coupling
-- **Pure Domain Logic**: Timer state machine, game logic, metrics store — fully tested, no Ebiten dependency
-
 ```
-cmd/pomodoro/          -- Entry point
-internal/
-  core/                -- ECS System interface (Update + Draw)
-  scene/               -- Scene interface, BaseScene, SceneManager
-  modules/
-    timer/             -- Main timer scene with systems
-    settings/          -- Settings scene
-    minigame/          -- Button Hunt fullscreen game
-    lockscreen/        -- Long break lock screen
-    metrics/           -- Usage statistics
-  timer/               -- Pure Go timer state machine (25 tests)
-  config/              -- JSON persistence (11 tests)
-  event/               -- Event bus (9 tests)
-  ui/                  -- Drawing primitives, widget components
-  audio/               -- Tick/alarm audio manager
-pkg/
-  systems/             -- Reusable ECS systems (InputSystem, DebugSystem)
+internal/                          -- Core (always compiled in)
+  app/                             -- Ebiten game shell
+  modules/timer/                   -- Timer scene + systems
+  modules/settings/                -- Settings scene (dynamic plugin toggles)
+  modules/mini/                    -- Mini mode scene
+  builtin/                         -- Registers all built-in plugins
+  timer/                           -- Pure Go timer state machine
+  audio/                           -- Audio manager
+
+pkg/                               -- Public API (importable by external plugins)
+  scene/                           -- Scene, BaseScene, SceneManager
+  event/                           -- Event Bus
+  core/                            -- ECS System interfaces
+  systems/                         -- InputSystem (RTree), DebugSystem
+  config/                          -- Config persistence
+  ui/                              -- Drawing primitives, widgets
+  platform/                        -- Window management
+  pluggable/                       -- Plugin contract + loader
+  plugins/                         -- Plugin logic packages (shared by .so and builtin)
+    minigame/                      -- Button Hunt game logic + scene
+    lockscreen/                    -- Lock screen logic + scene
+    metrics/                       -- Metrics store + scene
+
+plugins/                           -- .so plugin entry points (Linux/macOS only)
+  minigame/main.go                 -- Thin wrapper importing pkg/plugins/minigame
+  lockscreen/main.go               -- Thin wrapper importing pkg/plugins/lockscreen
+  metrics/main.go                  -- Thin wrapper importing pkg/plugins/metrics
+  example/main.go                  -- Example plugin template
 ```
 
----
+**How plugins work:**
 
-## Why Go + Ebiten?
+| Platform | Plugin mode | How |
+|----------|-----------|-----|
+| **Linux** | Runtime `.so` OR compiled-in | `make plugins` builds .so; builtin always available |
+| **macOS** | Runtime `.dylib` OR compiled-in | Same as Linux |
+| **Windows** | Compiled-in only | Go's plugin package not supported; all plugins compiled in |
 
-Most desktop timers are either bloated Electron wrappers or ugly CLI tools. This one is different.
-
-Go delivers a small, fast, self-contained binary with no runtime dependencies. Ebiten provides GPU-accelerated rendering, so the UI stays buttery smooth — all in under 10 MB of RAM.
+All plugins are compiled into the binary by default (via `internal/builtin/`).
+On Linux/macOS, external `.so` plugins from `~/.config/pomodoro/plugins/` can
+override or extend the built-in ones.
 
 ---
 
@@ -89,13 +92,6 @@ Go delivers a small, fast, self-contained binary with no runtime dependencies. E
 ### Download Binary
 
 Grab the latest executable from [Releases](https://github.com/InsideGallery/pomodoro/releases).
-
-### AppImage (Linux)
-
-```bash
-chmod +x pomodoro-*-x86_64.AppImage
-./pomodoro-*-x86_64.AppImage
-```
 
 ### Build from Source
 
@@ -113,12 +109,6 @@ make build
 go build -o pomodoro ./cmd/pomodoro/
 ```
 
-### System Install (Linux)
-
-```bash
-sudo make install
-```
-
 ---
 
 ## Configuration
@@ -132,34 +122,54 @@ Settings in `~/.config/pomodoro/config.json` (or press **S** / click gear icon).
 | Long break duration | 15 min |
 | Rounds before long break | 4 |
 | Auto-start next session | off |
-| Mini-Game on break | off |
-| Lock long break | off |
-| Usage metrics | off |
 | Tick sound | on, 50% volume |
 | Alarm volume | 80% |
 | Theme | dark |
 | Transparency | 10% |
+
+Plugin toggles (Mini-Game, Lock Screen, Metrics) appear dynamically based on loaded plugins.
 
 ---
 
 ## Building
 
 ```bash
-make build      # Build binary
-make test       # Run tests (100+ tests, 86%+ coverage)
-make appimage   # Build Linux AppImage
-make clean      # Remove build artifacts
+make build          # Build binary (all plugins compiled in)
+make plugins        # Build .so plugins for Linux/macOS runtime loading
+make test           # Run tests
+make lint           # Run golangci-lint
+make coverage       # Run test coverage
+make appimage       # Build Linux AppImage
+make clean          # Remove build artifacts
 ```
+
+---
+
+## Writing Plugins
+
+Plugins implement the `pluggable.Module` interface:
+
+```go
+type Module interface {
+    Name() string
+    Scenes(bus *event.Bus, switchScene SceneSwitcher) []scene.Scene
+    TrayItems() map[string]string
+    ConfigKey() string
+    DefaultEnabled() bool
+}
+```
+
+See `plugins/example/main.go` for a minimal template.
 
 ---
 
 ## Roadmap
 
 - [ ] Tiled-based UI layouts (.tmx maps for data-driven UI)
-- [ ] External plugin modules (.so) for community extensions
-- [ ] D-Bus notifications for Linux
+- [ ] Camera system from detective project
+- [ ] D-Bus notifications plugin
 - [ ] Custom sound file support
-- [ ] Task list panel linked to focus sessions
+- [ ] Task list plugin
 
 ---
 

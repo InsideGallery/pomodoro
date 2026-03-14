@@ -9,18 +9,18 @@ exclude:
   paths:
     - \.pb\.go$
     - ^cmd/
-    - ^internal/ui/
     - ^internal/app/
     - ^internal/audio/
-    - ^internal/platform/
+    - ^internal/builtin/
     - ^internal/tray/
-    - internal/modules/.*/screen\.go$
-    - internal/modules/.*/module\.go$
+    - ^internal/ecs/
     - internal/modules/.*/scene\.go$
     - internal/modules/.*/systems/
-    - ^internal/ecs/
     - ^pkg/systems/
     - ^pkg/pluggable/
+    - ^pkg/platform/
+    - ^pkg/ui/
+    - pkg/plugins/.*/scene\.go$
 
 breakdown-file-name: ''
 

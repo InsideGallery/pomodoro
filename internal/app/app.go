@@ -9,6 +9,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 
+	"github.com/InsideGallery/pomodoro/internal/builtin"
 	"github.com/InsideGallery/pomodoro/internal/modules/mini"
 	"github.com/InsideGallery/pomodoro/internal/modules/settings"
 	timerscene "github.com/InsideGallery/pomodoro/internal/modules/timer"
@@ -69,12 +70,29 @@ func (g *Game) initApp() {
 
 	mn := mini.NewScene(ts, switchToTimer)
 
-	// Load external plugins
+	// Collect all plugins: built-in + external .so
+	allPlugins := builtin.Modules()
+
 	loader := pluggable.NewLoader(pluggable.DefaultPluginDir())
+	_ = loader.Load() // non-fatal: app runs without .so plugins
 
-	_ = loader.Load() // non-fatal: app runs without plugins
+	allPlugins = append(allPlugins, loader.Modules()...)
 
-	for _, mod := range loader.Modules() {
+	// Deduplicate by name (external .so overrides built-in)
+	seen := make(map[string]bool)
+
+	var plugins []pluggable.Module
+
+	// Process in reverse so external .so wins over builtin
+	for i := len(allPlugins) - 1; i >= 0; i-- {
+		mod := allPlugins[i]
+		if !seen[mod.Name()] {
+			seen[mod.Name()] = true
+			plugins = append(plugins, mod)
+		}
+	}
+
+	for _, mod := range plugins {
 		scenes := mod.Scenes(g.bus, pluggable.SceneSwitcher(switchScene))
 
 		for _, sc := range scenes {
@@ -91,8 +109,7 @@ func (g *Game) initApp() {
 		}
 	}
 
-	// Settings scene receives loaded plugins for dynamic toggles
-	ss := settings.NewScene(g.bus, switchScene, loader.Modules())
+	ss := settings.NewScene(g.bus, switchScene, plugins)
 
 	g.manager.Add(ctx, ts, ss, mn)
 

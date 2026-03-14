@@ -1,6 +1,4 @@
-//go:build plugin
-
-package main
+package metrics
 
 import (
 	"context"
@@ -14,9 +12,9 @@ import (
 	textv2 "github.com/hajimehoshi/ebiten/v2/text/v2"
 
 	"github.com/InsideGallery/pomodoro/pkg/config"
-	"github.com/InsideGallery/pomodoro/pkg/ui"
 	"github.com/InsideGallery/pomodoro/pkg/event"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
+	"github.com/InsideGallery/pomodoro/pkg/ui"
 )
 
 const SceneName = "metrics"

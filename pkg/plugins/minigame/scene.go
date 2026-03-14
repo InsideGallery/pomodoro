@@ -1,6 +1,4 @@
-//go:build plugin
-
-package main
+package minigame
 
 import (
 	"context"
@@ -14,9 +12,9 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 
 	"github.com/InsideGallery/pomodoro/pkg/config"
-	"github.com/InsideGallery/pomodoro/pkg/ui"
 	"github.com/InsideGallery/pomodoro/pkg/event"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
+	"github.com/InsideGallery/pomodoro/pkg/ui"
 )
 
 const SceneName = "minigame"

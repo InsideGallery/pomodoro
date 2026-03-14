@@ -10,12 +10,16 @@ PLUGIN_SRC := plugins
 
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: all build test clean appimage icon install plugins lint coverage
+.PHONY: all build build-full test clean appimage icon install plugins lint coverage
 
 all: build
 
-## Build the binary
+## Build the binary (core only — plugins loaded from .so at runtime)
 build:
+	go build -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/pomodoro/
+
+## Build with all plugins compiled in (cross-platform, no .so needed)
+build-full:
 	go build -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/pomodoro/
 
 ## Run tests

@@ -1,6 +1,4 @@
-//go:build plugin
-
-package main
+package metrics
 
 import (
 	"encoding/json"

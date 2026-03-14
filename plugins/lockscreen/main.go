@@ -5,20 +5,21 @@ package main
 import (
 	"github.com/InsideGallery/pomodoro/pkg/event"
 	"github.com/InsideGallery/pomodoro/pkg/pluggable"
+	ls "github.com/InsideGallery/pomodoro/pkg/plugins/lockscreen"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 )
 
-var Plugin pluggable.Module = &lockscreenPlugin{} //nolint:gochecknoglobals // plugin contract
+var Plugin pluggable.Module = &wrapper{} //nolint:gochecknoglobals // plugin contract
 
-type lockscreenPlugin struct{}
+type wrapper struct{}
 
-func (p *lockscreenPlugin) Name() string                 { return "lockscreen" }
-func (p *lockscreenPlugin) ConfigKey() string            { return "lock_break_screen" }
-func (p *lockscreenPlugin) DefaultEnabled() bool         { return false }
-func (p *lockscreenPlugin) TrayItems() map[string]string { return nil }
+func (w *wrapper) Name() string                 { return "lockscreen" }
+func (w *wrapper) ConfigKey() string            { return "lock_break_screen" }
+func (w *wrapper) DefaultEnabled() bool         { return false }
+func (w *wrapper) TrayItems() map[string]string { return nil }
 
-func (p *lockscreenPlugin) Scenes(bus *event.Bus, switchScene pluggable.SceneSwitcher) []scene.Scene {
+func (w *wrapper) Scenes(bus *event.Bus, switchScene pluggable.SceneSwitcher) []scene.Scene {
 	return []scene.Scene{
-		NewScene(bus, func() { switchScene("lockscreen") }, func() { switchScene("timer") }),
+		ls.NewScene(bus, func() { switchScene("lockscreen") }, func() { switchScene("timer") }),
 	}
 }
