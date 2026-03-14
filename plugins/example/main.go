@@ -1,8 +1,5 @@
 //go:build plugin
 
-// Example plugin demonstrating the plugin contract.
-// Build: go build -buildmode=plugin -o example.so ./plugins/example/
-// Install: cp example.so ~/.config/pomodoro/plugins/
 package main
 
 import (
@@ -18,8 +15,7 @@ import (
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 )
 
-// Plugin is the exported symbol that the loader looks for.
-var Plugin pluggable.Module = &examplePlugin{} //nolint:gochecknoglobals // required by plugin contract
+var Plugin pluggable.Module = &examplePlugin{} //nolint:gochecknoglobals // plugin contract
 
 type examplePlugin struct{}
 
@@ -28,14 +24,14 @@ func (p *examplePlugin) ConfigKey() string            { return "example_enabled"
 func (p *examplePlugin) DefaultEnabled() bool         { return false }
 func (p *examplePlugin) TrayItems() map[string]string { return nil }
 
-func (p *examplePlugin) Scenes(bus *event.Bus) []scene.Scene {
-	return []scene.Scene{&exampleScene{bus: bus}}
+func (p *examplePlugin) Scenes(bus *event.Bus, switchScene pluggable.SceneSwitcher) []scene.Scene {
+	return []scene.Scene{&exampleScene{bus: bus, switchScene: switchScene}}
 }
 
-// exampleScene is a minimal scene that shows a colored screen with instructions.
 type exampleScene struct {
 	*scene.BaseScene
 	bus           *event.Bus
+	switchScene   pluggable.SceneSwitcher
 	width, height int
 }
 
@@ -50,9 +46,7 @@ func (s *exampleScene) Unload() error { return nil }
 
 func (s *exampleScene) Update() error {
 	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
-		// Plugins don't know how to switch scenes directly.
-		// They publish an event; the host app handles routing.
-		s.bus.Publish(event.Event{Type: event.Reset})
+		s.switchScene("timer")
 	}
 
 	return nil
@@ -63,10 +57,8 @@ func (s *exampleScene) Draw(screen *ebiten.Image) {
 }
 
 func (s *exampleScene) Layout(outsideWidth, outsideHeight int) (int, int) {
-	w := int(math.Ceil(float64(outsideWidth)))
-	h := int(math.Ceil(float64(outsideHeight)))
-	s.width = w
-	s.height = h
+	s.width = outsideWidth
+	s.height = outsideHeight
 
-	return w, h
+	return int(math.Ceil(float64(outsideWidth))), int(math.Ceil(float64(outsideHeight)))
 }

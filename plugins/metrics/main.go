@@ -8,7 +8,6 @@ import (
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 )
 
-// Plugin is the exported symbol the loader looks for.
 var Plugin pluggable.Module = &metricsPlugin{} //nolint:gochecknoglobals // plugin contract
 
 type metricsPlugin struct{}
@@ -18,8 +17,8 @@ func (p *metricsPlugin) ConfigKey() string            { return "metrics_enabled"
 func (p *metricsPlugin) DefaultEnabled() bool         { return false }
 func (p *metricsPlugin) TrayItems() map[string]string { return map[string]string{"Metrics": "metrics"} }
 
-func (p *metricsPlugin) Scenes(bus *event.Bus) []scene.Scene {
+func (p *metricsPlugin) Scenes(bus *event.Bus, switchScene pluggable.SceneSwitcher) []scene.Scene {
 	return []scene.Scene{
-		NewScene(bus, func() {}),
+		NewScene(bus, func() { switchScene("timer") }),
 	}
 }

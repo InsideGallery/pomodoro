@@ -77,15 +77,14 @@ func (g *Game) initApp() {
 	_ = loader.Load()
 
 	for _, mod := range loader.Modules() {
-		scenes := mod.Scenes(g.bus)
+		scenes := mod.Scenes(g.bus, pluggable.SceneSwitcher(switchScene))
 
 		for _, sc := range scenes {
 			g.manager.Add(ctx, sc)
 		}
 
-		// Register tray items from plugins
 		for label, sceneName := range mod.TrayItems() {
-			name := sceneName // capture for closure
+			name := sceneName
 
 			tray.AddMenuItem(label, func() {
 				g.showFromTray()

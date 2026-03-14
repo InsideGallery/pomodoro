@@ -8,7 +8,6 @@ import (
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 )
 
-// Plugin is the exported symbol the loader looks for.
 var Plugin pluggable.Module = &lockscreenPlugin{} //nolint:gochecknoglobals // plugin contract
 
 type lockscreenPlugin struct{}
@@ -18,8 +17,8 @@ func (p *lockscreenPlugin) ConfigKey() string            { return "lock_break_sc
 func (p *lockscreenPlugin) DefaultEnabled() bool         { return false }
 func (p *lockscreenPlugin) TrayItems() map[string]string { return nil }
 
-func (p *lockscreenPlugin) Scenes(bus *event.Bus) []scene.Scene {
+func (p *lockscreenPlugin) Scenes(bus *event.Bus, switchScene pluggable.SceneSwitcher) []scene.Scene {
 	return []scene.Scene{
-		NewScene(bus, func() {}, func() {}),
+		NewScene(bus, func() { switchScene("lockscreen") }, func() { switchScene("timer") }),
 	}
 }

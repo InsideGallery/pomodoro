@@ -8,7 +8,6 @@ import (
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 )
 
-// Plugin is the exported symbol the loader looks for.
 var Plugin pluggable.Module = &minigamePlugin{} //nolint:gochecknoglobals // plugin contract
 
 type minigamePlugin struct{}
@@ -18,13 +17,8 @@ func (p *minigamePlugin) ConfigKey() string            { return "minigame_enable
 func (p *minigamePlugin) DefaultEnabled() bool         { return false }
 func (p *minigamePlugin) TrayItems() map[string]string { return nil }
 
-func (p *minigamePlugin) Scenes(bus *event.Bus) []scene.Scene {
-	switchToSelf := func() {
-		// Plugin scenes activate themselves via event subscription.
-		// The scene switching is handled internally.
-	}
-
+func (p *minigamePlugin) Scenes(bus *event.Bus, switchScene pluggable.SceneSwitcher) []scene.Scene {
 	return []scene.Scene{
-		NewScene(bus, switchToSelf, func() {}),
+		NewScene(bus, func() { switchScene("minigame") }, func() { switchScene("timer") }),
 	}
 }

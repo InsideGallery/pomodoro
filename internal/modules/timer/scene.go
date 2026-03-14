@@ -164,15 +164,6 @@ func (s *Scene) Load() error {
 func (s *Scene) registerZones() {
 	s.input.ClearZones()
 
-	// Mark buttons as RTree-managed (skip self-hit-detection)
-	s.screen.BtnStart.SetManagedByRTree()
-	s.screen.BtnReset.SetManagedByRTree()
-	s.screen.BtnSkip.SetManagedByRTree()
-	s.screen.BtnSettings.SetManagedByRTree()
-	s.screen.BtnClose.SetManagedByRTree()
-	s.screen.BtnMini.SetManagedByRTree()
-
-	// Register zones via RTree
 	s.input.AddZone(ui.ButtonZone(&s.screen.BtnStart))
 	s.input.AddZone(ui.ButtonZone(&s.screen.BtnReset))
 	s.input.AddZone(ui.ButtonZone(&s.screen.BtnSkip))

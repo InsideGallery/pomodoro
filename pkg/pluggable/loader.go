@@ -68,9 +68,9 @@ func (l *Loader) Modules() []Module {
 }
 
 // RegisterAll registers all plugin scenes with the SceneManager.
-func (l *Loader) RegisterAll(bus *event.Bus, manager *scene.Manager) {
+func (l *Loader) RegisterAll(bus *event.Bus, manager *scene.Manager, switchScene SceneSwitcher) {
 	for _, mod := range l.modules {
-		for _, sc := range mod.Scenes(bus) {
+		for _, sc := range mod.Scenes(bus, switchScene) {
 			manager.Add(nil, sc) //nolint:staticcheck // nil ctx OK, scenes handle it
 		}
 	}
