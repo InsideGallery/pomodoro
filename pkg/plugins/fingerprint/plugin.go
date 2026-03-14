@@ -40,7 +40,7 @@ func (p *Plugin) Scenes(bus *event.Bus, switchScene pluggable.SceneSwitcher) []s
 		func(name string) { switchScene(name) },
 		PuzzleSceneName,
 		func(base *scene.BaseScene) {
-			loadResources(base.Resources)
+			LoadResources(base.Resources)
 		},
 	)
 
@@ -61,14 +61,38 @@ func (p *Plugin) Scenes(bus *event.Bus, switchScene pluggable.SceneSwitcher) []s
 	return []scene.Scene{loading, puzzle}
 }
 
-// loadResources loads fingerprint assets asynchronously.
-func loadResources(rm *resources.Manager) {
+// LoadResources loads all fingerprint assets asynchronously.
+func LoadResources(rm *resources.Manager) {
 	assetsDir := findAssetsDir()
 	if assetsDir == "" {
 		return
 	}
 
 	var tasks []resources.LoadTask
+
+	// Desktop scene resources
+	desktopFiles := map[string]string{
+		"bg_static":   "Фон (не анімований).png",
+		"bg_bright":   "екран (підвищена яскраввість).png",
+		"bg_dim":      "екран (понижена яскравість).png",
+		"wallpaper":   "робочий стіл (фон).png",
+		"cursor":      "курсор.png",
+		"app_frame":   "рама.png",
+		"workspace":   "Робоче поле Дактилоскопії.png",
+		"grid":        "Робоче поле Дактилоскопії (сітка 0-9).png",
+		"highlighter": "Відбитки/highlighter.png",
+	}
+
+	for key, file := range desktopFiles {
+		k, f := key, file
+
+		tasks = append(tasks, resources.LoadTask{
+			Key: k,
+			Load: func() (any, error) {
+				return loadImage(filepath.Join(assetsDir, f))
+			},
+		})
+	}
 
 	// Load avatars (1-5.jpg)
 	for i := 1; i <= 5; i++ {

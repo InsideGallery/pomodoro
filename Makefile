@@ -18,9 +18,9 @@ all: build
 build:
 	go build -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/pomodoro/
 
-## Build with all plugins compiled in (cross-platform, no .so needed)
-build-full:
-	go build -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/pomodoro/
+## Build fingerprint game
+build-fingerprint:
+	go build -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/fingerprint ./cmd/fingerprint/
 
 ## Run tests
 test:

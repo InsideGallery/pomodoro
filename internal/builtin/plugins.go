@@ -5,7 +5,6 @@ package builtin
 import (
 	"github.com/InsideGallery/pomodoro/pkg/event"
 	"github.com/InsideGallery/pomodoro/pkg/pluggable"
-	fp "github.com/InsideGallery/pomodoro/pkg/plugins/fingerprint"
 	ls "github.com/InsideGallery/pomodoro/pkg/plugins/lockscreen"
 	mt "github.com/InsideGallery/pomodoro/pkg/plugins/metrics"
 	mg "github.com/InsideGallery/pomodoro/pkg/plugins/minigame"
@@ -18,7 +17,6 @@ func Modules() []pluggable.Module {
 		&minigamePlugin{},
 		&lockscreenPlugin{},
 		&metricsPlugin{},
-		&fp.Plugin{},
 	}
 }
 
