@@ -12,9 +12,9 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 
 	"github.com/InsideGallery/pomodoro/internal/config"
-	"github.com/InsideGallery/pomodoro/internal/event"
-	"github.com/InsideGallery/pomodoro/internal/scene"
 	"github.com/InsideGallery/pomodoro/internal/ui"
+	"github.com/InsideGallery/pomodoro/pkg/event"
+	"github.com/InsideGallery/pomodoro/pkg/scene"
 )
 
 const SceneName = "minigame"

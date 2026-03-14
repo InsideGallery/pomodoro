@@ -7,8 +7,8 @@ import (
 	"github.com/InsideGallery/game-core/rtree"
 	"github.com/hajimehoshi/ebiten/v2"
 
-	"github.com/InsideGallery/pomodoro/internal/core"
-	"github.com/InsideGallery/pomodoro/internal/event"
+	"github.com/InsideGallery/pomodoro/pkg/core"
+	"github.com/InsideGallery/pomodoro/pkg/event"
 )
 
 // BaseScene provides shared ECS infrastructure for all scenes.

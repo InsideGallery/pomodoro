@@ -9,7 +9,6 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 
-	"github.com/InsideGallery/pomodoro/internal/event"
 	"github.com/InsideGallery/pomodoro/internal/modules/lockscreen"
 	"github.com/InsideGallery/pomodoro/internal/modules/metrics"
 	"github.com/InsideGallery/pomodoro/internal/modules/mini"
@@ -17,9 +16,11 @@ import (
 	"github.com/InsideGallery/pomodoro/internal/modules/settings"
 	timerscene "github.com/InsideGallery/pomodoro/internal/modules/timer"
 	"github.com/InsideGallery/pomodoro/internal/platform"
-	"github.com/InsideGallery/pomodoro/internal/scene"
 	"github.com/InsideGallery/pomodoro/internal/tray"
 	"github.com/InsideGallery/pomodoro/internal/ui"
+	"github.com/InsideGallery/pomodoro/pkg/event"
+	"github.com/InsideGallery/pomodoro/pkg/pluggable"
+	"github.com/InsideGallery/pomodoro/pkg/scene"
 )
 
 const (
@@ -84,6 +85,12 @@ func (g *Game) initApp() {
 	mn := mini.NewScene(ts, switchToTimer) // timer scene implements TimerProvider
 
 	g.manager.Add(ctx, ts, ss, ms, ls, mt, mn)
+
+	// Load external plugins from ~/.config/pomodoro/plugins/
+	loader := pluggable.NewLoader(pluggable.DefaultPluginDir())
+	_ = loader.Load()
+	loader.RegisterAll(g.bus, g.manager)
+
 	_ = g.manager.SwitchSceneTo("timer")
 
 	// Store only interface for tray check

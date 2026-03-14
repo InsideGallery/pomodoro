@@ -5,10 +5,12 @@ APPDIR    := $(BUILD_DIR)/AppDir
 BINARY    := $(BUILD_DIR)/$(APP_NAME)
 APPIMAGE  := $(BUILD_DIR)/$(APP_NAME)-$(VERSION)-linux-amd64.AppImage
 APPIMAGETOOL := $(BUILD_DIR)/appimagetool
+PLUGIN_DIR := $(HOME)/.config/pomodoro/plugins
+PLUGIN_SRC := plugins
 
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: all build test clean appimage icon install
+.PHONY: all build test clean appimage icon install plugins lint coverage
 
 all: build
 
@@ -20,9 +22,35 @@ build:
 test:
 	go test ./... -v
 
+## Run linter
+lint:
+	golangci-lint run ./...
+
+## Check test coverage
+coverage:
+	go test ./... -coverprofile=coverage.out
+	go-test-coverage --config .testcoverage.yml
+
 ## Generate app icon
 icon:
 	go run ./cmd/genicon/ packaging/pomodoro.png
+
+## Build and install plugins from plugins/ directory
+## Each subdirectory with a main.go is compiled as a Go plugin (.so)
+plugins:
+	@mkdir -p $(PLUGIN_DIR)
+	@if [ -d "$(PLUGIN_SRC)" ]; then \
+		for dir in $(PLUGIN_SRC)/*/; do \
+			if [ -f "$$dir/main.go" ]; then \
+				name=$$(basename $$dir); \
+				echo "==> Building plugin: $$name"; \
+				go build -buildmode=plugin -o $(PLUGIN_DIR)/$$name.so $$dir; \
+			fi; \
+		done; \
+		echo "==> Plugins installed to $(PLUGIN_DIR)"; \
+	else \
+		echo "No plugins/ directory found"; \
+	fi
 
 ## Build AppImage
 appimage: build icon $(APPIMAGETOOL)
@@ -57,4 +85,4 @@ install: build
 
 ## Clean build artifacts
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -rf $(BUILD_DIR) coverage.out

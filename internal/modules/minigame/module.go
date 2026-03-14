@@ -3,8 +3,8 @@ package minigame
 import (
 	"time"
 
-	"github.com/InsideGallery/pomodoro/internal/event"
 	"github.com/InsideGallery/pomodoro/internal/ui"
+	"github.com/InsideGallery/pomodoro/pkg/event"
 )
 
 // Module implements the module.Module interface for the Button Hunt mini-game.

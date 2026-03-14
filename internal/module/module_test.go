@@ -3,7 +3,7 @@ package module
 import (
 	"testing"
 
-	"github.com/InsideGallery/pomodoro/internal/event"
+	"github.com/InsideGallery/pomodoro/pkg/event"
 )
 
 type stubModule struct {

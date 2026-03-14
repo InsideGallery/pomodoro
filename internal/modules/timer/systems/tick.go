@@ -7,8 +7,8 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/InsideGallery/pomodoro/internal/audio"
-	"github.com/InsideGallery/pomodoro/internal/event"
 	"github.com/InsideGallery/pomodoro/internal/timer"
+	"github.com/InsideGallery/pomodoro/pkg/event"
 )
 
 // TickSystem advances the timer each frame and publishes state-change events.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/InsideGallery/pomodoro/internal/event"
+	"github.com/InsideGallery/pomodoro/pkg/event"
 )
 
 func TestNewBaseScene(t *testing.T) {

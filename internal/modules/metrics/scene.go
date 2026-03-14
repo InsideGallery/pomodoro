@@ -12,9 +12,9 @@ import (
 	textv2 "github.com/hajimehoshi/ebiten/v2/text/v2"
 
 	"github.com/InsideGallery/pomodoro/internal/config"
-	"github.com/InsideGallery/pomodoro/internal/event"
-	"github.com/InsideGallery/pomodoro/internal/scene"
 	"github.com/InsideGallery/pomodoro/internal/ui"
+	"github.com/InsideGallery/pomodoro/pkg/event"
+	"github.com/InsideGallery/pomodoro/pkg/scene"
 )
 
 const SceneName = "metrics"

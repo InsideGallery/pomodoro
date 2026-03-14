@@ -1,6 +1,6 @@
 package module
 
-import "github.com/InsideGallery/pomodoro/internal/event"
+import "github.com/InsideGallery/pomodoro/pkg/event"
 
 // Module is a self-contained feature that reacts to timer events.
 type Module interface {
