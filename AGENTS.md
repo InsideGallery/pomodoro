@@ -1,152 +1,201 @@
 # Pomodoro Timer - Development Guide
 
-## Architecture
+## Architecture: ECS + Scene + Plugin
+
+Every scene has its own ECS (Systems, Registry, RTree). Every interactive element
+is an entity with components. No widget self-detection — all input via RTree.
 
 ### Core Principles
 
-1. **Core is always loaded**: Timer, Settings, Mini mode — these are internal modules,
-   not disableable, compiled into the binary.
-2. **Features are plugins**: Minigame, Lockscreen, Metrics — compiled as `.so` files,
-   loaded at runtime from `~/.config/pomodoro/plugins/`. User can add/remove.
-3. **Settings are dynamic**: Plugin toggles appear ONLY for loaded plugins.
-   Each plugin declares its ConfigKey; the settings scene auto-generates toggles.
-4. **pkg/ is the public API**: Anything in `pkg/` can be imported by external plugins.
-   Anything in `internal/` is private to the core app.
-5. **Scenes are autonomous**: Each scene owns its lifecycle (Init/Load/Unload/Update/Draw).
-   Scenes communicate only through the event bus. No scene imports another.
-6. **Never ignore errors**: Always handle or log errors. No `_ = doSomething()`.
+1. **Every UI element is an entity** in the Registry with typed components
+2. **Systems process entities** — InputSystem queries RTree, RenderSystem draws from Registry
+3. **No widget Update()** — widgets are pure rendering structs. All behavior lives in systems.
+4. **RTree for ALL input** — buttons, sliders, toggles, ring drag, dot clicks. No manual hit checks.
+5. **Each scene = mini ECS app** with own Systems + Registry + RTree + Bus
+6. **Plugins are modules** compiled into the binary. Each provides scenes with own ECS.
+7. **Never ignore errors**. Log or handle every error.
 
-### Input Strategy
-
-**RTree InputSystem** is used in scenes with many static-position widgets (Settings).
-The InputSystem queries RTree.Collision() for hit detection, supports hover/click/drag.
-For scrollable content, `SetScrollOffset()` converts mouse Y to content-space.
-
-**Widget self-detection** is used in scenes with specialized input (Timer).
-Ring drag uses angular math from mouse position. Dot clicks use positions computed
-in Draw(). These don't map to static RTree zones. The TimerScreen.Update() handles
-all input directly.
-
-**Rule**: Use RTree where zones are static. Use widget self-detection where input
-requires runtime geometry (ring drag, scrollable dynamic positions).
-
-### Directory Structure
-
-```
-cmd/pomodoro/                       -- Entry point
-internal/                           -- Private to the app (not importable by plugins)
-  app/app.go                        -- Ebiten Game shell: bus, manager, drag, tray
-  modules/
-    timer/                          -- Core: timer scene + systems
-      scene.go                      -- Owns timer.Timer, audio, state persistence
-      systems/tick.go               -- Timer domain updates, event publishing
-      systems/render.go             -- Delegates to TimerScreen.Update()/Draw()
-      systems/keyboard.go           -- Space/R/S shortcuts
-    settings/                       -- Core: settings scene with RTree InputSystem
-      scene.go                      -- Zones for all widgets, scroll offset
-    mini/                           -- Core: mini mode scene
-      scene.go                      -- Compact timer overlay, always-on-top
-  timer/                            -- Pure Go timer state machine (25 tests)
-  audio/                            -- Audio manager (tick/alarm)
-  tray/                             -- System tray (dynamic menu items from plugins)
-  ecs/components/                   -- Shared ECS components (Position, Clickable, etc.)
-pkg/                                -- Public API (importable by plugins)
-  scene/                            -- Scene interface, BaseScene, SceneManager
-  event/                            -- Event Bus, Event types (Data any)
-  core/                             -- System, SystemWindow, Systems container
-  systems/                          -- InputSystem (RTree + scroll), DebugSystem
-  config/                           -- Config persistence (JSON)
-  ui/                               -- Drawing primitives, widget components
-  platform/                         -- Window management (X11, macOS, Windows)
-  pluggable/                        -- Plugin contract (Module interface, Loader)
-plugins/                            -- External plugins (compiled as .so)
-  example/                          -- Minimal example plugin
-  minigame/                         -- Button Hunt game (break activity)
-  lockscreen/                       -- Long break lock screen (ESC×3 exit)
-  metrics/                          -- Usage statistics (total/monthly/weekly)
-```
-
-### Plugin Contract
+### Entity-Component Model
 
 ```go
-// pkg/pluggable/contract.go
-type SceneSwitcher func(name string)
+// Components (pure data, no methods beyond accessors)
+type Position struct { X, Y float64 }
+type Size struct { W, H float64 }
+type Clickable struct { OnClick func() }
+type Draggable struct { OnDrag func(mx, my int); OnDragEnd func() }
+type Hoverable struct { Hovered bool; OnHover func(bool) }
+type Visual struct {
+    Shape    ShapeType  // Circle, Rect, RoundedRect, Arc, Ring
+    Color    color.RGBA
+    Radius   float64
+}
+type Label struct {
+    Text  string
+    Face  *textv2.GoTextFace
+    Color color.RGBA
+    Align TextAlign  // Left, Center, Right
+}
+type SliderState struct { Min, Max, Value float64; OnChange func(float64) }
+type ToggleState struct { Value bool; OnColor, OffColor color.RGBA; OnChange func(bool) }
+type RingProgress struct { Progress float64; Width float64; StartColor, EndColor color.RGBA }
+type RoundDots struct { Total, Completed int; DotRadius float64; Color, InactiveColor color.RGBA }
+type TimerDisplay struct {} // marker: this entity shows the timer text
+```
 
-type Module interface {
-    Name() string
-    Scenes(bus *event.Bus, switchScene SceneSwitcher) []scene.Scene
-    TrayItems() map[string]string     // label → scene name
-    ConfigKey() string                // e.g. "minigame_enabled"
-    DefaultEnabled() bool
+### Entity Groups in Registry
+
+```go
+registry.Registry[string, uint64, any]
+
+// Timer scene groups:
+"button"        → Start, Reset, Skip, Settings, Close, Mini buttons
+"ring"          → Progress ring entity
+"timer_text"    → MM:SS display entity
+"mode_label"    → "Focus" / "Break" / "Paused" label
+"round_dots"    → Round indicator dots
+"hint"          → "Ready to focus" hint text
+
+// Settings scene groups:
+"slider"        → Focus, Break, LongBreak, Rounds, TickVol, AlarmVol, Transparency
+"toggle"        → TickSound, AutoStart, Theme, + dynamic plugin toggles
+"button"        → Back, Reset Defaults
+"label"         → Section titles (TIMER, SOUND, APPEARANCE)
+
+// Minigame scene groups:
+"target"        → Game targets (Position + Visual + Clickable)
+"hud"           → Score, Best, Time labels
+```
+
+### Systems (execution order per scene)
+
+```
+Timer scene:
+  1. InputSystem        — RTree queries for buttons. Ring drag via DragZone. Dot clicks via Clickable.
+  2. KeyboardSystem     — Space, R, S shortcuts
+  3. TickSystem         — timer.Update(), event publishing, audio
+  4. RenderSystem       — iterates Registry groups, draws each entity by components
+
+Settings scene:
+  1. ScrollSystem       — handles wheel/arrow scroll, updates scroll offset
+  2. InputSystem        — RTree queries with scroll offset for all widgets
+  3. RenderSystem       — iterates Registry groups, draws widgets
+
+Minigame scene:
+  1. InputSystem        — RTree queries for targets (smallest radius = highest priority)
+  2. SpawnSystem        — checks alive count, spawns batches
+  3. TimerSystem        — checks game over
+  4. RenderSystem       — draws targets, HUD
+
+Lockscreen scene:
+  1. LockSystem         — checks completion, handles ESC×3
+  2. RenderSystem       — draws countdown, progress bar
+```
+
+### RTree for Ring Drag
+
+The ring is registered as a ring-shaped zone (annular region). On drag start,
+the DragHandler receives mouse X/Y and converts to angle → progress using
+the ring's center and radius (stored in the entity's RingProgress component).
+
+```go
+// Ring drag zone: register as a large box covering the ring area.
+// DragHandler does the angular math.
+ringZone := &Zone{
+    Spatial: shapes.NewBox(centerX-outerR, centerY-outerR, outerR*2, outerR*2),
+    OnDragStart: func() { /* check if click is near ring band */ },
+    OnDrag: func(mx, my int) {
+        angle := math.Atan2(float64(my)-centerY, float64(mx)-centerX)
+        progress := (angle + math.Pi/2) / (2 * math.Pi)
+        // update timer remaining from progress
+    },
 }
 ```
 
-Each `.so` plugin exports `var Plugin pluggable.Module = &myPlugin{}`.
+### RTree for Round Dots
 
-### Plugin Lifecycle
+Each dot is a separate entity with Position + Clickable. Dots are re-created
+in the RenderSystem when round count changes. Their Clickable.OnClick calls
+SetRound(i).
 
-```
-1. App starts, creates bus + SceneManager
-2. Core scenes registered (timer, settings, mini)
-3. Loader scans ~/.config/pomodoro/plugins/*.so
-4. For each .so: Open → Lookup("Plugin") → Module
-5. Module.Scenes(bus, switchScene) → register with SceneManager
-6. Module.TrayItems() → register with tray
-7. Module.ConfigKey() → settings scene creates toggle
-8. App runs — plugins activate via event subscriptions
-```
+### Removing Old Code
 
-### Build Commands
-
-```bash
-make build          # Build core app (no plugins)
-make plugins        # Build .so plugins to ~/.config/pomodoro/plugins/
-make test           # Run tests
-make lint           # Run golangci-lint
-make coverage       # Run test coverage check
-make build plugins  # Build everything
-```
-
-### Event Types
+The following will be deleted when ECS is fully implemented:
 
 ```
-FocusStarted, FocusCompleted       -- timer state
-BreakStarted, BreakCompleted       -- short break
-LongBreakStarted, LongBreakCompleted  -- long break
-Paused, Resumed, Reset             -- user actions
-Tick                               -- every frame while running
-ConfigChanged                      -- settings changed (Data: config.Config)
+pkg/ui/screen_timer.go      → replaced by timer scene's systems + entities
+pkg/ui/screen_settings.go   → replaced by settings scene's systems + entities
+pkg/ui/components.go         → Button/Slider/Toggle structs become entity templates
+                               Draw functions become part of RenderSystem
+                               Hit detection removed entirely (RTree only)
 ```
 
-Events carry `Data any` — used for state string (tray icon) and config (settings).
+Drawing primitives stay in `pkg/ui/draw.go` and `pkg/ui/theme.go` — used by RenderSystems.
 
-## TODO
+### Implementation Plan
 
-### Immediate
+#### Phase 1: Timer Scene Full ECS
 
-- [ ] Settings toggles must be dynamic (generated from loaded plugins, not hardcoded)
-- [ ] Remove hardcoded MinigameToggle/LockBreakToggle/MetricsToggle from screen_settings.go
-- [ ] Settings scene queries plugin loader for available plugins and creates toggles
-- [ ] Error handling: replace all `_ = ...` with proper logging
+1. Define all components in `pkg/ecs/components/`
+2. Timer scene creates entities in Registry during Load()
+3. RenderSystem iterates groups and draws by component type
+4. InputSystem registers all entities with Clickable/Draggable in RTree
+5. Ring drag via DragZone with angular math in handler
+6. Dot clicks via individual Clickable entities
+7. Delete TimerScreen struct — all logic in systems + entities
+8. Tests: verify entity creation, system execution order
 
-### Next
+#### Phase 2: Settings Scene Full ECS
 
-- [ ] Extract pkg/app/ — generic Ebiten game shell reusable across projects
-- [ ] Move initApp composition to separate file (cmd/pomodoro/main.go or internal/app/init.go)
-- [ ] Clean up dead code (internal/ecs/components/ if unused)
+1. Settings scene creates slider/toggle/button entities in Registry
+2. ScrollSystem manages offset, InputSystem uses SetScrollOffset()
+3. Plugin toggles are entities created dynamically from loaded plugins
+4. Back button entity in a "fixed" group (not affected by scroll)
+5. RenderSystem draws all settings entities
+6. Delete SettingsScreen struct
 
-### Future
+#### Phase 3: Clean Up
 
-- [ ] Tiled-based UI (.tmx for layout, RTree for click zones)
-- [ ] Timer scene migrated to full entity-based rendering
-- [ ] Process-based plugins (gRPC/Unix socket) for cross-platform
+1. Remove `pkg/ui/screen_timer.go`, `pkg/ui/screen_settings.go`
+2. Remove `pkg/ui/components.go` (Button/Slider/Toggle structs)
+3. Remove `internal/ecs/components/` (old unused components)
+4. Keep `pkg/ui/draw.go` + `pkg/ui/theme.go` (rendering primitives)
+5. Keep `pkg/ui/zones.go` (zone creators for entity → RTree registration)
+6. Update tests and coverage
 
-## Code Conventions
+#### Phase 4: Minigame + Lockscreen Full ECS
 
-- Pure domain logic: `internal/timer/`, `pkg/config/` — no Ebiten imports
-- Pure game logic: `plugins/*/game.go`, `plugins/*/lock.go` — no Ebiten imports
-- Systems: behavior. Components: data. Entities: IDs in Registry.
-- Reusable systems: `pkg/systems/`. Module-specific: `modules/*/systems/`.
-- Scenes never import other scenes — event.Bus only.
-- Test coverage >= 70% on non-Ebiten code.
-- Never ignore errors. Log or handle.
+1. Minigame: targets as entities in Registry + RTree
+2. Lockscreen: progress bar + labels as entities
+3. Both use standard InputSystem + RenderSystem
+
+### What Stays
+
+```
+pkg/scene/         — Scene, BaseScene(Systems+Registry+RTree+Bus), SceneManager
+pkg/event/         — Event Bus, types
+pkg/core/          — System, SystemWindow, Systems container
+pkg/systems/       — InputSystem (RTree zones + scroll), DebugSystem
+pkg/config/        — Config persistence
+pkg/ui/draw.go     — DrawRoundedRect, DrawArc, DrawCircle, etc.
+pkg/ui/theme.go    — Colors, scaling (S/Sf), font Face()
+pkg/ui/zones.go    — Zone creators (updated for entity-based components)
+pkg/platform/      — Window management
+pkg/pluggable/     — Plugin contract + loader
+pkg/plugins/       — Plugin logic packages
+internal/timer/    — Pure Go timer state machine
+internal/builtin/  — Compiled-in plugin registration
+internal/app/      — Thin Ebiten shell
+internal/tray/     — System tray
+internal/audio/    — Audio manager
+```
+
+### Code Conventions
+
+- Every interactive element = entity in Registry with components
+- All input via RTree — no manual coordinate checks anywhere
+- Systems contain behavior, Components contain data
+- Each scene manages its own Registry groups
+- Plugins provide scenes; scenes provide entities + systems
+- Drawing primitives in pkg/ui/draw.go — used by all RenderSystems
+- Test coverage >= 70% on non-Ebiten code
+- Never ignore errors
