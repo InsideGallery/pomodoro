@@ -33,24 +33,35 @@ func main() {
 }
 
 func setupFingerprint(ctx context.Context, _ *event.Bus, manager *scene.Manager, switchScene func(string)) string {
-	// Scenes: loading → desktop → puzzle
+	// Shared resource manager so loading scene's assets are visible to all scenes
+	shared := resources.NewManager()
+
+	loading := fingerprint.NewLoadingScene(switchScene, fingerprint.DesktopSceneName,
+		func(_ *scene.BaseScene) { fingerprint.LoadResources(shared) })
 	desktop := fingerprint.NewDesktopScene(switchScene)
-	puzzle := fingerprint.NewPuzzleScene(switchScene, 0) // no break timer — standalone game
+	puzzle := fingerprint.NewPuzzleScene(switchScene, 0)
 
-	loading := fingerprint.NewLoadingScene(
-		switchScene,
-		fingerprint.DesktopSceneName,
-		func(base *scene.BaseScene) {
-			loadFingerprintResources(base.Resources)
-		},
+	// Wrap scenes with shared resources injected after Init
+	manager.Add(ctx,
+		&sharedResourceScene{Scene: loading, res: shared},
+		&sharedResourceScene{Scene: desktop, res: shared},
+		&sharedResourceScene{Scene: puzzle, res: shared},
 	)
-
-	manager.Add(ctx, loading, desktop, puzzle)
 
 	return fingerprint.LoadingSceneName
 }
 
-func loadFingerprintResources(rm *resources.Manager) {
-	// Delegate to the fingerprint package's resource loader
-	fingerprint.LoadResources(rm)
+// sharedResourceScene wraps a scene and injects a shared Resources after Init.
+type sharedResourceScene struct {
+	scene.Scene
+	res *resources.Manager
+}
+
+func (s *sharedResourceScene) Init(ctx context.Context) {
+	s.Scene.Init(ctx)
+
+	// Replace the per-scene Resources with the shared one
+	if bs, ok := s.Scene.(interface{ SetResources(*resources.Manager) }); ok {
+		bs.SetResources(s.res)
+	}
 }

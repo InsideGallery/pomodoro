@@ -8,6 +8,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 
+	"github.com/InsideGallery/pomodoro/pkg/resources"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 	"github.com/InsideGallery/pomodoro/pkg/ui"
 )
@@ -41,6 +42,13 @@ func NewLoadingScene(switchScene func(string), targetScene string, loadFunc func
 }
 
 func (s *LoadingScene) Name() string { return LoadingSceneName }
+
+// SetResources replaces the scene's resource manager with a shared one.
+func (s *LoadingScene) SetResources(rm *resources.Manager) {
+	if s.BaseScene != nil {
+		s.BaseScene.Resources = rm
+	}
+}
 
 func (s *LoadingScene) Init(ctx context.Context) {
 	s.BaseScene = scene.NewBaseScene(ctx, nil)

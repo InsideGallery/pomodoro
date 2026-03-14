@@ -217,7 +217,7 @@ Phases 1-3: DONE (timer + settings full ECS, old screens deleted)
 6. Delete SettingsScreen struct
 
 #### Phase 3: Clean Up
-
+L
 1. Remove `pkg/ui/screen_timer.go`, `pkg/ui/screen_settings.go`
 2. Remove `pkg/ui/components.go` (Button/Slider/Toggle structs)
 3. Remove `internal/ecs/components/` (old unused components)

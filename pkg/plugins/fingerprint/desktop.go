@@ -10,6 +10,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 
+	"github.com/InsideGallery/pomodoro/pkg/resources"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 	"github.com/InsideGallery/pomodoro/pkg/systems"
 	"github.com/InsideGallery/pomodoro/pkg/ui"
@@ -44,6 +45,12 @@ func NewDesktopScene(switchScene func(string)) *DesktopScene {
 }
 
 func (s *DesktopScene) Name() string { return DesktopSceneName }
+
+func (s *DesktopScene) SetResources(rm *resources.Manager) {
+	if s.BaseScene != nil {
+		s.BaseScene.Resources = rm
+	}
+}
 
 func (s *DesktopScene) Init(ctx context.Context) {
 	s.BaseScene = scene.NewBaseScene(ctx, nil)

@@ -12,6 +12,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 
+	"github.com/InsideGallery/pomodoro/pkg/resources"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 	"github.com/InsideGallery/pomodoro/pkg/systems"
 	"github.com/InsideGallery/pomodoro/pkg/ui"
@@ -63,6 +64,12 @@ func NewPuzzleScene(switchScene func(string), breakDur time.Duration) *PuzzleSce
 }
 
 func (s *PuzzleScene) Name() string { return PuzzleSceneName }
+
+func (s *PuzzleScene) SetResources(rm *resources.Manager) {
+	if s.BaseScene != nil {
+		s.BaseScene.Resources = rm
+	}
+}
 
 func (s *PuzzleScene) nextID() uint64 {
 	s.entityIDSeq++
