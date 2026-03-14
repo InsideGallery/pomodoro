@@ -41,12 +41,24 @@ func UpdateIcon(data []byte) {
 	}
 }
 
-// AddMenuItem registers a custom menu item (called by plugins before Run).
+// AddMenuItem registers a custom menu item.
+// Can be called before or after Run — items are added dynamically.
 func AddMenuItem(label string, onClick func()) {
 	extraItemMu.Lock()
 	defer extraItemMu.Unlock()
 
 	extraItems = append(extraItems, menuItem{label: label, onClick: onClick})
+
+	// If tray is already running, add the item live
+	if ready {
+		mi := systray.AddMenuItem(label, label)
+
+		go func() {
+			for range mi.ClickedCh {
+				onClick()
+			}
+		}()
+	}
 }
 
 // Run starts the systray. Call from a goroutine — it blocks.
