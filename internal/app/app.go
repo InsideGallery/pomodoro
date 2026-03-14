@@ -9,18 +9,15 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 
-	"github.com/InsideGallery/pomodoro/internal/modules/lockscreen"
-	"github.com/InsideGallery/pomodoro/internal/modules/metrics"
 	"github.com/InsideGallery/pomodoro/internal/modules/mini"
-	"github.com/InsideGallery/pomodoro/internal/modules/minigame"
 	"github.com/InsideGallery/pomodoro/internal/modules/settings"
 	timerscene "github.com/InsideGallery/pomodoro/internal/modules/timer"
-	"github.com/InsideGallery/pomodoro/internal/platform"
 	"github.com/InsideGallery/pomodoro/internal/tray"
-	"github.com/InsideGallery/pomodoro/internal/ui"
 	"github.com/InsideGallery/pomodoro/pkg/event"
+	"github.com/InsideGallery/pomodoro/pkg/platform"
 	"github.com/InsideGallery/pomodoro/pkg/pluggable"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
+	"github.com/InsideGallery/pomodoro/pkg/ui"
 )
 
 const (
@@ -29,18 +26,10 @@ const (
 	windowTitle         = "Pomodoro"
 )
 
-// enabledChecker checks if a feature is enabled (defined at consumer).
-type enabledChecker interface {
-	IsEnabled() bool
-}
-
 // Game is the Ebiten game shell. Pure window management — no domain logic.
 type Game struct {
 	bus     *event.Bus
 	manager *scene.Manager
-
-	// Interface reference for tray metrics check
-	metrics enabledChecker
 
 	// Window dragging (generic, works for any undecorated window)
 	dragging    bool
@@ -72,31 +61,42 @@ func (g *Game) initApp() {
 		ebiten.SetWindowSize(DefaultWindowWidth, DefaultWindowHeight)
 	}
 
-	// Create scenes — composition root (only place that knows concrete types)
+	// Core scenes (always loaded, not disableable)
 	ts := timerscene.NewScene(g.bus, switchScene,
 		func() { g.hideToTray() },
 		func() { switchScene("mini") },
 	)
 
 	ss := settings.NewScene(g.bus, switchScene)
-	ms := minigame.NewScene(g.bus, func() { switchScene("minigame") }, switchToTimer)
-	ls := lockscreen.NewScene(g.bus, func() { switchScene("lockscreen") }, switchToTimer)
-	mt := metrics.NewScene(g.bus, switchToTimer)
-	mn := mini.NewScene(ts, switchToTimer) // timer scene implements TimerProvider
+	mn := mini.NewScene(ts, switchToTimer)
 
-	g.manager.Add(ctx, ts, ss, ms, ls, mt, mn)
+	g.manager.Add(ctx, ts, ss, mn)
 
-	// Load external plugins from ~/.config/pomodoro/plugins/
+	// Load external plugins (minigame, lockscreen, metrics, and any user plugins)
 	loader := pluggable.NewLoader(pluggable.DefaultPluginDir())
 	_ = loader.Load()
-	loader.RegisterAll(g.bus, g.manager)
+
+	for _, mod := range loader.Modules() {
+		scenes := mod.Scenes(g.bus)
+
+		for _, sc := range scenes {
+			g.manager.Add(ctx, sc)
+		}
+
+		// Register tray items from plugins
+		for label, sceneName := range mod.TrayItems() {
+			name := sceneName // capture for closure
+
+			tray.AddMenuItem(label, func() {
+				g.showFromTray()
+				switchScene(name)
+			})
+		}
+	}
 
 	_ = g.manager.SwitchSceneTo("timer")
 
-	// Store only interface for tray check
-	g.metrics = mt
-
-	// Tray icon updates via events (no timer dependency)
+	// Tray icon updates via events
 	g.subscribeTrayIconUpdates()
 
 	g.initialized = true
@@ -107,31 +107,25 @@ func (g *Game) subscribeTrayIconUpdates() {
 		tray.UpdateIcon(tray.GenerateIcon(32, clr))
 	}
 
-	iconForState := func(state string) {
-		switch state {
-		case "Focus":
-			setIcon(color.RGBA{R: 0x6C, G: 0x5C, B: 0xE7, A: 0xFF})
-		case "Break":
-			setIcon(color.RGBA{R: 0x00, G: 0xCE, B: 0xC9, A: 0xFF})
-		case "Long Break":
-			setIcon(color.RGBA{R: 0x81, G: 0xEC, B: 0xEC, A: 0xFF})
-		case "Paused":
-			setIcon(color.RGBA{R: 0xFF, G: 0xC1, B: 0x07, A: 0xFF})
-		default:
-			setIcon(color.RGBA{R: 0x8B, G: 0x8B, B: 0x9E, A: 0xFF})
-		}
-	}
-
-	// Use event Data to carry state string for tray icon
 	for _, et := range []event.Type{
 		event.FocusStarted, event.BreakStarted, event.LongBreakStarted,
 		event.Paused, event.Resumed, event.Reset,
 		event.FocusCompleted, event.BreakCompleted, event.LongBreakCompleted,
 	} {
-		et := et
 		g.bus.Subscribe(et, func(e event.Event) {
 			if state, ok := e.Data.(string); ok {
-				iconForState(state)
+				switch state {
+				case "Focus":
+					setIcon(color.RGBA{R: 0x6C, G: 0x5C, B: 0xE7, A: 0xFF})
+				case "Break":
+					setIcon(color.RGBA{R: 0x00, G: 0xCE, B: 0xC9, A: 0xFF})
+				case "Long Break":
+					setIcon(color.RGBA{R: 0x81, G: 0xEC, B: 0xEC, A: 0xFF})
+				case "Paused":
+					setIcon(color.RGBA{R: 0xFF, G: 0xC1, B: 0x07, A: 0xFF})
+				default:
+					setIcon(color.RGBA{R: 0x8B, G: 0x8B, B: 0x9E, A: 0xFF})
+				}
 			}
 		})
 	}
@@ -167,7 +161,7 @@ func (g *Game) updateDrag() {
 
 	dragH := int(ui.S(48))
 	if isMini {
-		dragH = g.height // entire mini window is draggable
+		dragH = g.height
 	}
 
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && my < dragH {
@@ -199,12 +193,6 @@ func (g *Game) processTrayActions() {
 		switch action {
 		case tray.ActionShow:
 			g.showFromTray()
-		case tray.ActionMetrics:
-			g.showFromTray()
-
-			if g.metrics != nil && g.metrics.IsEnabled() {
-				_ = g.manager.SwitchSceneTo("metrics")
-			}
 		case tray.ActionQuit:
 			tray.Quit()
 			os.Exit(0)

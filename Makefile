@@ -44,7 +44,7 @@ plugins:
 			if [ -f "$$dir/main.go" ]; then \
 				name=$$(basename $$dir); \
 				echo "==> Building plugin: $$name"; \
-				go build -buildmode=plugin -o $(PLUGIN_DIR)/$$name.so $$dir; \
+				go build -buildmode=plugin -tags plugin -o $(PLUGIN_DIR)/$$name.so ./$$dir; \
 			fi; \
 		done; \
 		echo "==> Plugins installed to $(PLUGIN_DIR)"; \

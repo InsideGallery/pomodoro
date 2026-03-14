@@ -9,7 +9,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	textv2 "github.com/hajimehoshi/ebiten/v2/text/v2"
 
-	"github.com/InsideGallery/pomodoro/internal/config"
+	"github.com/InsideGallery/pomodoro/pkg/config"
 )
 
 type SettingsScreen struct {

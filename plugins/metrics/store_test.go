@@ -1,4 +1,6 @@
-package metrics //nolint:revive // metrics is our domain name, not runtime/metrics
+//go:build plugin
+
+package main //nolint:revive // metrics is our domain name, not runtime/metrics
 
 import (
 	"path/filepath"

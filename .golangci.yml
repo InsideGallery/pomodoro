@@ -86,29 +86,33 @@ linters:
         path: _test\.go
       - linters:
           - mnd
-        path: internal/ui/
+        path: (internal|pkg)/ui/
       - linters:
           - mnd
           - forbidigo
-        path: internal/app/
+        path: (internal|pkg)/app/
       - linters:
           - mnd
-        path: internal/audio/
+        path: (internal|pkg)/audio/
       - linters:
           - mnd
-        path: internal/tray/
+        path: (internal|pkg)/tray/
       - linters:
           - mnd
-        path: internal/config/
+        path: (internal|pkg)/config/
       - linters:
           - mnd
-        path: internal/timer/
+        path: (internal|pkg)/timer/
       - linters:
           - mnd
         path: internal/modules/
       - linters:
           - mnd
         path: cmd/
+      - linters:
+          - mnd
+          - staticcheck
+        path: plugins/
       - linters:
           - staticcheck
         text: "SA1019.*AppendVerticesAndIndicesFor"

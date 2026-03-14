@@ -1,4 +1,6 @@
-package lockscreen
+//go:build plugin
+
+package main
 
 import "time"
 

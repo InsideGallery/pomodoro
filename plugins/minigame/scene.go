@@ -1,4 +1,6 @@
-package minigame
+//go:build plugin
+
+package main
 
 import (
 	"context"
@@ -11,8 +13,8 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 
-	"github.com/InsideGallery/pomodoro/internal/config"
-	"github.com/InsideGallery/pomodoro/internal/ui"
+	"github.com/InsideGallery/pomodoro/pkg/config"
+	"github.com/InsideGallery/pomodoro/pkg/ui"
 	"github.com/InsideGallery/pomodoro/pkg/event"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 )

@@ -6,7 +6,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/InsideGallery/pomodoro/internal/timer"
-	"github.com/InsideGallery/pomodoro/internal/ui"
+	"github.com/InsideGallery/pomodoro/pkg/ui"
 )
 
 // RenderSystem draws the timer UI. It wraps the existing ui.TimerScreen

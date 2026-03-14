@@ -1,4 +1,6 @@
-package minigame
+//go:build plugin
+
+package main
 
 import (
 	"math"

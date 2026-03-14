@@ -1,6 +1,8 @@
 package tray
 
 import (
+	"sync"
+
 	"github.com/getlantern/systray"
 )
 
@@ -9,14 +11,20 @@ type Action int
 
 const (
 	ActionShow Action = iota
-	ActionMetrics
 	ActionQuit
 )
 
+type menuItem struct {
+	label   string
+	onClick func()
+}
+
 var (
-	ActionCh = make(chan Action, 4)
-	icon     []byte
-	ready    bool
+	ActionCh    = make(chan Action, 4) //nolint:gochecknoglobals // tray state
+	icon        []byte                 //nolint:gochecknoglobals // tray state
+	ready       bool                   //nolint:gochecknoglobals // tray state
+	extraItems  []menuItem             //nolint:gochecknoglobals // plugin menu items
+	extraItemMu sync.Mutex             //nolint:gochecknoglobals // tray state
 )
 
 // SetIcon sets the tray icon data (PNG bytes) before Run.
@@ -31,6 +39,14 @@ func UpdateIcon(data []byte) {
 	if ready {
 		systray.SetIcon(data)
 	}
+}
+
+// AddMenuItem registers a custom menu item (called by plugins before Run).
+func AddMenuItem(label string, onClick func()) {
+	extraItemMu.Lock()
+	defer extraItemMu.Unlock()
+
+	extraItems = append(extraItems, menuItem{label: label, onClick: onClick})
 }
 
 // Run starts the systray. Call from a goroutine — it blocks.
@@ -54,7 +70,19 @@ func onReady() {
 	systray.SetTooltip("Pomodoro Timer")
 
 	mShow := systray.AddMenuItem("Show", "Show the timer window")
-	mMetrics := systray.AddMenuItem("Metrics", "Show usage statistics")
+
+	// Add plugin-registered menu items
+	extraItemMu.Lock()
+	items := make([]menuItem, len(extraItems))
+	copy(items, extraItems)
+	extraItemMu.Unlock()
+
+	var pluginChans []chan struct{}
+
+	for _, item := range items {
+		mi := systray.AddMenuItem(item.label, item.label)
+		pluginChans = append(pluginChans, mi.ClickedCh)
+	}
 
 	systray.AddSeparator()
 
@@ -65,13 +93,22 @@ func onReady() {
 			select {
 			case <-mShow.ClickedCh:
 				ActionCh <- ActionShow
-			case <-mMetrics.ClickedCh:
-				ActionCh <- ActionMetrics
 			case <-mQuit.ClickedCh:
 				ActionCh <- ActionQuit
 			}
 		}
 	}()
+
+	// Listen for plugin menu item clicks
+	for i, ch := range pluginChans {
+		fn := items[i].onClick
+
+		go func(c chan struct{}) {
+			for range c {
+				fn()
+			}
+		}(ch)
+	}
 }
 
 func onExit() {}
