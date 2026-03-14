@@ -2,10 +2,12 @@ package ui
 
 import (
 	"fmt"
+	"image"
 	"image/color"
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	textv2 "github.com/hajimehoshi/ebiten/v2/text/v2"
 )
 
@@ -29,8 +31,9 @@ func MeasureText(s string, face *textv2.GoTextFace) (float64, float64) {
 }
 
 // Button is a clickable rounded rectangle with a label.
-// Hit detection is handled by InputSystem via RTree.
-// Visual state (Hovered, Pressed) is set by the InputSystem's hover/click callbacks.
+// When used via InputSystem (timer scene), Hovered is set by zone callbacks
+// and Update() only tracks pressed state.
+// When used directly (settings scene), Update() handles full click detection.
 type Button struct {
 	X, Y, W, H float32
 	Label      string
@@ -45,8 +48,22 @@ type Button struct {
 	Pressed bool
 }
 
-// Update releases pressed state when mouse is up. No hit detection.
 func (b *Button) Update() {
+	mx, my := ebiten.CursorPosition()
+	b.Hovered = b.hit(mx, my)
+
+	if b.Hovered && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		b.Pressed = true
+	}
+
+	if b.Pressed && inpututil.IsMouseButtonJustReleased(ebiten.MouseButtonLeft) {
+		b.Pressed = false
+
+		if b.Hovered && b.OnClick != nil {
+			b.OnClick()
+		}
+	}
+
 	if !ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		b.Pressed = false
 	}
@@ -79,8 +96,13 @@ func (b *Button) Draw(dst *ebiten.Image) {
 	}
 }
 
+func (b *Button) hit(mx, my int) bool {
+	r := image.Rect(int(b.X), int(b.Y), int(b.X+b.W), int(b.Y+b.H))
+
+	return image.Pt(mx, my).In(r)
+}
+
 // Slider is a horizontal slider for float64 values.
-// Drag detection is handled by InputSystem via RTree.
 type Slider struct {
 	X, Y, W, H  float32
 	Min, Max    float64
@@ -92,10 +114,83 @@ type Slider struct {
 	TextColor   color.Color
 	OnChange    func(float64)
 	FormatValue func(float64) string
+
+	dragging   bool
+	dragStartX float32
+	dragMoved  bool
 }
 
-// Update is a no-op — drag is handled by InputSystem.
-func (s *Slider) Update() {}
+func (s *Slider) Update() {
+	mx, my := ebiten.CursorPosition()
+
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		if s.hitKnob(mx, my) {
+			s.dragging = true
+			s.dragMoved = true
+			s.dragStartX = float32(mx)
+		} else if s.hitTrack(mx, my) {
+			s.dragging = true
+			s.dragMoved = false
+			s.dragStartX = float32(mx)
+		}
+	}
+
+	if !ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+		s.dragging = false
+		s.dragMoved = false
+	}
+
+	if s.dragging {
+		if !s.dragMoved {
+			if abs32(float32(mx)-s.dragStartX) < 3 {
+				return
+			}
+
+			s.dragMoved = true
+		}
+
+		t := float64(float32(mx)-s.X) / float64(s.W)
+		if t < 0 {
+			t = 0
+		}
+
+		if t > 1 {
+			t = 1
+		}
+
+		newVal := s.Min + t*(s.Max-s.Min)
+		if newVal != s.Value {
+			s.Value = newVal
+			if s.OnChange != nil {
+				s.OnChange(s.Value)
+			}
+		}
+	}
+}
+
+func (s *Slider) hitKnob(mx, my int) bool {
+	t := float32(0)
+	if s.Max > s.Min {
+		t = float32((s.Value - s.Min) / (s.Max - s.Min))
+	}
+
+	knobX := s.X + s.W*t
+	knobY := s.Y + s.H/2
+	knobR := s.H * 0.3
+
+	dx := float32(mx) - knobX
+	dy := float32(my) - knobY
+
+	return dx*dx+dy*dy <= (knobR+S(4))*(knobR+S(4))
+}
+
+func abs32(v float32) float32 {
+	if v < 0 {
+		return -v
+	}
+
+	return v
+}
 
 func (s *Slider) Draw(dst *ebiten.Image) {
 	trackH := s.H * 0.35
@@ -140,8 +235,14 @@ func (s *Slider) formatVal() string {
 	return fmt.Sprintf("%.0f%%", (s.Value-s.Min)/(s.Max-s.Min)*100)
 }
 
+func (s *Slider) hitTrack(mx, my int) bool {
+	pad := float32(12)
+	r := image.Rect(int(s.X-pad), int(s.Y-pad), int(s.X+s.W+pad), int(s.Y+s.H+pad))
+
+	return image.Pt(mx, my).In(r)
+}
+
 // Toggle is an on/off switch.
-// Click detection is handled by InputSystem via RTree.
 type Toggle struct {
 	X, Y, W, H float32
 	Value      bool
@@ -154,8 +255,24 @@ type Toggle struct {
 	OnChange   func(bool)
 }
 
-// Update is a no-op — click is handled by InputSystem.
-func (t *Toggle) Update() {}
+func (t *Toggle) Update() {
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		mx, my := ebiten.CursorPosition()
+
+		lx := int(t.X) - 200
+		if lx < 0 {
+			lx = 0
+		}
+
+		r := image.Rect(lx, int(t.Y)-4, int(t.X+t.W), int(t.Y+t.H)+4)
+		if image.Pt(mx, my).In(r) {
+			t.Value = !t.Value
+			if t.OnChange != nil {
+				t.OnChange(t.Value)
+			}
+		}
+	}
+}
 
 func (t *Toggle) Draw(dst *ebiten.Image) {
 	if t.Face != nil && t.Label != "" {

@@ -16,8 +16,10 @@ type RenderSystem struct {
 	Tmr    *timer.Timer
 }
 
+// Update only updates the start button label/color based on timer state.
+// Hit detection is handled by InputSystem, not widget self-detection.
 func (s *RenderSystem) Update(_ context.Context) error {
-	s.Screen.Update()
+	s.Screen.UpdateStartButton()
 
 	return nil
 }

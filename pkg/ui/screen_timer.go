@@ -128,6 +128,16 @@ func (s *TimerScreen) layoutButtons() {
 	}
 }
 
+// UpdateStartButton updates the start button label/color based on timer state.
+// Called by RenderSystem when InputSystem handles all other input.
+func (s *TimerScreen) UpdateStartButton() {
+	if !s.initialized {
+		return
+	}
+
+	s.updateStartButton()
+}
+
 func (s *TimerScreen) Update() {
 	if !s.initialized {
 		return
