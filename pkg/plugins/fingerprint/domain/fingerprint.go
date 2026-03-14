@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-// FingerprintColor represents the color type of a fingerprint (uint8).
+// FingerprintColor represents the color type of a fingerprint.
 type FingerprintColor uint8
 
 const (
@@ -16,13 +16,19 @@ const (
 	ColorRed    FingerprintColor = 3
 )
 
+// MaxGridSize is the maximum supported grid dimension.
+// x and y are encoded as uint8, so max 255.
+const MaxGridSize = 255
+
 // Fingerprint represents a fingerprint composed of tiles with a color.
-// The unique ID is derived from: color byte + 9-digit hash of all tile values.
+// UniqueID = color byte + 9-digit hash of all tile uint32 values.
+// Only 1 exact combination of (color, all tiles at correct positions + rotation 0)
+// produces the pre-computed correct hash.
 type Fingerprint struct {
 	Color FingerprintColor
-	Tiles []Tile // all tiles in grid order
-	GridW int    // grid width (columns)
-	GridH int    // grid height (rows)
+	Tiles []Tile
+	GridW int
+	GridH int
 }
 
 // NewFingerprint creates a fingerprint with the given grid dimensions.
@@ -47,17 +53,6 @@ func (f *Fingerprint) TileAt(x, y int) *Tile {
 	return &f.Tiles[y*f.GridW+x]
 }
 
-// TileValues returns all tile values in grid order (including 0 for empty).
-func (f *Fingerprint) TileValues() []uint16 {
-	vals := make([]uint16, len(f.Tiles))
-
-	for i, t := range f.Tiles {
-		vals[i] = t.Value
-	}
-
-	return vals
-}
-
 // EmptyCount returns how many tiles are missing (value == 0).
 func (f *Fingerprint) EmptyCount() int {
 	count := 0
@@ -71,27 +66,24 @@ func (f *Fingerprint) EmptyCount() int {
 	return count
 }
 
-// Hash computes the 9-digit hash from all non-zero tile values.
-// The hash is deterministic: same tile values → same hash.
+// Hash computes the 9-digit hash from all tile uint32 values.
+// Deterministic: same tile values in same order → same hash.
 func (f *Fingerprint) Hash() string {
 	h := sha256.New()
 
 	for _, t := range f.Tiles {
-		b := make([]byte, 2)
-		binary.LittleEndian.PutUint16(b, t.Value)
+		b := make([]byte, 4)
+		binary.LittleEndian.PutUint32(b, t.Value)
 		h.Write(b)
 	}
 
 	sum := h.Sum(nil)
-
-	// Take first 4.5 bytes → convert to 9-digit decimal
 	val := binary.BigEndian.Uint64(sum[:8]) % 1_000_000_000
 
 	return fmt.Sprintf("%09d", val)
 }
 
 // UniqueID returns the full fingerprint identifier: color byte + 9-digit hash.
-// Example: "2-384729105" (green, hash 384729105)
 func (f *Fingerprint) UniqueID() string {
 	return fmt.Sprintf("%d-%s", f.Color, f.Hash())
 }
