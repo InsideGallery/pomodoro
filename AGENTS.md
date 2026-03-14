@@ -255,12 +255,15 @@ manager.SwitchSceneTo(). Scenes never import each other.
 
 Systems that work across any scene:
 
-**InputSystem** — generic click detection:
-- Takes RTree from BaseScene
-- On mouse click, queries RTree.Collision() with click point
-- Finds entities with Clickable component
-- Calls entity's OnClick handler
-- Reusable: timer buttons, settings widgets, minigame targets all use the same system
+**InputSystem** — centralized interaction via RTree spatial queries:
+- Handles click (press+release), drag, and hover detection
+- Zones registered via `AddZone()` with click/drag/hover callbacks
+- On interaction, queries `RTree.Collision()` with cursor position
+- Priority system for overlapping zones (lower value = checked first)
+- Supports: Button click-on-release, Slider drag, Toggle click
+- Widget zones created via `ui.ButtonZone()`, `ui.ToggleZone()`, `ui.SliderZone()`
+- Timer scene uses RTree for all button hit detection (no manual coordinate checks)
+- Widgets support `SetManagedByRTree()` to disable self-hit-detection
 
 **DebugSystem** — FPS/TPS overlay:
 - Implements SystemWindow (ScreenDraw)
@@ -363,12 +366,88 @@ For cross-platform support, plugins can run as separate processes
 communicating via Unix sockets or gRPC. Higher overhead but no
 Go version coupling. This is a longer-term option.
 
+### Plugin Contract
+
+Plugins must export a single symbol `Plugin` implementing `PluginModule`:
+
+```go
+// pkg/plugin/contract.go — shared between host and plugins
+package plugin
+
+import "github.com/InsideGallery/pomodoro/internal/scene"
+import "github.com/InsideGallery/pomodoro/internal/event"
+
+// PluginModule is the contract every .so plugin must satisfy.
+type PluginModule interface {
+    // Name returns the plugin identifier (unique, used for logging/config).
+    Name() string
+
+    // Scenes returns the scenes this plugin provides.
+    // Each scene is registered with the SceneManager.
+    Scenes(bus *event.Bus) []scene.Scene
+
+    // TrayItems returns optional tray menu items.
+    // Key = label, Value = scene name to switch to when clicked.
+    TrayItems() map[string]string
+
+    // ConfigDefaults returns default config keys/values this plugin adds.
+    // Merged into the app config on first load.
+    ConfigDefaults() map[string]any
+}
+```
+
+### What Plugins Can Do
+
+- **Add new scenes** — fullscreen games, data visualizations, integrations
+- **Add tray menu items** — link to their scenes from the system tray
+- **Subscribe to events** — react to FocusStarted, BreakCompleted, ConfigChanged, etc.
+- **Use BaseScene** — get Systems, Registry, RTree for free
+- **Use pkg/systems/** — InputSystem, DebugSystem, or custom reusable systems
+- **Add config options** — plugin-specific settings appear automatically
+- **Draw with ui primitives** — DrawRoundedRect, DrawText, Face(), etc.
+
+### What Plugins Cannot Do
+
+- Modify existing scenes (no hooks into timer/settings internals)
+- Access other plugins (communication only via event bus)
+- Bypass the SceneManager (all rendering goes through Scene.Draw)
+- Load native libraries not compiled into the .so
+
+### Plugin Discovery Flow
+
+```
+1. App starts
+2. Scans ~/.config/pomodoro/plugins/*.so
+3. For each .so:
+   a. plugin.Open(path)
+   b. plugin.Lookup("Plugin") -> PluginModule
+   c. pm.Scenes(bus) -> register with SceneManager
+   d. pm.TrayItems() -> add to tray menu
+   e. pm.ConfigDefaults() -> merge into config
+4. Normal app init continues
+```
+
+### Estimated Implementation Effort
+
+| Task | Effort |
+|------|--------|
+| Move Scene/BaseScene/Bus to pkg/ (public API) | Small |
+| Create pkg/plugin/contract.go | Small |
+| Plugin loader in app.go (Open, Lookup, register) | Medium |
+| Dynamic tray menu items | Medium |
+| Config merging for plugin defaults | Small |
+| Testing with a sample plugin | Medium |
+| Documentation + plugin template repo | Medium |
+
+Main prerequisite: `internal/scene/` and `internal/event/` must move to `pkg/`
+so plugins can import them. This is the biggest change.
+
 ### Plugin Development Flow
 
-1. Developer creates a new Go module importing `pomodoro/pkg/systems`
+1. Developer creates a new Go module importing `pomodoro/pkg/`
 2. Implements Scene(s) using BaseScene + own systems
-3. Builds with `go build -buildmode=plugin`
-4. Drops .so into plugins directory
+3. Builds with `go build -buildmode=plugin -o myplugin.so`
+4. Drops .so into `~/.config/pomodoro/plugins/`
 5. Pomodoro discovers and loads it on next startup
 
 ## Future: Tiled-Based UI
@@ -414,6 +493,8 @@ go run ./cmd/pomodoro/   # Run directly
 | Alarm Volume | 0-100% | 80% |
 | Tick Sound | on/off | on |
 | Auto-Start Next | on/off | off |
-| Mini-Game on Break | on/off | off |
+| Mini Game | on/off | off |
+| Lock Long Break | on/off | off |
+| Usage Metrics | on/off | off |
 | Theme | dark/light | dark |
 | Transparency | 10-90% | 10% |

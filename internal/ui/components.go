@@ -41,13 +41,19 @@ type Button struct {
 	OnClick    func()
 	IconDraw   func(dst *ebiten.Image, cx, cy, size float32, clr color.Color) // optional icon instead of label
 
-	hovered bool
-	pressed bool
+	hovered        bool
+	pressed        bool
+	managedByRTree bool
 }
 
+// Update updates visual state. Hit detection is handled by InputSystem via RTree.
+// For backwards compatibility, also does manual hit detection if no InputSystem is used.
 func (b *Button) Update() {
 	mx, my := ebiten.CursorPosition()
-	b.hovered = b.hit(mx, my)
+
+	if !b.managedByRTree {
+		b.hovered = b.hit(mx, my)
+	}
 
 	if b.hovered && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		b.pressed = true
@@ -55,7 +61,8 @@ func (b *Button) Update() {
 
 	if b.pressed && inpututil.IsMouseButtonJustReleased(ebiten.MouseButtonLeft) {
 		b.pressed = false
-		if b.hovered && b.OnClick != nil {
+
+		if b.hovered && b.OnClick != nil && !b.managedByRTree {
 			b.OnClick()
 		}
 	}
@@ -64,6 +71,9 @@ func (b *Button) Update() {
 		b.pressed = false
 	}
 }
+
+// SetManagedByRTree marks this button as managed by InputSystem (no self-hit-detection).
+func (b *Button) SetManagedByRTree() { b.managedByRTree = true }
 
 func (b *Button) Draw(dst *ebiten.Image) {
 	clr := b.Color
@@ -108,22 +118,30 @@ type Slider struct {
 	OnChange    func(float64)
 	FormatValue func(float64) string // custom value formatter
 
-	dragging   bool
-	dragStartX float32 // cursor X when drag started
-	dragMoved  bool    // true once cursor moved past threshold
+	dragging       bool
+	dragStartX     float32 // cursor X when drag started
+	dragMoved      bool    // true once cursor moved past threshold
+	managedByRTree bool
 }
 
+// SetManagedByRTree marks this slider as managed by InputSystem.
+func (s *Slider) SetManagedByRTree() { s.managedByRTree = true }
+
+// Update does manual hit detection for backwards compatibility.
+// When managed by RTree, drag is handled by InputSystem.
 func (s *Slider) Update() {
+	if s.managedByRTree {
+		return
+	}
+
 	mx, my := ebiten.CursorPosition()
 
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		if s.hitKnob(mx, my) {
-			// Clicking the knob starts dragging immediately
 			s.dragging = true
 			s.dragMoved = true
 			s.dragStartX = float32(mx)
 		} else if s.hitTrack(mx, my) {
-			// Clicking the track requires movement before changing value
 			s.dragging = true
 			s.dragMoved = false
 			s.dragStartX = float32(mx)
@@ -136,7 +154,6 @@ func (s *Slider) Update() {
 	}
 
 	if s.dragging {
-		// Require cursor to move at least 3px before snapping value
 		if !s.dragMoved {
 			if abs32(float32(mx)-s.dragStartX) < 3 {
 				return
@@ -243,21 +260,31 @@ func (s *Slider) hitTrack(mx, my int) bool {
 
 // Toggle is an on/off switch.
 type Toggle struct {
-	X, Y, W, H float32
-	Value      bool
-	OnColor    color.Color
-	OffColor   color.Color
-	KnobColor  color.Color
-	Label      string
-	Face       *textv2.GoTextFace
-	TextColor  color.Color
-	OnChange   func(bool)
+	X, Y, W, H     float32
+	Value          bool
+	OnColor        color.Color
+	OffColor       color.Color
+	KnobColor      color.Color
+	Label          string
+	Face           *textv2.GoTextFace
+	TextColor      color.Color
+	OnChange       func(bool)
+	managedByRTree bool
 }
 
+// SetManagedByRTree marks this toggle as managed by InputSystem.
+func (t *Toggle) SetManagedByRTree() { t.managedByRTree = true }
+
+// Update does manual hit detection for backwards compatibility.
+// When managed by RTree, hit detection is handled by InputSystem.
 func (t *Toggle) Update() {
+	if t.managedByRTree {
+		return
+	}
+
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		mx, my := ebiten.CursorPosition()
-		// Hit area includes the label
+
 		lx := int(t.X) - 200
 		if lx < 0 {
 			lx = 0

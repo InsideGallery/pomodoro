@@ -14,6 +14,7 @@ import (
 	"github.com/InsideGallery/pomodoro/internal/scene"
 	"github.com/InsideGallery/pomodoro/internal/timer"
 	"github.com/InsideGallery/pomodoro/internal/ui"
+	"github.com/InsideGallery/pomodoro/pkg/systems"
 )
 
 const (
@@ -30,6 +31,7 @@ type Scene struct {
 	audio *audio.Manager
 	bus   *event.Bus
 	tick  *tsystems.TickSystem
+	input *systems.InputSystem
 
 	screen ui.TimerScreen
 
@@ -118,9 +120,12 @@ func (s *Scene) TimerIsRunning() bool { return s.tmr.State().IsRunning() }
 
 func (s *Scene) Init(ctx context.Context) {
 	s.BaseScene = scene.NewBaseScene(ctx, s.bus)
+	s.input = systems.NewInputSystem(s.RTree)
 
 	s.initAudio()
 
+	// Systems in execution order: input first, then keyboard, tick, render
+	s.Systems.Add("input", s.input)
 	s.Systems.Add("keyboard", &tsystems.KeyboardSystem{
 		OnStartPause: s.tick.OnStartPause,
 		OnReset:      s.tick.OnReset,
@@ -150,7 +155,30 @@ func (s *Scene) Load() error {
 	}
 	s.screen.Init(s.width, s.height)
 
+	// Register button zones in RTree for centralized hit detection
+	s.registerZones()
+
 	return nil
+}
+
+func (s *Scene) registerZones() {
+	s.input.ClearZones()
+
+	// Mark buttons as RTree-managed (skip self-hit-detection)
+	s.screen.BtnStart.SetManagedByRTree()
+	s.screen.BtnReset.SetManagedByRTree()
+	s.screen.BtnSkip.SetManagedByRTree()
+	s.screen.BtnSettings.SetManagedByRTree()
+	s.screen.BtnClose.SetManagedByRTree()
+	s.screen.BtnMini.SetManagedByRTree()
+
+	// Register zones via RTree
+	s.input.AddZone(ui.ButtonZone(&s.screen.BtnStart))
+	s.input.AddZone(ui.ButtonZone(&s.screen.BtnReset))
+	s.input.AddZone(ui.ButtonZone(&s.screen.BtnSkip))
+	s.input.AddZone(ui.ButtonZone(&s.screen.BtnSettings))
+	s.input.AddZone(ui.ButtonZone(&s.screen.BtnClose))
+	s.input.AddZone(ui.ButtonZone(&s.screen.BtnMini))
 }
 
 func (s *Scene) Unload() error { return nil }
@@ -183,6 +211,7 @@ func (s *Scene) Layout(outsideWidth, outsideHeight int) (int, int) {
 		s.width = w
 		s.height = h
 		s.screen.Resize(w, h)
+		s.registerZones()
 	}
 
 	return w, h
