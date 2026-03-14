@@ -16,6 +16,7 @@ import (
 	"github.com/InsideGallery/pomodoro/pkg/config"
 	"github.com/InsideGallery/pomodoro/pkg/ecs"
 	"github.com/InsideGallery/pomodoro/pkg/event"
+	"github.com/InsideGallery/pomodoro/pkg/logger"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 	"github.com/InsideGallery/pomodoro/pkg/systems"
 	"github.com/InsideGallery/pomodoro/pkg/ui"
@@ -308,7 +309,9 @@ func (s *Scene) createEntities() {
 		},
 	}
 
-	_ = s.Registry.Add("mode_label", s.nextID(), modeLabel)
+	if err := s.Registry.Add("mode_label", s.nextID(), modeLabel); err != nil {
+		logger.Warn("registry add", "group", "mode_label", "error", err)
+	}
 
 	// --- Timer text ---
 	timerText := &ecs.TimerTextEntity{
@@ -318,7 +321,9 @@ func (s *Scene) createEntities() {
 		Remaining: func() time.Duration { return s.tmr.Remaining(time.Now()) },
 	}
 
-	_ = s.Registry.Add("timer_text", s.nextID(), timerText)
+	if err := s.Registry.Add("timer_text", s.nextID(), timerText); err != nil {
+		logger.Warn("registry add", "group", "timer_text", "error", err)
+	}
 
 	// --- Hint ---
 	hint := &ecs.HintEntity{
@@ -341,7 +346,9 @@ func (s *Scene) createEntities() {
 		},
 	}
 
-	_ = s.Registry.Add("hint", s.nextID(), hint)
+	if err := s.Registry.Add("hint", s.nextID(), hint); err != nil {
+		logger.Warn("registry add", "group", "hint", "error", err)
+	}
 
 	// --- Round dots ---
 	dotY := ringCY + maxR + ui.Sf(44)
@@ -462,7 +469,9 @@ func (s *Scene) saveState() {
 	st.PrePause = prePause
 	st.RemainingSec = remainingSec
 
-	_ = config.SaveState(st)
+	if err := config.SaveState(st); err != nil {
+		logger.Warn("save state", "error", err)
+	}
 }
 
 func box(x, y, w, h float64) shapes.Spatial { //nolint:ireturn // returns spatial for RTree

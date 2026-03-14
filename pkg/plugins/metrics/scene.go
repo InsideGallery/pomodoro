@@ -13,6 +13,7 @@ import (
 
 	"github.com/InsideGallery/pomodoro/pkg/config"
 	"github.com/InsideGallery/pomodoro/pkg/event"
+	"github.com/InsideGallery/pomodoro/pkg/logger"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 	"github.com/InsideGallery/pomodoro/pkg/ui"
 )
@@ -38,7 +39,9 @@ func NewScene(bus *event.Bus, onDone func()) *Scene {
 	cfg := config.Load()
 
 	store := NewStore(DefaultPath())
-	_ = store.Load()
+	if err := store.Load(); err != nil {
+		logger.Warn("metrics load", "error", err)
+	}
 
 	s := &Scene{
 		store:   store,
@@ -73,7 +76,9 @@ func NewScene(bus *event.Bus, onDone func()) *Scene {
 			store.RecordFocusDuration(secs)
 		}
 
-		_ = store.Save()
+		if err := store.Save(); err != nil {
+			logger.Warn("metrics save", "error", err)
+		}
 	})
 
 	bus.Subscribe(event.BreakStarted, func(e event.Event) {
@@ -99,7 +104,9 @@ func NewScene(bus *event.Bus, onDone func()) *Scene {
 			store.RecordGameDuration(secs)
 		}
 
-		_ = store.Save()
+		if err := store.Save(); err != nil {
+			logger.Warn("metrics save", "error", err)
+		}
 	})
 
 	bus.Subscribe(event.LongBreakStarted, func(e event.Event) {
@@ -113,7 +120,9 @@ func NewScene(bus *event.Bus, onDone func()) *Scene {
 			store.RecordBreakDuration(secs)
 		}
 
-		_ = store.Save()
+		if err := store.Save(); err != nil {
+			logger.Warn("metrics save", "error", err)
+		}
 	})
 
 	bus.Subscribe(event.ConfigChanged, func(e event.Event) {
@@ -133,7 +142,10 @@ func (s *Scene) Init(ctx context.Context) {
 }
 
 func (s *Scene) Load() error {
-	_ = s.store.Load()
+	if err := s.store.Load(); err != nil {
+		logger.Warn("metrics load", "error", err)
+	}
+
 	s.tab = 0
 
 	return nil

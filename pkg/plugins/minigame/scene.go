@@ -13,6 +13,7 @@ import (
 
 	"github.com/InsideGallery/pomodoro/pkg/config"
 	"github.com/InsideGallery/pomodoro/pkg/event"
+	"github.com/InsideGallery/pomodoro/pkg/logger"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 	"github.com/InsideGallery/pomodoro/pkg/ui"
 )
@@ -44,8 +45,11 @@ func NewScene(bus *event.Bus, switchToSelf func(), onDone func()) *Scene {
 		breakDur:  cfg.BreakDuration(),
 		onSave: func(best int) {
 			loadedSt := config.LoadState()
+
 			loadedSt.MinigameBestScore = best
-			_ = config.SaveState(loadedSt)
+			if err := config.SaveState(loadedSt); err != nil {
+				logger.Warn("save state", "error", err)
+			}
 		},
 		onDone: onDone,
 	}

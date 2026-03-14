@@ -48,7 +48,9 @@ func GenerateIcon(size int, ringClr color.RGBA) []byte {
 
 	var buf bytes.Buffer
 
-	_ = png.Encode(&buf, img)
+	if err := png.Encode(&buf, img); err != nil {
+		return nil
+	}
 
 	return buf.Bytes()
 }
