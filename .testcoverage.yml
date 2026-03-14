@@ -3,7 +3,7 @@ profile: coverage.out
 threshold:
   file: 0
   package: 0
-  total: 52
+  total: 70
 
 exclude:
   paths:
@@ -14,6 +14,12 @@ exclude:
     - ^internal/audio/
     - ^internal/platform/
     - ^internal/tray/
+    - internal/modules/.*/screen\.go$
+    - internal/modules/.*/module\.go$
+    - internal/modules/.*/scene\.go$
+    - internal/modules/.*/systems/
+    - ^internal/ecs/
+    - ^pkg/systems/
 
 breakdown-file-name: ''
 

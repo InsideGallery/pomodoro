@@ -9,6 +9,7 @@ type Action int
 
 const (
 	ActionShow Action = iota
+	ActionMetrics
 	ActionQuit
 )
 
@@ -53,6 +54,7 @@ func onReady() {
 	systray.SetTooltip("Pomodoro Timer")
 
 	mShow := systray.AddMenuItem("Show", "Show the timer window")
+	mMetrics := systray.AddMenuItem("Metrics", "Show usage statistics")
 
 	systray.AddSeparator()
 
@@ -63,6 +65,8 @@ func onReady() {
 			select {
 			case <-mShow.ClickedCh:
 				ActionCh <- ActionShow
+			case <-mMetrics.ClickedCh:
+				ActionCh <- ActionMetrics
 			case <-mQuit.ClickedCh:
 				ActionCh <- ActionQuit
 			}

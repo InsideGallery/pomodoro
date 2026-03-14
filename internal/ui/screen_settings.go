@@ -23,6 +23,9 @@ type SettingsScreen struct {
 	AlarmVolSlider   Slider
 	TickToggle       Toggle
 	AutoStartToggle  Toggle
+	MinigameToggle   Toggle
+	LockBreakToggle  Toggle
+	MetricsToggle    Toggle
 	ThemeToggle      Toggle
 	TransparencySldr Slider
 	BtnBack          Button
@@ -35,6 +38,7 @@ type SettingsScreen struct {
 	OnTickVolumeChange   func(float64)
 	OnAlarmVolumeChange  func(float64)
 	OnTickEnabledChange  func(bool)
+	OnMinigameChange     func(bool)
 
 	faceHeading *textv2.GoTextFace
 	faceLabel   *textv2.GoTextFace
@@ -227,6 +231,47 @@ func (s *SettingsScreen) layout() {
 		},
 	}
 	y += toggleRowH
+	s.MinigameToggle = Toggle{
+		X: toggleX, Y: y, W: toggleW, H: toggleH,
+		Value:   s.Cfg.MinigameEnabled,
+		OnColor: ColorAccentBreak, OffColor: ColorToggleOff,
+		KnobColor: ColorTextPrimary,
+		Label:     "Mini Game", Face: s.faceLabel, TextColor: ColorTextSecond,
+		OnChange: func(v bool) {
+			s.Cfg.MinigameEnabled = v
+
+			if s.OnMinigameChange != nil {
+				s.OnMinigameChange(v)
+			}
+
+			s.save()
+		},
+	}
+	y += toggleRowH
+	s.LockBreakToggle = Toggle{
+		X: toggleX, Y: y, W: toggleW, H: toggleH,
+		Value:   s.Cfg.LockBreakScreen,
+		OnColor: ColorAccentDanger, OffColor: ColorToggleOff,
+		KnobColor: ColorTextPrimary,
+		Label:     "Lock Long Break", Face: s.faceLabel, TextColor: ColorTextSecond,
+		OnChange: func(v bool) {
+			s.Cfg.LockBreakScreen = v
+			s.save()
+		},
+	}
+	y += toggleRowH
+	s.MetricsToggle = Toggle{
+		X: toggleX, Y: y, W: toggleW, H: toggleH,
+		Value:   s.Cfg.MetricsEnabled,
+		OnColor: ColorAccentFocus, OffColor: ColorToggleOff,
+		KnobColor: ColorTextPrimary,
+		Label:     "Usage Metrics", Face: s.faceLabel, TextColor: ColorTextSecond,
+		OnChange: func(v bool) {
+			s.Cfg.MetricsEnabled = v
+			s.save()
+		},
+	}
+	y += toggleRowH
 	s.ThemeToggle = Toggle{
 		X: toggleX, Y: y, W: toggleW, H: toggleH,
 		Value:   s.Cfg.Theme == "light",
@@ -309,6 +354,9 @@ func (s *SettingsScreen) shiftToScreen() {
 	s.AlarmVolSlider.Y += dy
 	s.TickToggle.Y += dy
 	s.AutoStartToggle.Y += dy
+	s.MinigameToggle.Y += dy
+	s.LockBreakToggle.Y += dy
+	s.MetricsToggle.Y += dy
 	s.ThemeToggle.Y += dy
 	s.TransparencySldr.Y += dy
 	s.BtnReset.Y += dy
@@ -328,6 +376,9 @@ func (s *SettingsScreen) shiftToContent() {
 	s.AlarmVolSlider.Y += dy
 	s.TickToggle.Y += dy
 	s.AutoStartToggle.Y += dy
+	s.MinigameToggle.Y += dy
+	s.LockBreakToggle.Y += dy
+	s.MetricsToggle.Y += dy
 	s.ThemeToggle.Y += dy
 	s.TransparencySldr.Y += dy
 	s.BtnReset.Y += dy
@@ -377,6 +428,9 @@ func (s *SettingsScreen) Update() {
 	s.AlarmVolSlider.Update()
 	s.TickToggle.Update()
 	s.AutoStartToggle.Update()
+	s.MinigameToggle.Update()
+	s.LockBreakToggle.Update()
+	s.MetricsToggle.Update()
 	s.ThemeToggle.Update()
 	s.TransparencySldr.Update()
 	s.BtnReset.Update()
@@ -439,6 +493,9 @@ func (s *SettingsScreen) Draw(screen *ebiten.Image) {
 	s.AlarmVolSlider.Draw(clip)
 	s.TickToggle.Draw(clip)
 	s.AutoStartToggle.Draw(clip)
+	s.MinigameToggle.Draw(clip)
+	s.LockBreakToggle.Draw(clip)
+	s.MetricsToggle.Draw(clip)
 	s.ThemeToggle.Draw(clip)
 	s.TransparencySldr.Draw(clip)
 	s.BtnReset.Draw(clip)

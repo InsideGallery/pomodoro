@@ -201,8 +201,9 @@ func (s *TimerScreen) updateDotClick() {
 		return
 	}
 
-	// Only allow changing round when idle
-	if s.Timer.State() != timer.StateIdle {
+	// Allow changing round when not actively running
+	state := s.Timer.State()
+	if state != timer.StateIdle && state != timer.StatePaused {
 		return
 	}
 

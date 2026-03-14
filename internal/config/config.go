@@ -18,6 +18,9 @@ type Config struct {
 	TickEnabled      bool    `json:"tick_enabled"`
 	Theme            string  `json:"theme"`
 	Transparency     float64 `json:"transparency"`
+	MinigameEnabled  bool    `json:"minigame_enabled"`
+	LockBreakScreen  bool    `json:"lock_break_screen"`
+	MetricsEnabled   bool    `json:"metrics_enabled"`
 }
 
 func (c Config) FocusDuration() time.Duration { return time.Duration(c.FocusMinutes) * time.Minute }
@@ -112,11 +115,12 @@ func Save(cfg Config) error {
 
 // TimerState represents the persisted timer state between restarts.
 type TimerState struct {
-	Round        int     `json:"round"`
-	PendingNext  string  `json:"pending_next"`
-	State        string  `json:"state"`
-	PrePause     string  `json:"pre_pause"`
-	RemainingSec float64 `json:"remaining_sec"`
+	Round             int     `json:"round"`
+	PendingNext       string  `json:"pending_next"`
+	State             string  `json:"state"`
+	PrePause          string  `json:"pre_pause"`
+	RemainingSec      float64 `json:"remaining_sec"`
+	MinigameBestScore int     `json:"minigame_best_score"`
 }
 
 func statePath() (string, error) {

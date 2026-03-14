@@ -8,3 +8,6 @@ func ShowWindow(title string) {}
 
 // SetAlwaysOnTop is a no-op on macOS.
 func SetAlwaysOnTop(title string, enable bool) {}
+
+// RaiseWindow is a no-op on macOS.
+func RaiseWindow(title string) {}

@@ -77,9 +77,12 @@ linters:
           - dogsled
           - dupl
           - errcheck
+          - goconst
+          - gosec
           - lll
           - mnd
           - wsl
+          - wsl_v5
         path: _test\.go
       - linters:
           - mnd
@@ -100,6 +103,9 @@ linters:
       - linters:
           - mnd
         path: internal/timer/
+      - linters:
+          - mnd
+        path: internal/modules/
       - linters:
           - mnd
         path: cmd/

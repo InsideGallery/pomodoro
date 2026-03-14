@@ -89,6 +89,17 @@ static void x11_show(unsigned long wid) {
     XCloseDisplay(dpy);
 }
 
+static void x11_raise(unsigned long wid) {
+    Display *dpy = XOpenDisplay(NULL);
+    if (!dpy) return;
+
+    Window win = (Window)wid;
+    XRaiseWindow(dpy, win);
+    XSetInputFocus(dpy, win, RevertToParent, CurrentTime);
+    XFlush(dpy);
+    XCloseDisplay(dpy);
+}
+
 static unsigned long x11_find_window(const char *title) {
     Display *dpy = XOpenDisplay(NULL);
     if (!dpy) return 0;
@@ -170,6 +181,20 @@ func SetAlwaysOnTop(title string, enable bool) {
 	}
 
 	C.x11_set_above(C.ulong(wid), flag)
+}
+
+// RaiseWindow brings the window to the front and gives it focus.
+func RaiseWindow(title string) {
+	wid := savedWID
+	if wid == 0 {
+		wid = FindWindowID(title)
+	}
+
+	if wid == 0 {
+		return
+	}
+
+	C.x11_raise(C.ulong(wid))
 }
 
 // ShowWindow maps a window and restores it on the taskbar.

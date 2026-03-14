@@ -423,3 +423,97 @@ func TestFullCycleNoAutoStart(t *testing.T) {
 		t.Fatalf("expected Focus again, got %s", tm.State())
 	}
 }
+
+func TestIdleShowsFullDuration(t *testing.T) {
+	tm := New(testConfig())
+	now := time.Now()
+
+	// Idle with pendingNext=Focus should show focus duration
+	rem := tm.Remaining(now)
+	if rem != 25*time.Second {
+		t.Fatalf("expected 25s for idle Focus, got %s", rem)
+	}
+
+	// After completing focus, idle with pendingNext=Break should show break duration
+	tm.Start(now)
+	tm.Update(now.Add(26 * time.Second))
+
+	rem = tm.Remaining(now.Add(30 * time.Second))
+	if rem != 5*time.Second {
+		t.Fatalf("expected 5s for idle Break, got %s", rem)
+	}
+}
+
+func TestSkipIdleNoAutoStart(t *testing.T) {
+	tm := New(testConfig())
+	now := time.Now()
+
+	// Idle with pendingNext=Focus → Skip → paused Break
+	tm.Skip(now)
+
+	if tm.State() != StatePaused {
+		t.Fatalf("expected Paused after skip idle, got %s", tm.State())
+	}
+
+	if tm.Round() != 1 {
+		t.Fatalf("expected round 1 after skipping focus, got %d", tm.Round())
+	}
+
+	// Resume should go to Break
+	tm.Resume(now)
+
+	if tm.State() != StateBreak {
+		t.Fatalf("expected Break after resume, got %s", tm.State())
+	}
+}
+
+func TestSkipIdleWithAutoStart(t *testing.T) {
+	cfg := testConfig()
+	cfg.AutoStart = true
+	tm := New(cfg)
+	now := time.Now()
+
+	// Idle with pendingNext=Focus → Skip → auto-start Break (running)
+	tm.Skip(now)
+
+	if tm.State() != StateBreak {
+		t.Fatalf("expected Break running after skip idle with autostart, got %s", tm.State())
+	}
+}
+
+func TestSkipIdleFromBreakPending(t *testing.T) {
+	tm := New(testConfig())
+	now := time.Now()
+
+	// Complete focus first to get pendingNext=Break
+	tm.Start(now)
+	tm.Update(now.Add(26 * time.Second))
+
+	if tm.PendingNext() != StateBreak {
+		t.Fatalf("expected pending Break, got %s", tm.PendingNext())
+	}
+
+	// Skip idle Break → paused Focus
+	tm.Skip(now.Add(30 * time.Second))
+
+	if tm.State() != StatePaused {
+		t.Fatalf("expected Paused, got %s", tm.State())
+	}
+
+	// Resume should go to Focus
+	tm.Resume(now.Add(31 * time.Second))
+
+	if tm.State() != StateFocus {
+		t.Fatalf("expected Focus, got %s", tm.State())
+	}
+}
+
+func TestProgressZeroWhenIdle(t *testing.T) {
+	tm := New(testConfig())
+	now := time.Now()
+
+	p := tm.Progress(now)
+	if p != 0 {
+		t.Fatalf("expected 0 progress when idle, got %f", p)
+	}
+}

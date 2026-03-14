@@ -160,6 +160,8 @@ func (t *Timer) duration() time.Duration {
 
 func (t *Timer) Remaining(now time.Time) time.Duration {
 	switch t.state {
+	case StateIdle:
+		return t.durationForState(t.pendingNext)
 	case StatePaused:
 		return t.remaining
 	case StateFocus, StateBreak, StateLongBreak:
@@ -259,6 +261,15 @@ func (t *Timer) Reset() {
 
 func (t *Timer) Skip(now time.Time) {
 	if t.state == StateIdle {
+		// Skip the pending phase: complete it, then if not auto-started, pause
+		t.complete(t.pendingNext, now)
+
+		if t.state == StateIdle {
+			// Auto-start didn't kick in — start and immediately pause
+			t.Start(now)
+			t.Pause(now)
+		}
+
 		return
 	}
 
