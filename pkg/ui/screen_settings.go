@@ -10,6 +10,7 @@ import (
 	textv2 "github.com/hajimehoshi/ebiten/v2/text/v2"
 
 	"github.com/InsideGallery/pomodoro/pkg/config"
+	"github.com/InsideGallery/pomodoro/pkg/systems"
 )
 
 type SettingsScreen struct {
@@ -528,4 +529,59 @@ func (s *SettingsScreen) Resize(w, h int) {
 
 func (s *SettingsScreen) save() {
 	_ = config.Save(*s.Cfg)
+}
+
+// ScrollOffset returns contentTop - scrollY for InputSystem mouse adjustment.
+func (s *SettingsScreen) ScrollOffset() float64 {
+	return float64(s.contentTop() - s.scrollY)
+}
+
+// HandleScroll processes scroll input (wheel + arrow keys) and clamps.
+func (s *SettingsScreen) HandleScroll() {
+	_, wy := ebiten.Wheel()
+	if wy != 0 {
+		s.scrollY -= float32(wy) * S(30)
+	}
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
+		s.scrollY += S(30)
+	}
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
+		s.scrollY -= S(30)
+	}
+
+	if s.scrollY < 0 {
+		s.scrollY = 0
+	}
+
+	if mx := s.maxScroll(); s.scrollY > mx {
+		s.scrollY = mx
+	}
+}
+
+// Zones returns InputSystem zones for all interactive widgets.
+// Zones are in content-space coordinates (Y=0 at top of scroll area).
+func (s *SettingsScreen) Zones() []*systems.Zone {
+	var zones []*systems.Zone
+
+	zones = append(zones,
+		ButtonZone(&s.BtnBack),
+		ButtonZone(&s.BtnReset),
+		SliderZone(&s.FocusSlider),
+		SliderZone(&s.BreakSlider),
+		SliderZone(&s.LongBreakSlider),
+		SliderZone(&s.RoundsSlider),
+		SliderZone(&s.TickVolSlider),
+		SliderZone(&s.AlarmVolSlider),
+		SliderZone(&s.TransparencySldr),
+		ToggleZone(&s.TickToggle),
+		ToggleZone(&s.AutoStartToggle),
+		ToggleZone(&s.MinigameToggle),
+		ToggleZone(&s.LockBreakToggle),
+		ToggleZone(&s.MetricsToggle),
+		ToggleZone(&s.ThemeToggle),
+	)
+
+	return zones
 }

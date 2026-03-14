@@ -51,6 +51,9 @@ type InputSystem struct {
 	dragging    bool
 	dragZone    *Zone
 	pressedZone *Zone
+
+	// Scroll offset: subtracted from mouse Y to convert screen→content space.
+	scrollOffsetY float64
 }
 
 // NewInputSystem creates an InputSystem backed by the given RTree.
@@ -78,7 +81,9 @@ func (s *InputSystem) ClearZones() {
 
 // Update processes mouse events: hover, press, drag, release.
 func (s *InputSystem) Update(_ context.Context) error {
-	mx, my := ebiten.CursorPosition()
+	rawMX, rawMY := ebiten.CursorPosition()
+	mx := rawMX
+	my := rawMY - int(s.scrollOffsetY)
 
 	// Find hovered zone
 	hovered := s.findZoneAt(mx, my)
@@ -139,9 +144,10 @@ func (s *InputSystem) Update(_ context.Context) error {
 // Draw is a no-op; InputSystem has no visual representation.
 func (s *InputSystem) Draw(_ context.Context, _ *ebiten.Image) {}
 
-// IsPressed returns whether the given zone is currently pressed.
-func (s *InputSystem) IsPressed(z *Zone) bool {
-	return s.pressedZone == z
+// SetScrollOffset sets a Y offset subtracted from mouse position before querying.
+// Used for scrollable containers where zones are in content-space coordinates.
+func (s *InputSystem) SetScrollOffset(y float64) {
+	s.scrollOffsetY = y
 }
 
 func (s *InputSystem) findZoneAt(mx, my int) *Zone {

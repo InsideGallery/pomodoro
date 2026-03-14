@@ -10,16 +10,18 @@ import (
 	"github.com/InsideGallery/pomodoro/pkg/config"
 	"github.com/InsideGallery/pomodoro/pkg/event"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
+	"github.com/InsideGallery/pomodoro/pkg/systems"
 	"github.com/InsideGallery/pomodoro/pkg/ui"
 )
 
 const SceneName = "settings"
 
-// Scene is the settings scene. It owns a config copy and publishes ConfigChanged events.
+// Scene is the settings scene with RTree-based input.
 type Scene struct {
 	*scene.BaseScene
 
 	screen ui.SettingsScreen
+	input  *systems.InputSystem
 	cfg    config.Config
 	bus    *event.Bus
 
@@ -45,6 +47,7 @@ func (s *Scene) publishConfig() {
 
 func (s *Scene) Init(ctx context.Context) {
 	s.BaseScene = scene.NewBaseScene(ctx, s.bus)
+	s.input = systems.NewInputSystem(s.RTree)
 
 	s.screen.Cfg = &s.cfg
 	s.screen.OnBack = func() {
@@ -69,7 +72,9 @@ func (s *Scene) Init(ctx context.Context) {
 		def.Theme = s.cfg.Theme
 		def.Transparency = s.cfg.Transparency
 		s.cfg = def
-		_ = config.Save(s.cfg)
+
+		_ = config.Save(s.cfg) //nolint:errcheck // best effort
+
 		s.publishConfig()
 		s.pendingReinit = true
 	}
@@ -79,6 +84,7 @@ func (s *Scene) Load() error {
 	s.cfg = config.Load()
 	s.screen.Cfg = &s.cfg
 	s.screen.Init(s.width, s.height)
+	s.registerZones()
 
 	return nil
 }
@@ -90,6 +96,7 @@ func (s *Scene) Update() error {
 		s.pendingReinit = false
 		s.screen.Cfg = &s.cfg
 		s.screen.Relayout()
+		s.registerZones()
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
@@ -99,7 +106,14 @@ func (s *Scene) Update() error {
 		return nil
 	}
 
-	s.screen.Update()
+	// Handle scroll, then update InputSystem offset
+	s.screen.HandleScroll()
+	s.input.SetScrollOffset(s.screen.ScrollOffset())
+
+	// Run InputSystem for click/drag/hover detection
+	if err := s.input.Update(s.Ctx); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -130,7 +144,16 @@ func (s *Scene) Layout(outsideWidth, outsideHeight int) (int, int) {
 		s.width = w
 		s.height = h
 		s.screen.Resize(w, h)
+		s.registerZones()
 	}
 
 	return w, h
+}
+
+func (s *Scene) registerZones() {
+	s.input.ClearZones()
+
+	for _, z := range s.screen.Zones() {
+		s.input.AddZone(z)
+	}
 }
