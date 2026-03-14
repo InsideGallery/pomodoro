@@ -60,14 +60,14 @@ func (s *TickSystem) OnStartPause() {
 		}
 	case timer.StatePaused:
 		s.Tmr.Resume(now)
-		s.Bus.Publish(event.Event{Type: event.Resumed, Time: now})
+		s.Bus.Publish(event.Event{Type: event.Resumed, Time: now, Data: s.Tmr.State().String()})
 
 		if s.Audio != nil {
 			s.Audio.PlayTick()
 		}
 	default:
 		s.Tmr.Pause(now)
-		s.Bus.Publish(event.Event{Type: event.Paused, Time: now})
+		s.Bus.Publish(event.Event{Type: event.Paused, Time: now, Data: "Paused"})
 
 		if s.Audio != nil {
 			s.Audio.StopTick()
@@ -79,7 +79,7 @@ func (s *TickSystem) OnStartPause() {
 
 func (s *TickSystem) OnReset() {
 	s.Tmr.Reset()
-	s.Bus.Publish(event.Event{Type: event.Reset, Time: time.Now()})
+	s.Bus.Publish(event.Event{Type: event.Reset, Time: time.Now(), Data: "Idle"})
 
 	if s.Audio != nil {
 		s.Audio.StopTick()
@@ -119,7 +119,7 @@ func (s *TickSystem) publishStarted(st timer.State, now time.Time) {
 		return
 	}
 
-	s.Bus.Publish(event.Event{Type: t, Time: now})
+	s.Bus.Publish(event.Event{Type: t, Time: now, Data: st.String()})
 }
 
 func (s *TickSystem) PublishCompleted(st timer.State) {
@@ -136,5 +136,5 @@ func (s *TickSystem) PublishCompleted(st timer.State) {
 		return
 	}
 
-	s.Bus.Publish(event.Event{Type: t, Time: time.Now()})
+	s.Bus.Publish(event.Event{Type: t, Time: time.Now(), Data: "Idle"})
 }
