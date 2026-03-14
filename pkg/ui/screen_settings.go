@@ -506,6 +506,11 @@ func (s *SettingsScreen) save() {
 	_ = config.Save(*s.Cfg)
 }
 
+// Save persists the current config to disk.
+func (s *SettingsScreen) Save() {
+	_ = config.Save(*s.Cfg)
+}
+
 // ScrollOffset returns contentTop - scrollY for InputSystem mouse adjustment.
 func (s *SettingsScreen) ScrollOffset() float64 {
 	return float64(s.contentTop() - s.scrollY)

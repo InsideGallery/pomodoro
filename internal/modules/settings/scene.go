@@ -116,6 +116,7 @@ func (s *Scene) Load() error {
 		idx := len(s.screen.PluginToggles) - 1
 		s.screen.PluginToggles[idx].OnChange = func(v bool) {
 			s.cfg.SetPlugin(key, v)
+			s.screen.Save()
 			s.publishConfig()
 		}
 	}
@@ -143,18 +144,17 @@ func (s *Scene) Update() error {
 		return nil
 	}
 
-	// Back button is in the fixed header — check it directly (not via RTree)
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		mx, my := ebiten.CursorPosition()
-		bk := s.screen.BtnBack
+	// Back button is in the fixed header — handle hover + click directly
+	mx, my := ebiten.CursorPosition()
+	bk := &s.screen.BtnBack
+	bk.Hovered = mx >= int(bk.X) && mx <= int(bk.X+bk.W) && my >= int(bk.Y) && my <= int(bk.Y+bk.H)
 
-		if mx >= int(bk.X) && mx <= int(bk.X+bk.W) && my >= int(bk.Y) && my <= int(bk.Y+bk.H) {
-			if bk.OnClick != nil {
-				bk.OnClick()
-			}
-
-			return nil
+	if bk.Hovered && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		if bk.OnClick != nil {
+			bk.OnClick()
 		}
+
+		return nil
 	}
 
 	// Handle scroll, then update InputSystem offset for scrollable widgets
