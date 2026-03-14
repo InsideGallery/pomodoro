@@ -12,15 +12,15 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/InsideGallery/pomodoro/assets"
-	"github.com/InsideGallery/pomodoro/internal/app"
-	"github.com/InsideGallery/pomodoro/internal/builtin"
-	"github.com/InsideGallery/pomodoro/internal/modules/mini"
-	"github.com/InsideGallery/pomodoro/internal/modules/settings"
-	timerscene "github.com/InsideGallery/pomodoro/internal/modules/timer"
-	"github.com/InsideGallery/pomodoro/internal/tray"
+	"github.com/InsideGallery/pomodoro/pkg/app"
 	"github.com/InsideGallery/pomodoro/pkg/event"
 	"github.com/InsideGallery/pomodoro/pkg/pluggable"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
+	"github.com/InsideGallery/pomodoro/services/pomodoro/internal/builtin"
+	"github.com/InsideGallery/pomodoro/services/pomodoro/internal/modules/mini"
+	"github.com/InsideGallery/pomodoro/services/pomodoro/internal/modules/settings"
+	timerscene "github.com/InsideGallery/pomodoro/services/pomodoro/internal/modules/timer"
+	"github.com/InsideGallery/pomodoro/services/pomodoro/internal/tray"
 )
 
 func main() {

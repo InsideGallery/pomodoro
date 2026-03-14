@@ -6,7 +6,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 
-	"github.com/InsideGallery/pomodoro/internal/app"
+	"github.com/InsideGallery/pomodoro/pkg/app"
 	"github.com/InsideGallery/pomodoro/pkg/event"
 	"github.com/InsideGallery/pomodoro/pkg/plugins/fingerprint"
 	"github.com/InsideGallery/pomodoro/pkg/resources"

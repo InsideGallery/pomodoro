@@ -11,9 +11,9 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	textv2 "github.com/hajimehoshi/ebiten/v2/text/v2"
 
-	"github.com/InsideGallery/pomodoro/internal/timer"
 	"github.com/InsideGallery/pomodoro/pkg/ecs"
 	"github.com/InsideGallery/pomodoro/pkg/ui"
+	"github.com/InsideGallery/pomodoro/services/pomodoro/internal/timer"
 )
 
 // RenderSystem draws all timer entities from the Registry.

@@ -11,13 +11,13 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 
-	ssystems "github.com/InsideGallery/pomodoro/internal/modules/settings/systems"
 	"github.com/InsideGallery/pomodoro/pkg/config"
 	"github.com/InsideGallery/pomodoro/pkg/event"
 	"github.com/InsideGallery/pomodoro/pkg/pluggable"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 	"github.com/InsideGallery/pomodoro/pkg/systems"
 	"github.com/InsideGallery/pomodoro/pkg/ui"
+	ssystems "github.com/InsideGallery/pomodoro/services/pomodoro/internal/modules/settings/systems"
 )
 
 const SceneName = "settings"

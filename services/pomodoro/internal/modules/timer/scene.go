@@ -11,15 +11,15 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	textv2 "github.com/hajimehoshi/ebiten/v2/text/v2"
 
-	"github.com/InsideGallery/pomodoro/internal/audio"
-	tsystems "github.com/InsideGallery/pomodoro/internal/modules/timer/systems"
-	"github.com/InsideGallery/pomodoro/internal/timer"
 	"github.com/InsideGallery/pomodoro/pkg/config"
 	"github.com/InsideGallery/pomodoro/pkg/ecs"
 	"github.com/InsideGallery/pomodoro/pkg/event"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 	"github.com/InsideGallery/pomodoro/pkg/systems"
 	"github.com/InsideGallery/pomodoro/pkg/ui"
+	"github.com/InsideGallery/pomodoro/services/pomodoro/internal/audio"
+	tsystems "github.com/InsideGallery/pomodoro/services/pomodoro/internal/modules/timer/systems"
+	"github.com/InsideGallery/pomodoro/services/pomodoro/internal/timer"
 )
 
 const (
