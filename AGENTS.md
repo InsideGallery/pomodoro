@@ -1,500 +1,152 @@
 # Pomodoro Timer - Development Guide
 
-## Project Overview
+## Architecture
 
-A single-binary Pomodoro timer desktop application written in Go using Ebiten (ebitengine).
-Transparent, undecorated window with Dark/Light themes. System tray integration.
+### Core Principles
 
-## Tech Stack
+1. **Core is always loaded**: Timer, Settings, Mini mode — these are internal modules,
+   not disableable, compiled into the binary.
+2. **Features are plugins**: Minigame, Lockscreen, Metrics — compiled as `.so` files,
+   loaded at runtime from `~/.config/pomodoro/plugins/`. User can add/remove.
+3. **Settings are dynamic**: Plugin toggles appear ONLY for loaded plugins.
+   Each plugin declares its ConfigKey; the settings scene auto-generates toggles.
+4. **pkg/ is the public API**: Anything in `pkg/` can be imported by external plugins.
+   Anything in `internal/` is private to the core app.
+5. **Scenes are autonomous**: Each scene owns its lifecycle (Init/Load/Unload/Update/Draw).
+   Scenes communicate only through the event bus. No scene imports another.
+6. **Never ignore errors**: Always handle or log errors. No `_ = doSomething()`.
 
-- **Language**: Go 1.24+
-- **GUI Framework**: Ebiten v2.9+ (`github.com/hajimehoshi/ebiten/v2`)
-- **ECS**: `github.com/InsideGallery/core` (System, Entity, Component, Registry)
-- **Spatial**: `github.com/InsideGallery/game-core` (RTree, shapes, GJK/EPA)
-- **Audio**: Ebiten audio/mp3
-- **Text Rendering**: `ebiten/v2/text/v2` (vector-quality, HiDPI-aware)
-- **Vector Graphics**: `ebiten/v2/vector` for rounded rects, arcs, icons
-- **System Tray**: `github.com/getlantern/systray`
-- **Resources**: All assets embedded via `//go:embed`
-- **Config**: JSON file at `~/.config/pomodoro/config.json`
+### Input Strategy
 
-### Build Dependencies (Linux)
+**RTree InputSystem** is used in scenes with many static-position widgets (Settings).
+The InputSystem queries RTree.Collision() for hit detection, supports hover/click/drag.
+For scrollable content, `SetScrollOffset()` converts mouse Y to content-space.
 
-```bash
-sudo apt-get install -y libayatana-appindicator3-dev
-```
+**Widget self-detection** is used in scenes with specialized input (Timer).
+Ring drag uses angular math from mouse position. Dot clicks use positions computed
+in Draw(). These don't map to static RTree zones. The TimerScreen.Update() handles
+all input directly.
 
-## Architecture: ECS + Scene-Based Design
-
-Following the same ECS and scene patterns as `InsideGallery/detective`.
-Each module is a self-contained Scene with its own ECS (Systems, Entities, Components).
-The app is a thin shell that delegates to a Scene Manager.
-
-### Core Libraries
-
-From `InsideGallery/core`:
-```go
-ecs.System    — interface { Update(ctx context.Context) error }
-ecs.Component — interface { Update(ctx context.Context) error }
-ecs.Entity    — interface { GetID() uint64 }
-ecs.BaseEntity — id + atomic version
-
-registry.Registry[G, I, V] — thread-safe multi-group entity storage
-  .Add(group, id, entity)
-  .Get(group, id)
-  .Remove(group, id)
-  .Iterator(groups...) chan V
-  .GetValues(group) []V
-```
-
-From `InsideGallery/game-core`:
-```go
-shapes.Spatial  — interface { Point1(), Center(), Bounds() Box, Move() }
-shapes.Collide  — Spatial + Support(d Point) Point
-rtree.RTree     — spatial index: Insert, Delete, Collision, NearestNeighbor
-gjkepa2d.GJKEPA — collision detection via support functions
-```
-
-### Extended System Interface (same as detective)
-
-```go
-// internal/core/system.go
-type System interface {
-    ecs.System                                              // Update(ctx) error
-    Draw(ctx context.Context, screen *ebiten.Image)         // render to world
-}
-
-type SystemWindow interface {
-    System
-    ScreenDraw(ctx context.Context, screen *ebiten.Image)   // render to screen (UI overlay)
-}
-```
-
-### Scene Interface
-
-```go
-// internal/scene/scene.go
-type Scene interface {
-    Name() string
-    Init(ctx context.Context)
-    Load() error                                            // entering this scene
-    Unload() error                                          // leaving this scene
-    Update() error
-    Draw(screen *ebiten.Image)
-    Layout(outsideWidth, outsideHeight int) (int, int)
-}
-```
-
-### BaseScene (shared ECS infrastructure)
-
-Every scene embeds BaseScene and gets Systems + Registry + RTree for free.
-
-```go
-// internal/scene/base.go
-type BaseScene struct {
-    context.Context
-    *core.Systems
-    *registry.Registry[string, uint64, any]
-    *rtree.RTree
-    *event.Bus
-}
-```
-
-BaseScene.Update() iterates all systems in order, calling Update(ctx).
-BaseScene.Draw() iterates all systems, calling Draw(ctx, screen),
-then calls ScreenDraw() on SystemWindow systems for UI overlays.
-
-### Scene Manager
-
-```go
-// internal/scene/manager.go
-type Manager struct {
-    scenes  map[string]Scene
-    current Scene
-}
-
-func (m *Manager) Add(ctx, scenes...)     // registers + calls Init()
-func (m *Manager) SwitchSceneTo(name)     // calls Load()/Unload()
-func (m *Manager) Scene() Scene           // current active scene
-```
-
-### App (thin shell)
-
-```go
-// internal/app/app.go
-type Game struct {
-    manager *scene.Manager
-    bus     *event.Bus
-    // window management: dragging, tray, HiDPI
-}
-
-func (g *Game) Update() error { return g.manager.Scene().Update() }
-func (g *Game) Draw(s)        { g.manager.Scene().Draw(s) }
-func (g *Game) Layout(w, h)   { return g.manager.Scene().Layout(w, h) }
-```
-
-App handles only: window dragging, system tray, HiDPI scaling, scene switching
-based on events. All game/UI logic lives in scenes.
+**Rule**: Use RTree where zones are static. Use widget self-detection where input
+requires runtime geometry (ring drag, scrollable dynamic positions).
 
 ### Directory Structure
 
 ```
-cmd/
-  pomodoro/main.go                  -- Entry point, systray, ebiten.RunGameWithOptions
-internal/
-  core/                             -- Extended ECS for Ebiten (follows detective pattern)
-    system.go                       -- System, SystemWindow interfaces
-    systems.go                      -- Systems container (ordered, named, thread-safe)
-    systems_test.go
-  scene/                            -- Scene infrastructure
-    scene.go                        -- Scene interface
-    base.go                         -- BaseScene (Systems + Registry + RTree + Bus)
-    base_test.go
-    manager.go                      -- SceneManager (Add, SwitchSceneTo, Scene)
-    manager_test.go
-  app/                              -- Ebiten Game shell
-    app.go                          -- Thin: delegates to SceneManager
-  event/                            -- Event bus for cross-scene communication
-    bus.go                          -- Bus, Subscribe, Publish (existing)
-    types.go                        -- Event types (existing)
-  timer/                            -- Domain: pure timer state machine (existing)
-  config/                           -- Domain: JSON persistence (existing)
-  audio/                            -- Audio manager (existing)
-  ui/                               -- Low-level drawing primitives (existing)
-  tray/                             -- System tray integration (existing)
-  platform/                         -- Platform-specific window ops (existing)
-  ecs/                              -- Shared ECS building blocks
-    components/                     -- Reusable component types
-      position.go                   -- Position {X, Y float64}
-      clickable.go                  -- Clickable zone (shapes.Spatial for RTree)
-      renderable.go                 -- Visual appearance (color, radius, shape type)
-      text.go                       -- Dynamic text content (label, face, color)
-    entities/                       -- Reusable entity types (if any)
-  modules/                          -- Each module = one scene with own ECS
-    timer/                          -- Timer scene (main screen)
-      scene.go                      -- Embeds BaseScene, registers systems
-      systems/                      -- Timer-specific systems
-        render.go                   -- Draws progress ring, buttons, labels
-        input.go                    -- Button click handling
-        tick.go                     -- Timer tick updates
-    settings/                       -- Settings scene
-      scene.go
-      systems/
-        render.go
-        input.go
-        scroll.go
-    minigame/                       -- Button Hunt scene (fullscreen transparent)
-      scene.go
-      game.go                       -- Pure game logic (existing, no Ebiten)
-      game_test.go                  -- Game logic tests (existing)
-      systems/
-        render.go                   -- Draws targets, HUD, game-over
-        input.go                    -- Click -> hit detection
-        spawn.go                    -- Batch spawning on last target
-    lockscreen/                     -- Lock screen scene (fullscreen opaque)
-      scene.go
-      lock.go                       -- Pure lock logic (existing, no Ebiten)
-      lock_test.go                  -- Lock logic tests (existing)
-      systems/
-        render.go                   -- Progress bar, countdown, message
-        tick.go                     -- Checks completion
-pkg/
-  systems/                          -- Reusable systems (importable across projects)
-    input.go                        -- Generic click detection via RTree
-    input_test.go
-    debug.go                        -- FPS/TPS overlay
-    debug_test.go
-assets/
-  embed.go                          -- //go:embed directives
-  fonts/NotoSans-{Regular,Bold}.ttf
-  sounds/{tick,alarm}.mp3
+cmd/pomodoro/                       -- Entry point
+internal/                           -- Private to the app (not importable by plugins)
+  app/app.go                        -- Ebiten Game shell: bus, manager, drag, tray
+  modules/
+    timer/                          -- Core: timer scene + systems
+      scene.go                      -- Owns timer.Timer, audio, state persistence
+      systems/tick.go               -- Timer domain updates, event publishing
+      systems/render.go             -- Delegates to TimerScreen.Update()/Draw()
+      systems/keyboard.go           -- Space/R/S shortcuts
+    settings/                       -- Core: settings scene with RTree InputSystem
+      scene.go                      -- Zones for all widgets, scroll offset
+    mini/                           -- Core: mini mode scene
+      scene.go                      -- Compact timer overlay, always-on-top
+  timer/                            -- Pure Go timer state machine (25 tests)
+  audio/                            -- Audio manager (tick/alarm)
+  tray/                             -- System tray (dynamic menu items from plugins)
+  ecs/components/                   -- Shared ECS components (Position, Clickable, etc.)
+pkg/                                -- Public API (importable by plugins)
+  scene/                            -- Scene interface, BaseScene, SceneManager
+  event/                            -- Event Bus, Event types (Data any)
+  core/                             -- System, SystemWindow, Systems container
+  systems/                          -- InputSystem (RTree + scroll), DebugSystem
+  config/                           -- Config persistence (JSON)
+  ui/                               -- Drawing primitives, widget components
+  platform/                         -- Window management (X11, macOS, Windows)
+  pluggable/                        -- Plugin contract (Module interface, Loader)
+plugins/                            -- External plugins (compiled as .so)
+  example/                          -- Minimal example plugin
+  minigame/                         -- Button Hunt game (break activity)
+  lockscreen/                       -- Long break lock screen (ESC×3 exit)
+  metrics/                          -- Usage statistics (total/monthly/weekly)
 ```
-
-### How ECS Works in Each Scene
-
-Example: MinigameScene
-
-```
-Entities (in Registry):
-  group "target" -> Target entities (Position + Renderable + Clickable)
-  group "hud"    -> HUD entity (Position + Text)
-  group "score"  -> Score entity (Text)
-
-Components on a Target entity:
-  - Position {X: 450, Y: 230}
-  - Clickable {Spatial: shapes.NewSphere(Point, radius)} -> inserted into RTree
-  - Renderable {Color: purple, Radius: 15, Shape: Circle}
-  - Alive {Value: true}
-
-Systems (execution order):
-  1. SpawnSystem    — checks alive count, spawns batches
-  2. InputSystem    — mouse click -> RTree.Collision() -> find hit entity -> mark dead
-  3. RenderSystem   — iterates "target" group, draws alive entities
-  4. HUDSystem      — draws score, time, ESC hint (SystemWindow.ScreenDraw)
-```
-
-Adding a new entity type (e.g., power-ups) = new component + entities in registry.
-No system code changes unless new behavior is needed.
-
-### Cross-Scene Communication
-
-Scenes communicate through the shared event.Bus:
-
-```
-Timer domain fires events -> Bus -> Scenes react
-  FocusCompleted -> MinigameScene.Load() (if enabled)
-  LongBreakStarted -> LockscreenScene.Load()
-  BreakCompleted -> back to TimerScene
-  ConfigChanged -> all scenes update their state
-```
-
-Scene switching is triggered by event handlers in app.go calling
-manager.SwitchSceneTo(). Scenes never import each other.
-
-### Reusable Systems (pkg/systems/)
-
-Systems that work across any scene:
-
-**InputSystem** — centralized interaction via RTree spatial queries:
-- Handles click (press+release), drag, and hover detection
-- Zones registered via `AddZone()` with click/drag/hover callbacks
-- On interaction, queries `RTree.Collision()` with cursor position
-- Priority system for overlapping zones (lower value = checked first)
-- Supports: Button click-on-release, Slider drag, Toggle click
-- Widget zones created via `ui.ButtonZone()`, `ui.ToggleZone()`, `ui.SliderZone()`
-- Timer scene uses RTree for all button hit detection (no manual coordinate checks)
-- Widgets support `SetManagedByRTree()` to disable self-hit-detection
-
-**DebugSystem** — FPS/TPS overlay:
-- Implements SystemWindow (ScreenDraw)
-- Shows performance stats on any scene
-
-Module-specific systems go in `modules/<name>/systems/` when they contain
-logic unique to that module (e.g., SpawnSystem for minigame).
-
-## Domain Logic (unchanged)
-
-### Timer States
-
-```
-IDLE -> FOCUS -> (auto/manual) -> BREAK -> (auto/manual) -> FOCUS -> ...
-                                  LONG_BREAK (every N rounds)
-Any state -> PAUSED -> resume to previous state
-Any state -> IDLE (reset)
-```
-
-`internal/timer/` is pure Go, no Ebiten. Fully tested.
-`internal/config/` is pure Go persistence. Fully tested.
-`internal/modules/minigame/game.go` is pure game logic. Fully tested.
-`internal/modules/lockscreen/lock.go` is pure lock logic. Fully tested.
-
-### Mini-Game: Button Hunt
-
-Visual search game during short breaks. Fullscreen, fully transparent background.
-10 targets (4 tiny, 3 small, 2 medium, 1 large) spawn randomly.
-Click to remove; new batch at 1 remaining. Best score persisted.
-ESC to close. See game.go + game_test.go for full logic.
-
-## Implementation Plan
-
-### Phase 1: Core Infrastructure
-
-1. Add `InsideGallery/core` and `InsideGallery/game-core` dependencies
-2. Create `internal/core/` — System, SystemWindow, Systems (following detective)
-3. Create `internal/scene/` — Scene interface, BaseScene, Manager
-4. Create `internal/ecs/components/` — Position, Clickable, Renderable, Text
-5. Create `pkg/systems/input.go` — generic RTree-based click detection
-6. Tests for Systems, BaseScene, Manager, InputSystem
-
-### Phase 2: Timer Scene
-
-1. Create `internal/modules/timer/scene.go` — embeds BaseScene
-2. Create timer-specific systems (render, input, tick)
-3. Create entities for buttons, ring, labels
-4. Wire into app.go via SceneManager
-5. Verify identical behavior to current UI
-
-### Phase 3: Settings Scene
-
-1. Create `internal/modules/settings/scene.go`
-2. Systems for rendering, input, scroll
-3. Entities for sliders, toggles, labels
-4. Scene switching: timer <-> settings
-
-### Phase 4: Minigame + Lockscreen Scenes
-
-1. Port minigame module.go/screen.go to scene + systems pattern
-2. Port lockscreen module.go/screen.go to scene + systems pattern
-3. Fullscreen management in scene Load/Unload
-4. Event-driven scene switching
-
-### Phase 5: Cleanup
-
-1. Remove old `internal/module/`, `internal/ui/screen.go`
-2. Remove old screen_timer.go, screen_settings.go (replaced by scenes)
-3. Keep `internal/ui/` drawing primitives (still used by render systems)
-
-## External Plugin Modules (.so)
-
-Future: modules can be compiled as Go plugins (.so) and loaded at runtime.
-
-### How It Works
-
-```go
-// Plugin interface (defined in a shared package)
-type PluginModule interface {
-    Scenes() []scene.Scene
-}
-
-// Each .so exports:
-var Plugin PluginModule
-```
-
-App scans `~/.config/pomodoro/plugins/` at startup, loads each .so via
-Go's `plugin` package, and registers the returned scenes with the Manager.
-
-### Limitations
-
-- Go plugins require Linux or macOS (no Windows support)
-- Plugin and host must be compiled with the same Go version
-- Shared dependencies must match exact versions
-- Plugins cannot be unloaded once loaded
-
-### Alternative: Process-Based Plugins
-
-For cross-platform support, plugins can run as separate processes
-communicating via Unix sockets or gRPC. Higher overhead but no
-Go version coupling. This is a longer-term option.
 
 ### Plugin Contract
 
-Plugins must export a single symbol `Plugin` implementing `PluginModule`:
-
 ```go
-// pkg/plugin/contract.go — shared between host and plugins
-package plugin
+// pkg/pluggable/contract.go
+type SceneSwitcher func(name string)
 
-import "github.com/InsideGallery/pomodoro/internal/scene"
-import "github.com/InsideGallery/pomodoro/internal/event"
-
-// PluginModule is the contract every .so plugin must satisfy.
-type PluginModule interface {
-    // Name returns the plugin identifier (unique, used for logging/config).
+type Module interface {
     Name() string
-
-    // Scenes returns the scenes this plugin provides.
-    // Each scene is registered with the SceneManager.
-    Scenes(bus *event.Bus) []scene.Scene
-
-    // TrayItems returns optional tray menu items.
-    // Key = label, Value = scene name to switch to when clicked.
-    TrayItems() map[string]string
-
-    // ConfigDefaults returns default config keys/values this plugin adds.
-    // Merged into the app config on first load.
-    ConfigDefaults() map[string]any
+    Scenes(bus *event.Bus, switchScene SceneSwitcher) []scene.Scene
+    TrayItems() map[string]string     // label → scene name
+    ConfigKey() string                // e.g. "minigame_enabled"
+    DefaultEnabled() bool
 }
 ```
 
-### What Plugins Can Do
+Each `.so` plugin exports `var Plugin pluggable.Module = &myPlugin{}`.
 
-- **Add new scenes** — fullscreen games, data visualizations, integrations
-- **Add tray menu items** — link to their scenes from the system tray
-- **Subscribe to events** — react to FocusStarted, BreakCompleted, ConfigChanged, etc.
-- **Use BaseScene** — get Systems, Registry, RTree for free
-- **Use pkg/systems/** — InputSystem, DebugSystem, or custom reusable systems
-- **Add config options** — plugin-specific settings appear automatically
-- **Draw with ui primitives** — DrawRoundedRect, DrawText, Face(), etc.
-
-### What Plugins Cannot Do
-
-- Modify existing scenes (no hooks into timer/settings internals)
-- Access other plugins (communication only via event bus)
-- Bypass the SceneManager (all rendering goes through Scene.Draw)
-- Load native libraries not compiled into the .so
-
-### Plugin Discovery Flow
+### Plugin Lifecycle
 
 ```
-1. App starts
-2. Scans ~/.config/pomodoro/plugins/*.so
-3. For each .so:
-   a. plugin.Open(path)
-   b. plugin.Lookup("Plugin") -> PluginModule
-   c. pm.Scenes(bus) -> register with SceneManager
-   d. pm.TrayItems() -> add to tray menu
-   e. pm.ConfigDefaults() -> merge into config
-4. Normal app init continues
+1. App starts, creates bus + SceneManager
+2. Core scenes registered (timer, settings, mini)
+3. Loader scans ~/.config/pomodoro/plugins/*.so
+4. For each .so: Open → Lookup("Plugin") → Module
+5. Module.Scenes(bus, switchScene) → register with SceneManager
+6. Module.TrayItems() → register with tray
+7. Module.ConfigKey() → settings scene creates toggle
+8. App runs — plugins activate via event subscriptions
 ```
 
-### Estimated Implementation Effort
+### Build Commands
 
-| Task | Effort |
-|------|--------|
-| Move Scene/BaseScene/Bus to pkg/ (public API) | Small |
-| Create pkg/plugin/contract.go | Small |
-| Plugin loader in app.go (Open, Lookup, register) | Medium |
-| Dynamic tray menu items | Medium |
-| Config merging for plugin defaults | Small |
-| Testing with a sample plugin | Medium |
-| Documentation + plugin template repo | Medium |
+```bash
+make build          # Build core app (no plugins)
+make plugins        # Build .so plugins to ~/.config/pomodoro/plugins/
+make test           # Run tests
+make lint           # Run golangci-lint
+make coverage       # Run test coverage check
+make build plugins  # Build everything
+```
 
-Main prerequisite: `internal/scene/` and `internal/event/` must move to `pkg/`
-so plugins can import them. This is the biggest change.
+### Event Types
 
-### Plugin Development Flow
+```
+FocusStarted, FocusCompleted       -- timer state
+BreakStarted, BreakCompleted       -- short break
+LongBreakStarted, LongBreakCompleted  -- long break
+Paused, Resumed, Reset             -- user actions
+Tick                               -- every frame while running
+ConfigChanged                      -- settings changed (Data: config.Config)
+```
 
-1. Developer creates a new Go module importing `pomodoro/pkg/`
-2. Implements Scene(s) using BaseScene + own systems
-3. Builds with `go build -buildmode=plugin -o myplugin.so`
-4. Drops .so into `~/.config/pomodoro/plugins/`
-5. Pomodoro discovers and loads it on next startup
+Events carry `Data any` — used for state string (tray icon) and config (settings).
 
-## Future: Tiled-Based UI
+## TODO
 
-UI layouts defined as .tmx maps in Tiled editor. Button zones as ObjectGroups
-with collision shapes, loaded into RTree. Click detection becomes spatial query.
-Theme switching = load different .tmx file.
+### Immediate
 
-This is planned after the ECS foundation is solid. The minigame scene will be
-the first candidate (targets as map objects). Timer/Settings scenes will follow.
+- [ ] Settings toggles must be dynamic (generated from loaded plugins, not hardcoded)
+- [ ] Remove hardcoded MinigameToggle/LockBreakToggle/MetricsToggle from screen_settings.go
+- [ ] Settings scene queries plugin loader for available plugins and creates toggles
+- [ ] Error handling: replace all `_ = ...` with proper logging
+
+### Next
+
+- [ ] Extract pkg/app/ — generic Ebiten game shell reusable across projects
+- [ ] Move initApp composition to separate file (cmd/pomodoro/main.go or internal/app/init.go)
+- [ ] Clean up dead code (internal/ecs/components/ if unused)
+
+### Future
+
+- [ ] Tiled-based UI (.tmx for layout, RTree for click zones)
+- [ ] Timer scene migrated to full entity-based rendering
+- [ ] Process-based plugins (gRPC/Unix socket) for cross-platform
 
 ## Code Conventions
 
-- Pure domain logic in `internal/timer/`, `internal/config/` — no Ebiten
-- Pure game logic in `modules/*/game.go`, `modules/*/lock.go` — no Ebiten
-- Systems contain behavior, Components contain data, Entities are IDs
-- Reusable systems in `pkg/systems/`, module-specific in `modules/*/systems/`
-- Scenes never import other scenes — communicate via event.Bus only
-- Test coverage >= 70% on non-Ebiten code, enforced in CI
-- Each scene is fully autonomous — Load/Unload manages its own lifecycle
-
-## Build & Run
-
-```bash
-make build           # Build binary to build/pomodoro
-make test            # Run all tests
-make appimage        # Build AppImage
-make install         # Install to /usr/local
-make clean           # Remove build artifacts
-
-go run ./cmd/pomodoro/   # Run directly
-```
-
-## Settings (persisted to JSON)
-
-| Setting | Range | Default |
-|---------|-------|---------|
-| Focus Duration | 1-60 min | 25 min |
-| Short Break | 1-30 min | 5 min |
-| Long Break | 1-60 min | 15 min |
-| Rounds Before Long | 1-10 | 4 |
-| Tick Volume | 0-100% | 50% |
-| Alarm Volume | 0-100% | 80% |
-| Tick Sound | on/off | on |
-| Auto-Start Next | on/off | off |
-| Mini Game | on/off | off |
-| Lock Long Break | on/off | off |
-| Usage Metrics | on/off | off |
-| Theme | dark/light | dark |
-| Transparency | 10-90% | 10% |
+- Pure domain logic: `internal/timer/`, `pkg/config/` — no Ebiten imports
+- Pure game logic: `plugins/*/game.go`, `plugins/*/lock.go` — no Ebiten imports
+- Systems: behavior. Components: data. Entities: IDs in Registry.
+- Reusable systems: `pkg/systems/`. Module-specific: `modules/*/systems/`.
+- Scenes never import other scenes — event.Bus only.
+- Test coverage >= 70% on non-Ebiten code.
+- Never ignore errors. Log or handle.
