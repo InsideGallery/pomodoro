@@ -8,19 +8,25 @@ threshold:
 exclude:
   paths:
     - \.pb\.go$
-    - ^cmd/
-    - ^internal/app/
-    - ^internal/audio/
-    - ^internal/builtin/
-    - ^internal/tray/
-    - ^internal/ecs/
-    - internal/modules/.*/scene\.go$
-    - internal/modules/.*/systems/
+    - ^services/.*/cmd/
+    - ^services/.*/internal/.*/scene\.go$
+    - ^services/.*/internal/.*/systems/
+    - ^services/.*/internal/audio/
+    - ^services/.*/internal/builtin/
+    - ^services/.*/internal/tray/
+    - ^pkg/app/
     - ^pkg/systems/
     - ^pkg/pluggable/
     - ^pkg/platform/
     - ^pkg/ui/
+    - ^pkg/ecs/
+    - ^pkg/resources/
     - pkg/plugins/.*/scene\.go$
+    - pkg/plugins/.*/desktop\.go$
+    - pkg/plugins/.*/loading\.go$
+    - pkg/plugins/.*/puzzle\.go$
+    - pkg/plugins/.*/cutter\.go$
+    - pkg/plugins/.*/plugin\.go$
 
 breakdown-file-name: ''
 

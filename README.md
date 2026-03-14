@@ -27,63 +27,14 @@ A minimalist, cross-platform Pomodoro timer built with Go and the [Ebiten](https
 ## Key Features
 
 - **Game Engine Powered** — Leveraging Ebiten for hardware-accelerated rendering at 60 FPS
-- **ECS Architecture** — Entity-Component-System with Scene Manager, RTree spatial indexing, event-driven communication
-- **Plugin System** — Features as plugins: compiled-in (Windows) or `.so` runtime loading (Linux/macOS)
 - **Dual Modes** — Full mode and compact mini-mode overlay
-- **Mini-Game** — Button Hunt during breaks: find targets on transparent fullscreen overlay
-- **Lock Screen** — Fullscreen lock during long breaks (soft-lock with ESC x3 exit)
-- **Usage Metrics** — Track focus hours, break time, games played (total/monthly/weekly)
+- **Mini-Game** — Button Hunt during breaks: find targets on transparent fullscreen
+- **Lock Screen** — Optional fullscreen lock during long breaks
+- **Usage Metrics** — Track focus hours, break time, games played
 - **Fully Customizable** — Focus/break times, dark/light themes, sound volumes, transparency
 - **System Tray** — Close to tray, dynamic menu items from plugins
-- **Cross-Platform** — Linux, macOS, Windows. Single binary, all plugins compiled in.
+- **Cross-Platform** — Linux, macOS, Windows. Single binary.
 - **HiDPI Support** — Crisp vector rendering on high-density displays
-
----
-
-## Architecture
-
-```
-internal/                          -- Core (always compiled in)
-  app/                             -- Ebiten game shell
-  modules/timer/                   -- Timer scene + systems
-  modules/settings/                -- Settings scene (dynamic plugin toggles)
-  modules/mini/                    -- Mini mode scene
-  builtin/                         -- Registers all built-in plugins
-  timer/                           -- Pure Go timer state machine
-  audio/                           -- Audio manager
-
-pkg/                               -- Public API (importable by external plugins)
-  scene/                           -- Scene, BaseScene, SceneManager
-  event/                           -- Event Bus
-  core/                            -- ECS System interfaces
-  systems/                         -- InputSystem (RTree), DebugSystem
-  config/                          -- Config persistence
-  ui/                              -- Drawing primitives, widgets
-  platform/                        -- Window management
-  pluggable/                       -- Plugin contract + loader
-  plugins/                         -- Plugin logic packages (shared by .so and builtin)
-    minigame/                      -- Button Hunt game logic + scene
-    lockscreen/                    -- Lock screen logic + scene
-    metrics/                       -- Metrics store + scene
-
-plugins/                           -- .so plugin entry points (Linux/macOS only)
-  minigame/main.go                 -- Thin wrapper importing pkg/plugins/minigame
-  lockscreen/main.go               -- Thin wrapper importing pkg/plugins/lockscreen
-  metrics/main.go                  -- Thin wrapper importing pkg/plugins/metrics
-  example/main.go                  -- Example plugin template
-```
-
-**How plugins work:**
-
-| Platform | Plugin mode | How |
-|----------|-----------|-----|
-| **Linux** | Runtime `.so` OR compiled-in | `make plugins` builds .so; builtin always available |
-| **macOS** | Runtime `.dylib` OR compiled-in | Same as Linux |
-| **Windows** | Compiled-in only | Go's plugin package not supported; all plugins compiled in |
-
-All plugins are compiled into the binary by default (via `internal/builtin/`).
-On Linux/macOS, external `.so` plugins from `~/.config/pomodoro/plugins/` can
-override or extend the built-in ones.
 
 ---
 
@@ -106,7 +57,7 @@ make build
 
 **Windows / macOS**:
 ```bash
-go build -o pomodoro ./cmd/pomodoro/
+go build -o pomodoro ./services/pomodoro/cmd/pomodoro/
 ```
 
 ---
@@ -127,49 +78,19 @@ Settings in `~/.config/pomodoro/config.json` (or press **S** / click gear icon).
 | Theme | dark |
 | Transparency | 10% |
 
-Plugin toggles (Mini-Game, Lock Screen, Metrics) appear dynamically based on loaded plugins.
+Plugin toggles appear dynamically based on loaded plugins.
 
 ---
 
 ## Building
 
 ```bash
-make build          # Build binary (all plugins compiled in)
-make plugins        # Build .so plugins for Linux/macOS runtime loading
-make test           # Run tests
-make lint           # Run golangci-lint
-make coverage       # Run test coverage
-make appimage       # Build Linux AppImage
-make clean          # Remove build artifacts
+make build      # Build binary
+make test       # Run tests
+make lint       # Run linter
+make appimage   # Build Linux AppImage
+make clean      # Remove build artifacts
 ```
-
----
-
-## Writing Plugins
-
-Plugins implement the `pluggable.Module` interface:
-
-```go
-type Module interface {
-    Name() string
-    Scenes(bus *event.Bus, switchScene SceneSwitcher) []scene.Scene
-    TrayItems() map[string]string
-    ConfigKey() string
-    DefaultEnabled() bool
-}
-```
-
-See `plugins/example/main.go` for a minimal template.
-
----
-
-## Roadmap
-
-- [ ] Tiled-based UI layouts (.tmx maps for data-driven UI)
-- [ ] Camera system from detective project
-- [ ] D-Bus notifications plugin
-- [ ] Custom sound file support
-- [ ] Task list plugin
 
 ---
 
