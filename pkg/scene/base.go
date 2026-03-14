@@ -4,31 +4,37 @@ import (
 	"context"
 
 	"github.com/InsideGallery/core/memory/registry"
+	"github.com/InsideGallery/game-core/geometry/shapes"
 	"github.com/InsideGallery/game-core/rtree"
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/InsideGallery/pomodoro/pkg/core"
 	"github.com/InsideGallery/pomodoro/pkg/event"
+	"github.com/InsideGallery/pomodoro/pkg/resources"
 )
 
 // BaseScene provides shared ECS infrastructure for all scenes.
-// Embed this in concrete scenes to get Systems, Registry, RTree, and Bus.
+// Embed this in concrete scenes to get Systems, Registry, RTree, Bus, Camera, Resources.
 type BaseScene struct {
-	Ctx      context.Context
-	Systems  *core.Systems
-	Registry *registry.Registry[string, uint64, any]
-	RTree    *rtree.RTree
-	Bus      *event.Bus
+	Ctx       context.Context
+	Systems   *core.Systems
+	Registry  *registry.Registry[string, uint64, any]
+	RTree     *rtree.RTree
+	Bus       *event.Bus
+	Camera    *core.Camera
+	Resources *resources.Manager
 }
 
 // NewBaseScene creates a BaseScene with all ECS infrastructure initialized.
 func NewBaseScene(ctx context.Context, bus *event.Bus) *BaseScene {
 	return &BaseScene{
-		Ctx:      ctx,
-		Systems:  core.NewSystems(),
-		Registry: registry.NewRegistry[string, uint64, any](),
-		RTree:    rtree.NewRTree(rtree.DefaultMinRTreeOption, rtree.DefaultMaxRTreeOption),
-		Bus:      bus,
+		Ctx:       ctx,
+		Systems:   core.NewSystems(),
+		Registry:  registry.NewRegistry[string, uint64, any](),
+		RTree:     rtree.NewRTree(rtree.DefaultMinRTreeOption, rtree.DefaultMaxRTreeOption),
+		Bus:       bus,
+		Camera:    core.NewCamera(shapes.NewPoint()),
+		Resources: resources.NewManager(),
 	}
 }
 

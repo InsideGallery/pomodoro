@@ -86,7 +86,7 @@ linters:
         path: _test\.go
       - linters:
           - mnd
-        path: (internal|pkg)/ui/
+        path: (internal|pkg)/(ui|core)/
       - linters:
           - mnd
           - forbidigo
