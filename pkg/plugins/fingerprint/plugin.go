@@ -21,10 +21,12 @@ import (
 // Plugin implements pluggable.Module for the fingerprint puzzle.
 type Plugin struct{}
 
-func (p *Plugin) Name() string                 { return "fingerprint" }
-func (p *Plugin) ConfigKey() string            { return "fingerprint_enabled" }
-func (p *Plugin) DefaultEnabled() bool         { return false }
-func (p *Plugin) TrayItems() map[string]string { return nil }
+func (p *Plugin) Name() string         { return "fingerprint" }
+func (p *Plugin) ConfigKey() string    { return "fingerprint_enabled" }
+func (p *Plugin) DefaultEnabled() bool { return false }
+func (p *Plugin) TrayItems() map[string]string {
+	return map[string]string{"Fingerprint Lab": LoadingSceneName}
+}
 
 func (p *Plugin) Scenes(bus *event.Bus, switchScene pluggable.SceneSwitcher) []scene.Scene {
 	cfg := config.Load()
