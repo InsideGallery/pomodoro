@@ -131,9 +131,72 @@ pkg/ui/components.go         → Button/Slider/Toggle structs become entity temp
 
 Drawing primitives stay in `pkg/ui/draw.go` and `pkg/ui/theme.go` — used by RenderSystems.
 
+### BaseScene provides (every scene gets for free)
+
+```
+Systems   *core.Systems                          — ordered named systems
+Registry  *registry.Registry[string, uint64, any] — entity storage by group
+RTree     *rtree.RTree                            — spatial index for input
+Bus       *event.Bus                              — cross-scene events
+Camera    *core.Camera                            — pan, zoom, rotate, WorldMatrix
+Resources *resources.Manager                      — embedded + disk asset cache with async loading
+```
+
+### Camera System
+
+Ported from detective project. Provides world-space transformations.
+Scenes can render world content with Camera.WorldMatrix(), then overlay
+UI in screen space via SystemWindow.ScreenDraw().
+
+Plugins can manipulate the camera (zoom into puzzle details, pan across game board).
+
+```go
+camera.Position    // pan
+camera.ZoomFactor  // zoom (1.01^factor)
+camera.Rotation    // degrees
+camera.WorldMatrix() → ebiten.GeoM
+camera.ScreenToWorld(x, y) → worldX, worldY
+```
+
+### Resource Manager
+
+Unified resource loading for embedded and disk assets:
+- Core resources (fonts, sounds, icons) → from embed.FS (always available)
+- Plugin resources (maps, sprites, puzzles) → loaded from disk
+- Async loading with progress tracking → preloader scene during load
+- Thread-safe cache → Get/Set/GetImage
+
+```go
+resources.LoadImageFromFS(embedFS, "fonts/icon.png", "icon")
+resources.LoadAsync(tasks) // background loading
+resources.Progress() → (loaded, total)
+resources.IsLoading() → bool
+```
+
+Each plugin can load its own resources. During Load(), a preloader scene
+shows progress. On Unload(), resources are released.
+
+### Product Vision
+
+This app grows into a **productivity suite** (like Lunatask):
+- Pomodoro timer (core)
+- Task manager with kanban/list views
+- Break activities (mini-games, puzzles)
+- Usage metrics and statistics
+- Focus music / ambient sounds
+
+Games during breaks:
+- Button Hunt (current) — visual search on transparent fullscreen
+- Fingerprint Puzzle (next) — match fingerprint patterns, uses Camera zoom
+- More puzzle types via plugins
+
+All features are plugins with own scenes, ECS, resources, and camera access.
+
 ### Implementation Plan
 
-#### Phase 1: Timer Scene Full ECS
+Phases 1-3: DONE (timer + settings full ECS, old screens deleted)
+
+#### Phase 4: Minigame + Lockscreen ECS
 
 1. Define all components in `pkg/ecs/components/`
 2. Timer scene creates entities in Registry during Load()
@@ -168,10 +231,34 @@ Drawing primitives stay in `pkg/ui/draw.go` and `pkg/ui/theme.go` — used by Re
 2. Lockscreen: progress bar + labels as entities
 3. Both use standard InputSystem + RenderSystem
 
+#### Phase 5: Preloader Scene
+
+1. Generic preloader scene that shows loading progress
+2. Plugins call Resources.LoadAsync() during Load()
+3. Preloader renders progress bar + animation
+4. Transitions to target scene when loading completes
+
+#### Phase 6: Fingerprint Puzzle Plugin
+
+1. New game plugin for break activities
+2. Uses Camera (zoom into fingerprint details)
+3. Loads puzzle images from disk via Resources
+4. Entities: fingerprint pieces, match zones, score
+5. Systems: InputSystem for drag-match, RenderSystem with Camera transform
+
+#### Phase 7: Task Manager Plugin
+
+1. Task list scene (CRUD tasks)
+2. Tasks linked to pomodoro sessions (focus on a task)
+3. Kanban board view (columns: todo, in progress, done)
+4. Entities: task cards, columns, drag zones
+5. Persistence: tasks stored in JSON alongside config
+6. Statistics: tasks completed per day/week
+
 ### What Stays
 
 ```
-pkg/scene/         — Scene, BaseScene(Systems+Registry+RTree+Bus), SceneManager
+pkg/scene/         — Scene, BaseScene(Systems+Registry+RTree+Bus+Camera+Resources), SceneManager
 pkg/event/         — Event Bus, types
 pkg/core/          — System, SystemWindow, Systems container
 pkg/systems/       — InputSystem (RTree zones + scroll), DebugSystem
