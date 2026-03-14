@@ -150,12 +150,23 @@ func (s *Scene) Load() error {
 		s.tmr.SetRound(r)
 		s.saveState()
 	}
+
 	s.screen.OnAdjustTime = func(rem time.Duration) {
 		s.tmr.SetRemaining(rem, time.Now())
 	}
-	s.screen.Init(s.width, s.height)
+	if s.width == 0 || s.height == 0 {
+		w, h := ebiten.WindowSize()
+		scale := 1.0
 
-	// Register button zones in RTree for centralized hit detection
+		if m := ebiten.Monitor(); m != nil {
+			scale = m.DeviceScaleFactor()
+		}
+
+		s.width = int(float64(w) * scale)
+		s.height = int(float64(h) * scale)
+	}
+
+	s.screen.Init(s.width, s.height)
 	s.registerZones()
 
 	return nil

@@ -83,6 +83,21 @@ func (s *Scene) Init(ctx context.Context) {
 func (s *Scene) Load() error {
 	s.cfg = config.Load()
 	s.screen.Cfg = &s.cfg
+
+	// On first load, width/height may be 0 (Layout not yet called).
+	// Use fallback from Ebiten's current window size.
+	if s.width == 0 || s.height == 0 {
+		w, h := ebiten.WindowSize()
+		scale := 1.0
+
+		if m := ebiten.Monitor(); m != nil {
+			scale = m.DeviceScaleFactor()
+		}
+
+		s.width = int(float64(w) * scale)
+		s.height = int(float64(h) * scale)
+	}
+
 	s.screen.Init(s.width, s.height)
 	s.registerZones()
 
