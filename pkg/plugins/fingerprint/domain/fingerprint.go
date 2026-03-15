@@ -14,6 +14,7 @@ const (
 	ColorYellow FingerprintColor = 1
 	ColorGreen  FingerprintColor = 2
 	ColorRed    FingerprintColor = 3
+	ColorBlue   FingerprintColor = 4
 )
 
 // MaxGridSize is the maximum supported grid dimension.

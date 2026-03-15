@@ -87,8 +87,8 @@ func (s *LoadingScene) Update() error {
 		}
 	}
 
-	// Check if loading is done
-	if !s.Resources.IsLoading() {
+	// Wait at least 30 frames (0.5s) and until loading completes
+	if s.frameTick == 0 && s.frame > 2 && !s.Resources.IsLoading() {
 		s.switchScene(s.targetScene)
 	}
 

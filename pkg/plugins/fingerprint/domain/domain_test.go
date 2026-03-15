@@ -218,6 +218,104 @@ func TestCaseSubmitWrong(t *testing.T) {
 	}
 }
 
+func TestWrongPositionChangesHash(t *testing.T) {
+	gen := NewPuzzleGenerator(99)
+	solved := gen.GenerateSolvedFingerprint(4, 4, ColorGreen)
+	correctHash := solved.Hash()
+
+	// Swap two tiles — hash should change
+	solved.Tiles[0], solved.Tiles[1] = solved.Tiles[1], solved.Tiles[0]
+	swappedHash := solved.Hash()
+
+	if correctHash == swappedHash {
+		t.Fatal("swapping tiles should change hash")
+	}
+}
+
+func TestWrongColorChangesUniqueID(t *testing.T) {
+	gen := NewPuzzleGenerator(99)
+	fp1 := gen.GenerateSolvedFingerprint(3, 3, ColorGreen)
+
+	gen2 := NewPuzzleGenerator(99)
+	fp2 := gen2.GenerateSolvedFingerprint(3, 3, ColorRed)
+
+	// Same tiles but different color → different UniqueID
+	if fp1.Hash() != fp2.Hash() {
+		t.Fatal("same seed should produce same hash regardless of color")
+	}
+
+	if fp1.UniqueID() == fp2.UniqueID() {
+		t.Fatal("different colors should produce different UniqueID")
+	}
+}
+
+func TestLargeGrid10x10(t *testing.T) {
+	gen := NewPuzzleGenerator(42)
+	solved := gen.GenerateSolvedFingerprint(10, 10, ColorYellow)
+
+	if len(solved.Tiles) != 100 {
+		t.Fatalf("10x10 grid should have 100 tiles, got %d", len(solved.Tiles))
+	}
+
+	result := gen.GeneratePuzzle(solved, 30)
+
+	if result.Puzzle.EmptyCount() != 30 {
+		t.Fatalf("expected 30 empty, got %d", result.Puzzle.EmptyCount())
+	}
+
+	if len(result.Pieces) != 30 {
+		t.Fatalf("expected 30 pieces, got %d", len(result.Pieces))
+	}
+
+	// Reconstruct solved from puzzle + pieces → hash must match
+	for _, piece := range result.Pieces {
+		tile := result.Puzzle.TileAt(piece.X, piece.Y)
+		tile.Content = piece.Content
+		tile.Recompute(0)
+	}
+
+	if result.Puzzle.UniqueID() != result.TargetID {
+		t.Fatal("reconstructed 10x10 should match target ID")
+	}
+}
+
+func TestMirroredPiecesProduceDifferentHash(t *testing.T) {
+	gen := NewPuzzleGenerator(42)
+	solved := gen.GenerateSolvedFingerprint(4, 4, ColorBlue)
+	result := gen.GeneratePuzzle(solved, 4)
+
+	mirrored := MirrorPieces(result.Pieces, 4)
+
+	// Place mirrored pieces — should NOT match target hash
+	for _, piece := range mirrored {
+		tile := result.Puzzle.TileAt(piece.X, piece.Y)
+		if tile == nil {
+			continue // mirrored position might be out of bounds
+		}
+
+		tile.Content = piece.Content
+		tile.Recompute(piece.Rotation())
+	}
+
+	if result.Puzzle.UniqueID() == result.TargetID {
+		t.Fatal("mirrored pieces should NOT reproduce target hash")
+	}
+}
+
+func TestEveryRotationProducesDifferentValue(t *testing.T) {
+	tile := Tile{Content: 42, X: 3, Y: 5}
+	values := make(map[uint32]bool)
+
+	for rot := uint8(0); rot < 4; rot++ {
+		tile.Recompute(rot)
+		if values[tile.Value] {
+			t.Fatalf("rotation %d produced duplicate value", rot)
+		}
+
+		values[tile.Value] = true
+	}
+}
+
 func TestDatabaseLookup(t *testing.T) {
 	db := NewDatabase()
 

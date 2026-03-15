@@ -99,7 +99,7 @@ func (g *PuzzleGenerator) GeneratePuzzle(solved *Fingerprint, removeCount int) P
 func (g *PuzzleGenerator) GeneratePerson(
 	db *Database, name, avatarKey string, gridW, gridH int,
 ) (*Person, *Fingerprint) {
-	clr := FingerprintColor(g.rng.IntN(3) + 1) // 1-3 (not grey)
+	clr := FingerprintColor(g.rng.IntN(4) + 1) // 1-4 (yellow, green, red, blue)
 	solved := g.GenerateSolvedFingerprint(gridW, gridH, clr)
 
 	person := &Person{

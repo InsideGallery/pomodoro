@@ -3,6 +3,7 @@ package fingerprint
 import (
 	"fmt"
 	"image"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -65,8 +66,12 @@ func (p *Plugin) Scenes(bus *event.Bus, switchScene pluggable.SceneSwitcher) []s
 func LoadResources(rm *resources.Manager) {
 	assetsDir := findAssetsDir()
 	if assetsDir == "" {
+		slog.Warn("fingerprint assets dir not found")
+
 		return
 	}
+
+	slog.Info("fingerprint assets", "dir", assetsDir)
 
 	var tasks []resources.LoadTask
 
@@ -185,11 +190,21 @@ func loadImage(path string) (*ebiten.Image, error) {
 }
 
 func findAssetsDir() string {
-	// Check common locations
 	candidates := []string{
 		"assets/external/fingerprint",
 		"../assets/external/fingerprint",
+		"../../assets/external/fingerprint",
 		filepath.Join(os.Getenv("HOME"), ".config", "pomodoro", "assets", "fingerprint"),
+	}
+
+	// Also try relative to executable location
+	if exe, err := os.Executable(); err == nil {
+		exeDir := filepath.Dir(exe)
+		candidates = append(candidates,
+			filepath.Join(exeDir, "assets", "external", "fingerprint"),
+			filepath.Join(exeDir, "..", "assets", "external", "fingerprint"),
+			filepath.Join(exeDir, "..", "..", "assets", "external", "fingerprint"),
+		)
 	}
 
 	for _, dir := range candidates {
