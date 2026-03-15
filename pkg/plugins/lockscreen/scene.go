@@ -228,10 +228,8 @@ func (s *Scene) createEntities() {
 }
 
 func (s *Scene) Draw(screen *ebiten.Image) {
-	w := float32(s.width)
-	h := float32(s.height)
-
-	ui.DrawRoundedRect(screen, 0, 0, w, h, 0, color.RGBA{R: 0x10, G: 0x10, B: 0x18, A: 0xF0})
+	// Fully opaque background (important: pomodoro uses transparent window)
+	screen.Fill(color.RGBA{R: 0x10, G: 0x10, B: 0x18, A: 0xFF})
 
 	for le := range s.Registry.Iterator("label") {
 		l, ok := le.(*LabelEntity)
