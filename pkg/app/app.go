@@ -20,12 +20,13 @@ type SetupFunc func(ctx context.Context, bus *event.Bus, manager *scene.Manager,
 
 // Config configures the app shell.
 type Config struct {
-	Width, Height int
-	Title         string
-	Transparent   bool
-	Decorated     bool
-	DragEnabled   bool
-	Setup         SetupFunc
+	Width, Height  int
+	Title          string
+	Transparent    bool
+	Decorated      bool
+	DragEnabled    bool
+	HandleWinClose func() // called when window X is clicked (nil = ignore)
+	Setup          SetupFunc
 }
 
 // Game is the Ebiten game shell. Pure window management — no domain logic.
@@ -104,6 +105,10 @@ func (g *Game) initApp() {
 func (g *Game) Update() error {
 	if !g.initialized {
 		g.initApp()
+	}
+
+	if ebiten.IsWindowBeingClosed() && g.cfg.HandleWinClose != nil {
+		g.cfg.HandleWinClose()
 	}
 
 	if g.cfg.DragEnabled {

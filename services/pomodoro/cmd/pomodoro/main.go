@@ -7,13 +7,13 @@ import (
 	"image/color"
 	"image/png"
 	"log"
-	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/InsideGallery/pomodoro/assets"
 	"github.com/InsideGallery/pomodoro/pkg/app"
 	"github.com/InsideGallery/pomodoro/pkg/event"
+	"github.com/InsideGallery/pomodoro/pkg/platform"
 	"github.com/InsideGallery/pomodoro/pkg/pluggable"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 	"github.com/InsideGallery/pomodoro/services/pomodoro/internal/builtin"
@@ -30,12 +30,13 @@ func main() {
 	go tray.Run()
 
 	game := app.New(app.Config{
-		Width:       380,
-		Height:      560,
-		Title:       "Pomodoro",
-		Transparent: true,
-		DragEnabled: true,
-		Setup:       setupPomodoro,
+		Width:          380,
+		Height:         560,
+		Title:          "Pomodoro",
+		Transparent:    true,
+		DragEnabled:    true,
+		HandleWinClose: func() { platform.HideWindow("Pomodoro") },
+		Setup:          setupPomodoro,
 	})
 
 	ebiten.SetWindowSize(380, 560)
@@ -58,7 +59,7 @@ func main() {
 func setupPomodoro(ctx context.Context, bus *event.Bus, manager *scene.Manager, switchScene func(string)) string {
 	// Core scenes
 	ts := timerscene.NewScene(bus, switchScene,
-		func() { os.Exit(0) }, // close → exit (tray handles show/hide)
+		func() { platform.HideWindow("Pomodoro") }, // X button → hide to tray
 		func() { switchScene("mini") },
 	)
 
