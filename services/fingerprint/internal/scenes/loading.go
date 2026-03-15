@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"image/color"
+	"log/slog"
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -84,8 +85,16 @@ func (s *LoadingScene) Update() error {
 		s.frame = (s.frame + 1) % s.frameCount
 	}
 
+	// Log progress periodically
+	if s.frameTick%120 == 0 {
+		loaded, total := s.Resources.Progress()
+		slog.Info("loading", "done", loaded, "total", total)
+	}
+
 	// Wait at least 60 frames (~1 second) then check if loading done
 	if s.frameTick > 60 && !s.Resources.IsLoading() {
+		loaded, total := s.Resources.Progress()
+		slog.Info("loading complete, switching", "loaded", loaded, "total", total, "target", s.targetScene)
 		s.switchScene(s.targetScene)
 	}
 

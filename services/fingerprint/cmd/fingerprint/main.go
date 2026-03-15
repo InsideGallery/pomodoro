@@ -37,15 +37,16 @@ func setup(ctx context.Context, _ *event.Bus, manager *scene.Manager, switchScen
 
 	loading := scenes.NewLoadingScene(switchScene, scenes.DesktopSceneName,
 		func(_ *scene.BaseScene) { scenes.LoadResources(shared) })
-	loading.SetResources(shared)
-
 	desktop := scenes.NewDesktopScene(switchScene)
-	desktop.SetResources(shared)
-
 	appScene := scenes.NewAppScene(switchScene)
-	appScene.SetResources(shared)
 
+	// Register scenes (Init is called here, creates BaseScene)
 	manager.Add(ctx, loading, desktop, appScene)
+
+	// Inject shared resources AFTER Init (Init creates new BaseScene, overwriting any prior set)
+	loading.SetResources(shared)
+	desktop.SetResources(shared)
+	appScene.SetResources(shared)
 
 	return scenes.LoadingSceneName
 }

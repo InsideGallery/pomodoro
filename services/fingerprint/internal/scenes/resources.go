@@ -29,22 +29,14 @@ func LoadResources(rm *resources.Manager) {
 
 	var tasks []resources.LoadTask
 
-	// Desktop/chrome resources
-	desktopFiles := map[string]string{
-		"bg_static":   "Фон (не анімований).png",
-		"bg_bright":   "екран (підвищена яскраввість).png",
-		"bg_dim":      "екран (понижена яскравість).png",
-		"wallpaper":   "робочий стіл (фон).png",
+	// Small UI resources (load first — fast)
+	smallFiles := map[string]string{
 		"cursor":      "курсор.png",
 		"app_frame":   "рама.png",
-		"workspace":   "Робоче поле Дактилоскопії.png",
-		"grid":        "Робоче поле Дактилоскопії (сітка 0-9).png",
-		"app_window":  "Вікно вибору відбитка.png",
-		"app_full":    "Вікно вибору відбитка (повне).png",
 		"highlighter": "Відбитки/highlighter.png",
 	}
 
-	for key, file := range desktopFiles {
+	for key, file := range smallFiles {
 		k, f := key, file
 
 		tasks = append(tasks, resources.LoadTask{
@@ -134,6 +126,31 @@ func LoadResources(rm *resources.Manager) {
 		})
 	}
 
+	// Large images loaded LAST (can take seconds to decode 86MB PNGs)
+	// These are downscaled to 1920x1080 max for performance
+	largeFiles := map[string]string{
+		"bg_static":  "Фон (не анімований).png",
+		"bg_bright":  "екран (підвищена яскраввість).png",
+		"bg_dim":     "екран (понижена яскравість).png",
+		"wallpaper":  "робочий стіл (фон).png",
+		"workspace":  "Робоче поле Дактилоскопії.png",
+		"grid":       "Робоче поле Дактилоскопії (сітка 0-9).png",
+		"app_window": "Вікно вибору відбитка.png",
+		"app_full":   "Вікно вибору відбитка (повне).png",
+	}
+
+	for key, file := range largeFiles {
+		k, f := key, file
+
+		tasks = append(tasks, resources.LoadTask{
+			Key: k,
+			Load: func() (any, error) {
+				return loadAndScale(filepath.Join(assetsDir, f), 1920, 1080)
+			},
+		})
+	}
+
+	slog.Info("starting async load", "tasks", len(tasks))
 	rm.LoadAsync(tasks)
 }
 
@@ -152,6 +169,49 @@ func loadCenteredImage(dir string) (*ebiten.Image, error) {
 	}
 
 	return nil, fmt.Errorf("no centered image found in %s", dir)
+}
+
+// loadAndScale loads an image and scales it down to fit within maxW x maxH.
+func loadAndScale(path string, maxW, maxH int) (*ebiten.Image, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open %s: %w", path, err)
+	}
+	defer f.Close()
+
+	img, _, err := image.Decode(f)
+	if err != nil {
+		return nil, fmt.Errorf("decode %s: %w", path, err)
+	}
+
+	bounds := img.Bounds()
+	w, h := bounds.Dx(), bounds.Dy()
+
+	// Only downscale if larger than max
+	if w <= maxW && h <= maxH {
+		return ebiten.NewImageFromImage(img), nil
+	}
+
+	// Calculate scale factor
+	scaleX := float64(maxW) / float64(w)
+	scaleY := float64(maxH) / float64(h)
+	scale := scaleX
+
+	if scaleY < scale {
+		scale = scaleY
+	}
+
+	newW := int(float64(w) * scale)
+	newH := int(float64(h) * scale)
+
+	// Use Ebiten to scale (GPU-accelerated)
+	src := ebiten.NewImageFromImage(img)
+	dst := ebiten.NewImage(newW, newH)
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Scale(scale, scale)
+	dst.DrawImage(src, op)
+
+	return dst, nil
 }
 
 func loadImage(path string) (*ebiten.Image, error) {

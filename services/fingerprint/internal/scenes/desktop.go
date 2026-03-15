@@ -3,6 +3,7 @@ package scenes
 import (
 	"context"
 	"image/color"
+	"log/slog"
 	"math"
 	"os"
 
@@ -69,21 +70,16 @@ func (s *DesktopScene) Load() error {
 	s.bootTick = 0
 
 	// Pull loaded resources
-	if img, ok := s.Resources.GetImage("bg_static"); ok {
-		s.bgImage = img
-	}
+	s.bgImage, _ = s.Resources.GetImage("bg_static")
+	s.wallpaper, _ = s.Resources.GetImage("wallpaper")
+	s.appIcon, _ = s.Resources.GetImage("app_icon")
+	s.cursor, _ = s.Resources.GetImage("cursor")
 
-	if img, ok := s.Resources.GetImage("wallpaper"); ok {
-		s.wallpaper = img
-	}
-
-	if img, ok := s.Resources.GetImage("ui_fingerprinting.png"); ok {
-		s.appIcon = img
-	}
-
-	if img, ok := s.Resources.GetImage("cursor"); ok {
-		s.cursor = img
-	}
+	slog.Info("desktop resources",
+		"bg", s.bgImage != nil,
+		"wallpaper", s.wallpaper != nil,
+		"icon", s.appIcon != nil,
+		"cursor", s.cursor != nil)
 
 	s.registerIcon()
 
