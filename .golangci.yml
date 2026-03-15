@@ -108,6 +108,10 @@ linters:
         path: internal/modules/
       - linters:
           - mnd
+          - staticcheck
+        path: services/fingerprint/
+      - linters:
+          - mnd
         path: cmd/
       - linters:
           - mnd

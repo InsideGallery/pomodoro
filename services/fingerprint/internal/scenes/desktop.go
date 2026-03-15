@@ -1,4 +1,4 @@
-package fingerprint
+package scenes
 
 import (
 	"context"
@@ -116,7 +116,7 @@ func (s *DesktopScene) registerIcon() {
 		Spatial: shapes.NewBox(shapes.NewPoint(iconX, iconY), iconW, iconH),
 		OnClick: func() {
 			if s.enabled {
-				s.switchScene(PuzzleSceneName)
+				s.switchScene(AppSceneName)
 			}
 		},
 	})

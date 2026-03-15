@@ -1,4 +1,4 @@
-package fingerprint
+package scenes
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 
+	"github.com/InsideGallery/pomodoro/pkg/plugins/fingerprint"
 	"github.com/InsideGallery/pomodoro/pkg/resources"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 	"github.com/InsideGallery/pomodoro/pkg/ui"
@@ -108,7 +109,7 @@ func (s *LoadingScene) Draw(screen *ebiten.Image) {
 		cx := float64(w)/2 - float64(s.frameW)/2
 		cy := float64(h)/2 - frameH/2
 
-		DrawSpriteFrame(screen, s.sheet, s.frameW, s.frame, cx, cy)
+		fingerprint.DrawSpriteFrame(screen, s.sheet, s.frameW, s.frame, cx, cy)
 	}
 
 	// Progress bar
