@@ -127,7 +127,7 @@ func LoadResources(rm *resources.Manager) {
 	}
 
 	// Large images loaded LAST (can take seconds to decode 86MB PNGs)
-	// These are downscaled to 1920x1080 max for performance
+	// Downscaled to 2560x1600 max (handles HiDPI)
 	largeFiles := map[string]string{
 		"bg_static":  "Фон (не анімований).png",
 		"bg_bright":  "екран (підвищена яскраввість).png",
@@ -145,7 +145,7 @@ func LoadResources(rm *resources.Manager) {
 		tasks = append(tasks, resources.LoadTask{
 			Key: k,
 			Load: func() (any, error) {
-				return loadAndScale(filepath.Join(assetsDir, f), 1920, 1080)
+				return loadAndScale(filepath.Join(assetsDir, f), 2560, 1600)
 			},
 		})
 	}

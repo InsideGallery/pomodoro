@@ -209,26 +209,56 @@ func (s *AppScene) Update() error {
 	return nil
 }
 
+var appLogOnce bool //nolint:gochecknoglobals // debug
+
 func (s *AppScene) Draw(screen *ebiten.Image) {
 	w := float32(s.width)
 	h := float32(s.height)
 
-	// CRT background
-	if bg, ok := s.Resources.GetImage("bg_static"); ok {
-		op := &ebiten.DrawImageOptions{}
-		bw := float64(bg.Bounds().Dx())
-		bh := float64(bg.Bounds().Dy())
-		op.GeoM.Scale(float64(w)/bw, float64(h)/bh)
-		screen.DrawImage(bg, op)
-	} else {
-		screen.Fill(color.RGBA{R: 0x10, G: 0x10, B: 0x10, A: 0xFF})
+	if !appLogOnce {
+		appLogOnce = true
+
+		hasBG, _ := s.Resources.GetImage("bg_static")
+		hasWin, _ := s.Resources.GetImage("app_window")
+
+		slog.Info("app draw",
+			"screen", fmt.Sprintf("%dx%d", screen.Bounds().Dx(), screen.Bounds().Dy()),
+			"width", s.width, "height", s.height,
+			"bg_static", hasBG != nil,
+			"app_window", hasWin != nil,
+			"cases", len(s.cases),
+			"selected", s.selected,
+		)
 	}
 
-	// Screen area
-	screenX := w * 0.22
-	screenY := h * 0.10
-	screenW := w * 0.56
-	screenH := h * 0.76
+	// CRT background (fit, preserve aspect ratio)
+	screen.Fill(color.RGBA{A: 0xFF})
+
+	if bg, ok := s.Resources.GetImage("bg_bright"); ok {
+		drawFit(screen, bg, float64(w), float64(h), 1.0)
+	} else if bg2, ok2 := s.Resources.GetImage("bg_static"); ok2 {
+		drawFit(screen, bg2, float64(w), float64(h), 1.0)
+	}
+
+	// CRT screen area (same constants as desktop)
+	bgW, bgH := 8328.0, 4320.0
+	scaleX := float64(w) / bgW
+	scaleY := float64(h) / bgH
+	bgScale := scaleX
+
+	if scaleY < scaleX {
+		bgScale = scaleY
+	}
+
+	scaledW := bgW * bgScale
+	scaledH := bgH * bgScale
+	bgOffX := (float64(w) - scaledW) / 2
+	bgOffY := (float64(h) - scaledH) / 2
+
+	screenX := float32(bgOffX + CRTLeft*scaledW)
+	screenY := float32(bgOffY + CRTTop*scaledH)
+	screenW := float32((CRTRight - CRTLeft) * scaledW)
+	screenH := float32((CRTBottom - CRTTop) * scaledH)
 	titleH := screenH * 0.06
 
 	// App window background

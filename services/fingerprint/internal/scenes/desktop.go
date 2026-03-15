@@ -2,6 +2,7 @@ package scenes
 
 import (
 	"context"
+	"fmt"
 	"image/color"
 	"log/slog"
 	"math"
@@ -19,14 +20,7 @@ import (
 
 const DesktopSceneName = "fingerprint_desktop"
 
-// CRT screen area as percentage of the 8328x4320 background image.
-// Measured from the actual asset: the lit screen area inside the monitor bezel.
-const (
-	crtLeft   = 0.265 // left edge of screen area
-	crtTop    = 0.095 // top edge
-	crtRight  = 0.735 // right edge
-	crtBottom = 0.875 // bottom edge
-)
+// CRT constants imported from shared.go: CRTLeft, CRTTop, CRTRight, CRTBottom
 
 type DesktopScene struct {
 	*scene.BaseScene
@@ -128,10 +122,10 @@ func (s *DesktopScene) computeLayout() {
 
 	// CRT screen area in window coordinates
 	s.screenRect = [4]float64{
-		s.bgOffsetX + crtLeft*scaledW,
-		s.bgOffsetY + crtTop*scaledH,
-		(crtRight - crtLeft) * scaledW,
-		(crtBottom - crtTop) * scaledH,
+		s.bgOffsetX + CRTLeft*scaledW,
+		s.bgOffsetY + CRTTop*scaledH,
+		(CRTRight - CRTLeft) * scaledW,
+		(CRTBottom - CRTTop) * scaledH,
 	}
 }
 
@@ -193,7 +187,31 @@ func (s *DesktopScene) Update() error {
 	return nil
 }
 
+var desktopLogOnce bool //nolint:gochecknoglobals // debug
+
 func (s *DesktopScene) Draw(screen *ebiten.Image) {
+	if !desktopLogOnce {
+		desktopLogOnce = true
+
+		slog.Info("desktop draw",
+			"screen", fmt.Sprintf("%dx%d", screen.Bounds().Dx(), screen.Bounds().Dy()),
+			"width", s.width, "height", s.height,
+			"bgScale", fmt.Sprintf("%.4f", s.bgScale),
+			"bgOffset", fmt.Sprintf("%.0f,%.0f", s.bgOffsetX, s.bgOffsetY),
+			"crtRect", fmt.Sprintf("%.0f,%.0f %.0fx%.0f", s.screenRect[0], s.screenRect[1], s.screenRect[2], s.screenRect[3]),
+			"bgDim", s.bgDim != nil,
+			"bgBright", s.bgBright != nil,
+		)
+
+		if s.bgDim != nil {
+			slog.Info("bgDim size", "w", s.bgDim.Bounds().Dx(), "h", s.bgDim.Bounds().Dy())
+		}
+
+		if s.bgBright != nil {
+			slog.Info("bgBright size", "w", s.bgBright.Bounds().Dx(), "h", s.bgBright.Bounds().Dy())
+		}
+	}
+
 	// Black letterbox background
 	screen.Fill(color.RGBA{A: 0xFF})
 
@@ -204,15 +222,16 @@ func (s *DesktopScene) Draw(screen *ebiten.Image) {
 
 	// Phase 1 (0-0.5): Show dim/off screen
 	// Phase 2 (0.5-1.0): Fade in bright screen + wallpaper
-	if bootProgress < 0.5 {
-		// Show powered-off monitor
-		s.drawBG(screen, s.bgDim, 1.0)
-	} else {
-		// Cross-fade to powered-on monitor
-		fade := (bootProgress - 0.5) * 2 // 0→1
+	w := float64(s.width)
+	h := float64(s.height)
 
-		s.drawBG(screen, s.bgDim, 1.0-fade)
-		s.drawBG(screen, s.bgBright, fade)
+	if bootProgress < 0.5 {
+		drawFit(screen, s.bgDim, w, h, 1.0)
+	} else {
+		fade := (bootProgress - 0.5) * 2
+
+		drawFit(screen, s.bgDim, w, h, 1.0-fade)
+		drawFit(screen, s.bgBright, w, h, fade)
 
 		// Wallpaper fades in
 		if s.wallpaper != nil && fade > 0.1 {
@@ -267,31 +286,6 @@ func (s *DesktopScene) Draw(screen *ebiten.Image) {
 		op.GeoM.Translate(float64(mx), float64(my))
 		screen.DrawImage(s.cursor, op)
 	}
-}
-
-func (s *DesktopScene) drawBG(screen *ebiten.Image, img *ebiten.Image, alpha float64) {
-	if img == nil || alpha <= 0 {
-		return
-	}
-
-	op := &ebiten.DrawImageOptions{}
-	bw := float64(img.Bounds().Dx())
-	bh := float64(img.Bounds().Dy())
-
-	// Scale to fit, centered
-	scale := float64(s.width) / bw
-	scaleY := float64(s.height) / bh
-
-	if scaleY < scale {
-		scale = scaleY
-	}
-
-	op.GeoM.Scale(scale, scale)
-	scaledW := bw * scale
-	scaledH := bh * scale
-	op.GeoM.Translate((float64(s.width)-scaledW)/2, (float64(s.height)-scaledH)/2)
-	op.ColorScale.Scale(float32(alpha), float32(alpha), float32(alpha), float32(alpha))
-	screen.DrawImage(img, op)
 }
 
 func (s *DesktopScene) Layout(outsideWidth, outsideHeight int) (int, int) {

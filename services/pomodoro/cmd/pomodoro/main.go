@@ -13,6 +13,7 @@ import (
 
 	"github.com/InsideGallery/pomodoro/assets"
 	"github.com/InsideGallery/pomodoro/pkg/app"
+	"github.com/InsideGallery/pomodoro/pkg/config"
 	"github.com/InsideGallery/pomodoro/pkg/event"
 	"github.com/InsideGallery/pomodoro/pkg/platform"
 	"github.com/InsideGallery/pomodoro/pkg/pluggable"
@@ -81,12 +82,17 @@ func setupPomodoro(ctx context.Context, bus *event.Bus, manager *scene.Manager, 
 			manager.Add(ctx, sc)
 		}
 
+		cfg := config.Load()
+
 		for label, sceneName := range mod.TrayItems() {
 			name := sceneName
+			key := mod.ConfigKey()
 
-			tray.AddMenuItem(label, func() {
-				switchScene(name)
-			})
+			if cfg.PluginEnabled(key, mod.DefaultEnabled()) {
+				tray.AddMenuItem(label, func() {
+					switchScene(name)
+				})
+			}
 		}
 	}
 
