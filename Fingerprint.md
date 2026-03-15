@@ -1,325 +1,131 @@
-# Fingerprint Lab — Game Design & Asset Guide
+# Fingerprint Lab — Implementation Guide
 
-## Overview
+## Source of Truth
 
-A standalone forensic puzzle game set in the "Muldrow Police Department" universe.
-The player is a fingerprint analyst who identifies suspects by assembling
-fingerprint puzzles and matching them against a database.
+**`fingerprint.tmx`** is the ONLY source for layout, positions, and layer structure.
+Load it with `github.com/lafriks/go-tiled` (same library as InsideGallery/detective).
+Do NOT hardcode any positions — read everything from TMX objects.
 
-**NOT** a pomodoro break minigame. Separate binary: `make build-fingerprint`
+## TMX Structure
 
----
+Map: 125×68 tiles, 32×32px each = **4000×2176 pixels**
 
-## Visual Design
+### Tilesets
+- `fingerprinting-icon.tsx` — app icon (128×128)
+- `avatars.tsx` — 6 avatars (5 suspects + 1 "unknown")
+- `buttons.tsx` — all UI buttons (back, code, send, place, exit, success, fail, cursor)
 
-All scenes render INSIDE a retro CRT monitor. The monitor frame is the constant
-background. UI elements appear on the CRT "screen" area.
+### Layer Groups (states of the game)
 
-### Color Palette (from Карта кольорів та шрифтів.png)
+**State: "disabled" (PC off)**
+- `disabled` imagelayer → `background/background-disabled.png` (4000×2176)
 
-| Color | Hex | Usage |
-|-------|-----|-------|
-| Teal tint | #d5f2f1 | Window backgrounds, UI chrome |
-| White | #ffffff | Text on dark elements, buttons |
-| Dark grey | #4d4b4b | Body text, labels |
+**State: "enabled" (desktop)**
+- `enabled` imagelayer → `background/background-enabled.png` (4000×2176)
+- `enabled` tilelayer → fingerprinting icon placed at tile position
+- `enabled` objectgroup:
+  - `button-run-fingerprint` (type: button-play) — x:1376, y:416, 126×126
+  - `button-quit-os` (type: button-quit) — x:1305, y:1571 (polygon)
 
-### Fonts
+**State: "application-layout" (case selection)**
+- Keep `enabled` imagelayer
+- `application-layout` imagelayer → `background/fingerprint-select.png`
+- `application-layout` tilelayer → UI buttons/avatars placed by tiles
+- `application-layout` objectgroup:
+  - `list-of-cases` — x:1452, y:486, 346×996 (room for case buttons)
+  - `fingerprints-user-names` — x:1884, y:516, 290×932 (room for fingerprint buttons)
+  - `avatar` — x:2273, y:492, 330×313 (avatar display area)
+  - `description` — x:2260, y:857, 362×564 (person description area)
+  - `exit` — x:2547, y:361, 141×47 (exit button)
+  - `play-puzzle` — x:2260, y:1425, 362×58 (open puzzle button)
 
-| Font | Size | Usage |
-|------|------|-------|
-| Sylfaen Regular | 44pt | Fingerprint code digits (middle column) |
-| Georgia Regular | 43pt | Labels, descriptions |
-| Georgia Bold | 72pt | Headings, titles |
+**State: "application-net-layout" (puzzle workspace)**
+- Keep `enabled` imagelayer
+- `application-net-layout` imagelayer → `background/fingerprint-ui-net.png`
+- `application-net-layout` tilelayer → UI elements
+- `application-net-layout` objectgroup:
+  - `puzzle` — x:1692, y:562, 680×684 (10×10 fingerprint grid area)
+  - `pieces` — x:2393, y:566, 269×672 (piece tray area)
+  - `hash` — x:1533, y:357, 606×45 (hash display)
+  - `back` — x:1364, y:357, 141×47 (back to cases)
+  - `exit` — x:2546, y:357, 142×46 (exit to desktop)
+  - `drag-and-drop-zone` — x:1380, y:440, 1288×1088
 
-### Custom Cursor
+**Global**
+- `main` objectgroup: `cursor-room` — x:1248, y:318, 1527×1303
 
-`курсор.png` (125×124) — teal arrow, replaces system cursor in ALL game scenes.
-Hide system cursor via `ebiten.SetCursorMode(CursorModeHidden)`.
-Draw cursor image at mouse position as the last draw call.
+### Success/Fail tile layers
+- `application-net-layout-success` tilelayer (visible=0)
+- `application-net-layout-fail` tilelayer (visible=0)
 
----
-
-## Asset Inventory
-
-### All images are 8328×4320 (except noted)
-
-These are rendered as LAYERS. Each is a separate full-frame PNG that overlays
-on top of the previous. They are NOT cropped regions — they are full-size
-with transparent areas where the layer below shows through.
-
-| Key | File | Size | Description |
-|-----|------|------|-------------|
-| bg_off | екран (понижена яскравість).png | 20MB | CRT monitor OFF (dark screen) |
-| bg_on | екран (підвищена яскраввість).png | 30MB | CRT monitor ON (bright screen glow) |
-| bg_static | Фон (не анімований).png | 83MB | CRT monitor static frame (no screen content) |
-| wallpaper | робочий стіл (фон).png | 11MB | Desktop wallpaper ("Muldrow Police Department") |
-| frame | рама.png | 13MB | Generic window frame (used inside CRT screen) |
-| workspace | Робоче поле Дактилоскопії.png | 18MB | Puzzle workspace (grey fingerprint area) |
-| grid | Робоче поле Дактилоскопії (сітка 0-9).png | 18MB | Same with 10×10 grid lines visible |
-| app_window | Вікно вибору відбитка.png | 16MB | 3-column app layout (empty) |
-| app_full | Вікно вибору відбитка (повне).png | 16MB | 3-column app layout (full version) |
-
-### Small UI Assets
-
-| Key | File | Dimensions | Description |
-|-----|------|-----------|-------------|
-| cursor | курсор.png | 125×124 | Custom mouse cursor |
-| app_icon | fingerprinting.png | 343×343 | Desktop app icon (teal circle) |
-| btn_place | place button.png | 949×137 | "Place" button (normal) |
-| btn_place_hover | place button - активовано.png | ~same | "Place" button (hover/active) |
-| btn_code | code button.png | 554×118 | "Code" button (normal) |
-| btn_code_hover | code button - активовано.png | ~same | "Code" button (hover/active) |
-| btn_send | send button.png | 588×154 | "Send" button (normal) |
-| btn_send_hover | send button- активовано.png | ~same | "Send" button (hover/active) |
-| btn_back_hover | back - активовано.png | ~small | Back arrow (hover state only) |
-| btn_exit_hover | exit - активовано.png | ~small | Exit text (hover state only) |
-| stamp_success | success button.png | 653×169 | Green "SUCCESS!" stamp overlay |
-| stamp_fail | fail button.png | 653×169 | Red "FAIL" stamp overlay |
-| highlighter | Відбитки/highlighter.png | ~small | Tile selection highlight |
-
-### Design Reference (NOT loaded at runtime)
-
-| File | Description |
-|------|-------------|
-| приклад.png | Full example of 3-column layout with data filled in |
-| Трасування колонок.png | Wireframe showing column/row layout |
-| трасування колонок приклад.png | Wireframe with content example |
-| робочий стіл приклад.png | Desktop example screenshot |
-| Карта кольорів та шрифтів.png | Font and color specification |
-
-### Avatars
-
-5 suspect photos (660×660 each):
-`1.jpg`, `2.jpg`, `3.jpg`, `4.jpg`, `5.jpg`
-Vintage style with teal tint. Used in the right column of the app.
-
-### Fingerprints
-
-**4 colors × 4 variants = 16 colored + 4 grey = 20 fingerprints**
-
-Each colored fingerprint directory contains:
-- Full image: `*N centered.png` (1332×1335) — the complete fingerprint, centered
-- Raw image: `*N.png` — same fingerprint, not centered
-- `images/` directory: 100 pre-cut pieces (133×134 each)
-
-Piece naming: `{Color}{Variant}_{01-100}.png`
-Examples: `Blue1_01.png`, `green-1_50.png`, `red-3_99.png`
-
-**Note**: naming is inconsistent between colors:
-- blue 1: `Blue1_01.png` (capitalized)
-- blue 2-4: `blue-2_01.png` (lowercase with dash)
-- green: `green-1_01.png`
-- red: `red-1_01.png`
-- yellow: `yellow-1_01.png`
-
-The 100 pieces form a **10×10 grid**. Piece 01 = top-left, piece 100 = bottom-right.
-Layout: row-major order (01-10 = row 0, 11-20 = row 1, ..., 91-100 = row 9).
-
-**Grey fingerprints** (Відбитки/шматочки пазлу/grey/):
-4 variants: G1-G4. Only full images, no pre-cut pieces.
-Grey = the fingerprint before the player chooses a color.
-
-### Loading Animation
-
-8 frames alternating between two states:
-`loading 1.png` → `loading 1а.png` → `loading 2.png` → `loading 2а.png` → ...
-Shows a hand scanning/analyzing a fingerprint.
-
----
-
-## Scene Flow
+## Asset Paths (restructured)
 
 ```
-[Preloader] → [Desktop] → [App (3-column)] → [Puzzle Workspace]
-                  ↑              ↓ (back)           ↓ (back)
-                  └──────────────┘                   │
-                  └──────────────────────────────────┘
+background/
+  background-disabled.png     (4000×2176, PC off)
+  background-enabled.png      (4000×2176, PC on/desktop)
+  fingerprint-select.png      (4000×2176, case selection app)
+  fingerprint-ui-net.png      (4000×2176, puzzle workspace)
+
+ui/
+  cursor.png                  (63×62)
+  fingerprinting-icon.png     (128×128)
+  back-activated.png          (376×176)
+  exit-activated.png          (128×65)
+  code -button.png            (554×118)
+  code -button-activated.png  (554×118)
+  place-button.png            (949×137)
+  place-button-activated.png  (949×137)
+  send-button.png             (489×128)
+  send-button-  activated.png (588×154)
+  success-button.png          (653×169)
+  fail-button.png             (653×169)
+  highlighter.png
+
+avatars/
+  1-5.jpg + unkown.jpg        (311×311 or 660×660)
+
+fingerprints/
+  {color}.{1-4}.png           (full fingerprint images)
+  grey.{1-4}.png              (grey variants)
 ```
 
-### Scene 1: Preloader
+## Implementation Steps
 
-**Background**: black screen or `bg_off` (CRT monitor powered off)
-**Content**: loading animation (8 frames) + progress bar
-**Logic**: load ALL resources asynchronously. Track progress.
-**Transition**: when 100% loaded → Desktop scene
+### Step 1: TMX Loading
+- Add `github.com/lafriks/go-tiled` dependency
+- Parse `fingerprint.tmx` in the preloader
+- Extract layer references, object positions, tile data
+- Reuse patterns from `InsideGallery/detective/internal/tilemap/`
 
-### Scene 2: Desktop
+### Step 2: Single Scene with State Machine
+Instead of multiple scenes, use ONE scene with layer visibility toggling:
+- State: disabled → enabled → application-layout → application-net-layout
+- Each state shows/hides specific layers
+- Object groups for each state define clickable zones
 
-**Boot animation** (1.5 seconds):
-1. Frame 0-45: Show `bg_off` (dark/powered-off CRT monitor)
-2. Frame 45-90: Cross-fade `bg_off` → `bg_on` (monitor turning on)
-3. Frame 90+: Show `wallpaper` on the CRT screen area
-4. Fade in app icon + cursor → interactive
+### Step 3: Rendering
+- Image layers: draw background PNGs at (0,0) scaled to screen
+- Tile layers: iterate non-zero tiles, draw tileset images at tile positions
+- Object layers: create RTree zones from object positions
 
-**Interactive elements**:
-- "Fingerprinting" app icon (top-left of CRT screen) → click opens App scene
-- "Quit" label (bottom-right) → exit game
-- Custom cursor
+### Step 4: Game Logic
+Per README.md instructions:
+- Choose color (G/R/Y/B), fingerprint variant (1-4), rotation, mirror
+- Load fingerprint from `fingerprints/{color}.{variant}.png`
+- Scale to 690×690, apply rotation + mirror
+- Cut into 10×10 grid (69×69 each piece)
+- Generate uint32 per piece from x,y coordinates
+- Compute CRC64 hash of all pieces = correct hash
+- Remove {pieces-to-solve} random pieces (4-16 depending on case)
+- Add decoy pieces from other fingerprints (5 random from each other variant)
+- Show removed pieces in piece tray with random rotation
+- Player drags pieces to grid, can rotate with mouse wheel
+- Hash computed live as pieces are placed
+- Color may be hidden (grey fingerprint, colored pieces only)
+- Submit → compare hash → SUCCESS or FAIL
 
-**Background layers** (draw order):
-1. `bg_on` (full frame — CRT monitor with bright screen)
-2. `wallpaper` (drawn ONLY in the CRT screen rect area)
-3. App icon + labels on top
-
-### Scene 3: App (3-Column Forensic Application)
-
-**Background layers**:
-1. `bg_on` (CRT monitor)
-2. `app_window` or `app_full` (3-column app chrome, drawn in CRT screen area)
-
-**Layout** (from Трасування колонок.png and приклад.png):
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│ [badge] ─── FINGERPRINTING ──────────────────────── [exit]  │  Title bar
-├───────────────┬─────────────────┬───────────────────────────┤
-│ MOTEL         │ A40458355680... │ ┌─────────┐              │
-│ CAR WASH      │ B12484380012... │ │ PHOTO   │              │
-│ EDEN          │ C70484385112... │ │ 660×660 │              │
-│ HOUSE MCQUEEN │                 │ └─────────┘              │
-│               │                 │                           │
-│ Left column   │ Middle column   │ Name: ???                 │
-│ (cases list)  │ (codes)         │ Known as: ???             │
-│               │                 │ DOB: ???                  │
-│               │                 │ Place of Birth: ???       │
-│               │                 │ ...                       │
-│               │                 │                           │
-│               │ [place] [code]  │ Physical Description      │
-│               │ [send]          │ Occupation                │
-│               │                 │ Criminal Record           │
-│               │                 │ Right column (suspect)    │
-└───────────────┴─────────────────┴───────────────────────────┘
-```
-
-**Left column**: Case list. Each case = clickable row.
-- Unsolved: teal/normal background
-- Solved: green highlight
-- Click → selects case, shows data in middle + right columns
-
-**Middle column**: Fingerprint codes for selected case.
-- Each code: letter prefix (A/B/C = color) + 16 digits
-- Color of the code bar: matches fingerprint color (green/blue/red/yellow)
-- Buttons at bottom: Place, Code, Send
-- Place → opens Puzzle Workspace
-- Code → shows computed code from current puzzle state
-- Send → submits the fingerprint for identification
-
-**Right column**: Suspect profile for selected case.
-- Top: avatar photo (660×660) or "???" placeholder
-- Below: name, alias, DOB, place of birth, citizenship, age, sex
-- Physical description, occupation, criminal record
-- All "???" until case is solved
-
-### Scene 4: Puzzle Workspace
-
-**Background layers**:
-1. `bg_on` (CRT monitor)
-2. `workspace` or `grid` (puzzle field with window chrome)
-
-**Layout**: a window with 10×10 grid in the center.
-- Title bar: [back] ─── title ──── [exit]
-- Center: 10×10 grid (each cell ~133×134 pixels at native resolution)
-- Pre-filled tiles shown in their positions
-- Empty slots shown as grey/dark cells
-- Available pieces shown in a tray area (bottom or side)
-
-**Interaction**:
-- Click a piece from the tray → pick it up
-- Click a grid cell → place the piece
-- Right-click or button → rotate piece 90°
-- `highlighter.png` overlay on hovered cell
-
----
-
-## Game Logic (Domain Model)
-
-### Tile Encoding
-
-Each tile value is `uint32` = `EncodeTile(x, y, rotation, content)`:
-- byte 0: x position (0-9)
-- byte 1: y position (0-9)
-- byte 2: rotation (0-3 = 0°/90°/180°/270°)
-- byte 3: content (random 1-255, unique per tile)
-
-**Only when x, y match the correct position AND rotation = 0 does the
-tile have its "correct" value.**
-
-### Fingerprint Hash
-
-Hash = SHA256 of all 100 tile uint32 values → truncated to 9-digit decimal.
-UniqueID = color_byte + "-" + 9_digit_hash.
-
-Example: `2-384729105` (green, hash 384729105)
-
-The hash is **pre-computed** from the solved state before removing pieces.
-Only placing ALL pieces correctly (right position + rotation 0) reproduces it.
-
-### Color Selection
-
-Grey fingerprints → player must choose a color (yellow/green/red/blue).
-The chosen color becomes byte 0 of the UniqueID.
-Wrong color = wrong UniqueID = no match in database.
-
-### Person Database
-
-Each person has: name, avatar, fingerprint UniqueID.
-Lookup by UniqueID → returns person or "unknown".
-Wrong color OR wrong tile arrangement → "unknown" (case failed).
-
-### Case Flow
-
-1. Select case from list
-2. See grey fingerprint code
-3. Click "Place" → open puzzle workspace
-4. Place pieces on grid, rotate to correct orientation
-5. Choose fingerprint color
-6. Click "Code" → compute hash from current state
-7. Click "Send" → submit UniqueID to database
-8. Match found → SUCCESS stamp, reveal suspect profile
-9. No match → FAIL stamp
-
----
-
-## Implementation Plan (Step by Step)
-
-### Step 1: Layer-Based Rendering
-
-All 8328×4320 images are **layers** drawn on top of each other.
-Downscale all to fit screen (e.g., 2560×1600) preserving aspect ratio.
-Each scene draws specific layers in order.
-
-### Step 2: Desktop Scene
-
-- Layer 1: `bg_off` (boot) → cross-fade to `bg_on`
-- Layer 2: `wallpaper` (in CRT screen area only)
-- Interactive: app icon, quit, cursor
-
-### Step 3: App Scene (3-Column)
-
-- Layer 1: `bg_on`
-- Layer 2: `app_window` (the 3-column chrome)
-- Dynamic content: case list, codes, suspect profile rendered as text/entities
-- Buttons: `btn_place`, `btn_code`, `btn_send` drawn at specific positions
-
-### Step 4: Puzzle Workspace
-
-- Layer 1: `bg_on`
-- Layer 2: `grid` (workspace with 10×10 grid)
-- Tiles: draw pre-cut piece images at grid positions
-- Tray: show available pieces
-- Interaction: click to place, right-click to rotate
-
-### Step 5: Game Logic Integration
-
-- Generate cases with domain model
-- Pre-cut fingerprint pieces loaded from `images/` directories
-- Track placed pieces, compute hash on demand
-- Database lookup on submit
-- Success/fail stamps
-
-### Step 6: Polish
-
-- Loading animation spritesheet
-- Button hover states
-- Sound effects
-- Case persistence
+### Step 5: Camera
+- Zoom hotkey around center of desktop
+- Reset hotkey
+- Use pkg/core/Camera for world matrix

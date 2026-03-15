@@ -1,0 +1,38 @@
+{
+    "Map/SizeTest": {
+        "height": 4300,
+        "width": 2
+    },
+    "activeFile": "",
+    "expandedProjectPaths": [
+    ],
+    "fileStates": {
+        "avatars.tsx": {
+            "dynamicWrapping": true
+        },
+        "buttons.tsx": {
+            "dynamicWrapping": true
+        },
+        "exit-activated.tsx": {
+            "dynamicWrapping": false
+        },
+        "fingerprinting-icon.tsx": {
+            "dynamicWrapping": false
+        }
+    },
+    "last.imagePath": "/home/gollariel/go/src/github.com/InsideGallery/pomodoro/assets/external/fingerprint/ui",
+    "map.height": 68,
+    "map.lastUsedFormat": "tmx",
+    "map.width": 125,
+    "openFiles": [
+    ],
+    "project": "application.tiled-project",
+    "recentFiles": [
+    ],
+    "tileset.lastUsedFormat": "tsx",
+    "tileset.tileSize": {
+        "height": 65,
+        "width": 128
+    },
+    "tileset.type": 1
+}
