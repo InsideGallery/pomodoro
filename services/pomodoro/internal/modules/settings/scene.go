@@ -116,7 +116,25 @@ func (s *Scene) Update() error {
 		return nil
 	}
 
-	// Update scroll, then set offset for InputSystem
+	// Back button: fixed position, NOT in scrollable RTree
+	mx, my := ebiten.CursorPosition()
+
+	for btn := range s.Registry.Iterator("fixed_button") {
+		b, ok := btn.(*ssystems.SettingsButton)
+		if !ok {
+			continue
+		}
+
+		b.Hovered = mx >= int(b.X) && mx <= int(b.X+b.W) && my >= int(b.Y) && my <= int(b.Y+b.H)
+
+		if b.Hovered && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && b.OnClick != nil {
+			b.OnClick()
+
+			return nil
+		}
+	}
+
+	// Scrollable widgets via RTree
 	if err := s.scroll.Update(s.Ctx); err != nil {
 		return err
 	}
@@ -195,12 +213,7 @@ func (s *Scene) createEntities() {
 		slog.Warn("registry add", "group", "fixed_button", "error", err)
 	}
 
-	// Back button zone (no scroll offset — fixed position)
-	s.input.AddZone(&systems.Zone{
-		Spatial: shapes.NewBox(shapes.NewPoint(float64(back.X), float64(back.Y)), float64(back.W), float64(back.H)),
-		OnClick: back.OnClick,
-		OnHover: func(h bool) { back.Hovered = h },
-	})
+	// Back button is handled directly in Update() (fixed position, no scroll offset)
 
 	// --- Scrollable content (Y=0 = top of scroll area) ---
 	y := float32(0)
