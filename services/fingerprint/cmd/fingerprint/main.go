@@ -8,7 +8,6 @@ import (
 
 	"github.com/InsideGallery/pomodoro/pkg/app"
 	"github.com/InsideGallery/pomodoro/pkg/event"
-	"github.com/InsideGallery/pomodoro/pkg/resources"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 	scenes "github.com/InsideGallery/pomodoro/services/fingerprint/internal/scenes"
 )
@@ -32,21 +31,10 @@ func main() {
 	}
 }
 
-func setup(ctx context.Context, _ *event.Bus, manager *scene.Manager, switchScene func(string)) string {
-	shared := resources.NewManager()
+func setup(ctx context.Context, _ *event.Bus, manager *scene.Manager, _ func(string)) string {
+	// Single TMX-driven scene with state machine
+	game := scenes.NewGameScene()
+	manager.Add(ctx, game)
 
-	loading := scenes.NewLoadingScene(switchScene, scenes.DesktopSceneName,
-		func(_ *scene.BaseScene) { scenes.LoadResources(shared) })
-	desktop := scenes.NewDesktopScene(switchScene)
-	appScene := scenes.NewAppScene(switchScene)
-
-	// Register scenes (Init is called here, creates BaseScene)
-	manager.Add(ctx, loading, desktop, appScene)
-
-	// Inject shared resources AFTER Init (Init creates new BaseScene, overwriting any prior set)
-	loading.SetResources(shared)
-	desktop.SetResources(shared)
-	appScene.SetResources(shared)
-
-	return scenes.LoadingSceneName
+	return scenes.GameSceneName
 }

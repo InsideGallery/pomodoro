@@ -38,6 +38,7 @@ linters:
       allow:
         - anon
         - error
+        - github.com/InsideGallery/game-core/geometry/shapes.Spatial
         - empty
         - stdlib
         - generic
