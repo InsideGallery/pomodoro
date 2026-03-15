@@ -77,19 +77,15 @@ func (s *LoadingScene) Load() error {
 func (s *LoadingScene) Unload() error { return nil }
 
 func (s *LoadingScene) Update() error {
-	// Animate
 	s.frameTick++
 
-	if s.frameTick >= 10 { // ~6 FPS animation
-		s.frameTick = 0
-
-		if s.frameCount > 0 {
-			s.frame = (s.frame + 1) % s.frameCount
-		}
+	// Animate spritesheet
+	if s.frameCount > 0 && s.frameTick%10 == 0 {
+		s.frame = (s.frame + 1) % s.frameCount
 	}
 
-	// Wait at least 30 frames (0.5s) and until loading completes
-	if s.frameTick == 0 && s.frame > 2 && !s.Resources.IsLoading() {
+	// Wait at least 60 frames (~1 second) then check if loading done
+	if s.frameTick > 60 && !s.Resources.IsLoading() {
 		s.switchScene(s.targetScene)
 	}
 

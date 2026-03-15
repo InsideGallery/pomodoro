@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	_ "image/jpeg" // register JPEG decoder
 	_ "image/png"  // register PNG decoder
@@ -87,35 +88,33 @@ func LoadResources(rm *resources.Manager) {
 	}
 
 	// Base fingerprint images (full, for programmatic cutting)
-	colors := []struct{ name, prefix string }{
-		{"green", "g"}, {"blue", "b"}, {"red", "r"}, {"yellow", "y"},
-	}
+	colorDirs := []string{"green", "blue", "red", "yellow"}
 
-	for _, clr := range colors {
+	for _, clr := range colorDirs {
 		for variant := 1; variant <= 4; variant++ {
 			c, v := clr, variant
-			key := fmt.Sprintf("fp_%s_%d", c.name, v)
-			file := fmt.Sprintf("%s%d centered.png", c.prefix, v)
-			dir := fmt.Sprintf("%s %d", c.name, v)
+			key := fmt.Sprintf("fp_%s_%d", c, v)
+			dir := filepath.Join(assetsDir, "Відбитки", "шматочки пазлу", fmt.Sprintf("%s %d", c, v))
 
 			tasks = append(tasks, resources.LoadTask{
 				Key: key,
 				Load: func() (any, error) {
-					return loadImage(filepath.Join(assetsDir, "Відбитки", "шматочки пазлу", dir, file))
+					return loadCenteredImage(dir)
 				},
 			})
 		}
 	}
 
 	// Grey fingerprints
+	greyDir := filepath.Join(assetsDir, "Відбитки", "шматочки пазлу", "grey")
+
 	for i := 1; i <= 4; i++ {
 		idx := i
 
 		tasks = append(tasks, resources.LoadTask{
 			Key: fmt.Sprintf("fp_grey_%d", idx),
 			Load: func() (any, error) {
-				return loadImage(filepath.Join(assetsDir, "Відбитки", "шматочки пазлу", "grey",
-					fmt.Sprintf("G%d centered.png", idx)))
+				return loadImage(filepath.Join(greyDir, fmt.Sprintf("G%d centered.png", idx)))
 			},
 		})
 	}
@@ -136,6 +135,23 @@ func LoadResources(rm *resources.Manager) {
 	}
 
 	rm.LoadAsync(tasks)
+}
+
+// loadCenteredImage finds and loads the "*centered*" file in a directory.
+func loadCenteredImage(dir string) (*ebiten.Image, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("read dir %s: %w", dir, err)
+	}
+
+	for _, e := range entries {
+		name := e.Name()
+		if !e.IsDir() && strings.Contains(strings.ToLower(name), "centered") {
+			return loadImage(filepath.Join(dir, name))
+		}
+	}
+
+	return nil, fmt.Errorf("no centered image found in %s", dir)
 }
 
 func loadImage(path string) (*ebiten.Image, error) {
