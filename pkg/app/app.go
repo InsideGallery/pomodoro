@@ -25,7 +25,8 @@ type Config struct {
 	Transparent    bool
 	Decorated      bool
 	DragEnabled    bool
-	HandleWinClose func() // called when window X is clicked (nil = ignore)
+	HandleWinClose func()       // called when window X is clicked (nil = ignore)
+	OnTick         func() error // called every Update frame (for tray processing, etc.)
 	Setup          SetupFunc
 }
 
@@ -109,6 +110,12 @@ func (g *Game) Update() error {
 
 	if ebiten.IsWindowBeingClosed() && g.cfg.HandleWinClose != nil {
 		g.cfg.HandleWinClose()
+	}
+
+	if g.cfg.OnTick != nil {
+		if err := g.cfg.OnTick(); err != nil {
+			return err
+		}
 	}
 
 	if g.cfg.DragEnabled {

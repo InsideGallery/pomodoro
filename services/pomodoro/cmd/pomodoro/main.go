@@ -7,6 +7,7 @@ import (
 	"image/color"
 	"image/png"
 	"log"
+	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 
@@ -36,6 +37,7 @@ func main() {
 		Transparent:    true,
 		DragEnabled:    true,
 		HandleWinClose: func() { platform.HideWindow("Pomodoro") },
+		OnTick:         processTray,
 		Setup:          setupPomodoro,
 	})
 
@@ -97,6 +99,23 @@ func setupPomodoro(ctx context.Context, bus *event.Bus, manager *scene.Manager, 
 	subscribeTrayIconUpdates(bus)
 
 	return "timer"
+}
+
+func processTray() error {
+	select {
+	case action := <-tray.ActionCh:
+		switch action {
+		case tray.ActionShow:
+			platform.ShowWindow("Pomodoro")
+			platform.RaiseWindow("Pomodoro")
+		case tray.ActionQuit:
+			tray.Quit()
+			os.Exit(0)
+		}
+	default:
+	}
+
+	return nil
 }
 
 func subscribeTrayIconUpdates(bus *event.Bus) {

@@ -19,30 +19,41 @@ import (
 
 const DesktopSceneName = "fingerprint_desktop"
 
-// DesktopScene renders the retro CRT monitor desktop.
-// Shows the "Muldrow Police Department" wallpaper and "Fingerprinting" app icon.
+// CRT screen area as percentage of the 8328x4320 background image.
+// Measured from the actual asset: the lit screen area inside the monitor bezel.
+const (
+	crtLeft   = 0.265 // left edge of screen area
+	crtTop    = 0.095 // top edge
+	crtRight  = 0.735 // right edge
+	crtBottom = 0.875 // bottom edge
+)
+
 type DesktopScene struct {
 	*scene.BaseScene
 
 	input       *systems.InputSystem
 	switchScene func(string)
 
-	// Resources loaded by preloader
-	bgImage   *ebiten.Image // CRT monitor background (fullscreen)
-	wallpaper *ebiten.Image // desktop wallpaper
-	appIcon   *ebiten.Image // Fingerprinting app icon
-	cursor    *ebiten.Image // custom cursor
+	bgDim     *ebiten.Image // powered-off screen
+	bgBright  *ebiten.Image // powered-on screen
+	wallpaper *ebiten.Image
+	appIcon   *ebiten.Image
+	cursor    *ebiten.Image
 
-	enabled  bool // false during boot animation, true when interactive
+	enabled  bool // interactive after boot animation
 	bootTick int
+
+	// Computed layout
+	bgScale    float64
+	bgOffsetX  float64
+	bgOffsetY  float64
+	screenRect [4]float64 // x, y, w, h of CRT screen area in window coords
 
 	width, height int
 }
 
 func NewDesktopScene(switchScene func(string)) *DesktopScene {
-	return &DesktopScene{
-		switchScene: switchScene,
-	}
+	return &DesktopScene{switchScene: switchScene}
 }
 
 func (s *DesktopScene) Name() string { return DesktopSceneName }
@@ -69,22 +80,22 @@ func (s *DesktopScene) Load() error {
 	s.enabled = false
 	s.bootTick = 0
 
-	// Pull loaded resources
-	s.bgImage, _ = s.Resources.GetImage("bg_static")
+	s.bgDim, _ = s.Resources.GetImage("bg_dim")
+	s.bgBright, _ = s.Resources.GetImage("bg_bright")
 	s.wallpaper, _ = s.Resources.GetImage("wallpaper")
 	s.appIcon, _ = s.Resources.GetImage("app_icon")
 	s.cursor, _ = s.Resources.GetImage("cursor")
 
-	slog.Info("desktop resources",
-		"bg", s.bgImage != nil,
-		"wallpaper", s.wallpaper != nil,
-		"icon", s.appIcon != nil,
+	slog.Info("desktop loaded",
+		"dim", s.bgDim != nil, "bright", s.bgBright != nil,
+		"wallpaper", s.wallpaper != nil, "icon", s.appIcon != nil,
 		"cursor", s.cursor != nil)
 
-	s.registerIcon()
+	s.computeLayout()
+	s.registerZones()
 
 	ebiten.SetFullscreen(true)
-	ebiten.SetCursorMode(ebiten.CursorModeHidden) // we draw custom cursor
+	ebiten.SetCursorMode(ebiten.CursorModeHidden)
 
 	return nil
 }
@@ -95,35 +106,75 @@ func (s *DesktopScene) Unload() error {
 	return nil
 }
 
-func (s *DesktopScene) registerIcon() {
-	s.input.ClearZones()
+func (s *DesktopScene) computeLayout() {
+	w := float64(s.width)
+	h := float64(s.height)
 
-	if s.appIcon == nil {
-		return
+	// Scale background to FIT (preserve aspect ratio, letterbox)
+	bgW, bgH := 8328.0, 4320.0
+
+	scaleX := w / bgW
+	scaleY := h / bgH
+	s.bgScale = scaleX
+
+	if scaleY < scaleX {
+		s.bgScale = scaleY
 	}
 
-	// Icon position: top-left area of the CRT screen
-	iconW := 80.0
-	iconH := 80.0
-	iconX := float64(s.width)*0.28 + 30
-	iconY := float64(s.height)*0.15 + 30
+	scaledW := bgW * s.bgScale
+	scaledH := bgH * s.bgScale
+	s.bgOffsetX = (w - scaledW) / 2
+	s.bgOffsetY = (h - scaledH) / 2
+
+	// CRT screen area in window coordinates
+	s.screenRect = [4]float64{
+		s.bgOffsetX + crtLeft*scaledW,
+		s.bgOffsetY + crtTop*scaledH,
+		(crtRight - crtLeft) * scaledW,
+		(crtBottom - crtTop) * scaledH,
+	}
+}
+
+func (s *DesktopScene) registerZones() {
+	s.input.ClearZones()
+
+	sx, sy, sw, sh := s.screenRect[0], s.screenRect[1], s.screenRect[2], s.screenRect[3]
+
+	// App icon: top-left of screen area, with padding
+	iconSize := sh * 0.12
+	iconX := sx + sw*0.05
+	iconY := sy + sh*0.05
 
 	s.input.AddZone(&systems.Zone{
-		Spatial: shapes.NewBox(shapes.NewPoint(iconX, iconY), iconW, iconH),
+		Spatial: shapes.NewBox(shapes.NewPoint(iconX, iconY), iconSize, iconSize+20),
 		OnClick: func() {
 			if s.enabled {
+				slog.Info("opening fingerprint app")
 				s.switchScene(AppSceneName)
 			}
+		},
+	})
+
+	// Quit button: bottom-right of screen area
+	quitW := sw * 0.08
+	quitH := sh * 0.04
+	quitX := sx + sw - quitW - sw*0.02
+	quitY := sy + sh - quitH - sh*0.02
+
+	s.input.AddZone(&systems.Zone{
+		Spatial: shapes.NewBox(shapes.NewPoint(quitX, quitY), quitW, quitH),
+		OnClick: func() {
+			ebiten.SetCursorMode(ebiten.CursorModeVisible)
+			os.Exit(0)
 		},
 	})
 }
 
 func (s *DesktopScene) Update() error {
-	// Boot animation: screen turns on over ~60 frames (1 second)
 	if !s.enabled {
 		s.bootTick++
 
-		if s.bootTick > 60 {
+		if s.bootTick > 90 { // ~1.5 seconds boot animation
 			s.enabled = true
 		}
 
@@ -131,7 +182,6 @@ func (s *DesktopScene) Update() error {
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
-		ebiten.SetFullscreen(false)
 		ebiten.SetCursorMode(ebiten.CursorModeVisible)
 		os.Exit(0)
 	}
@@ -144,76 +194,104 @@ func (s *DesktopScene) Update() error {
 }
 
 func (s *DesktopScene) Draw(screen *ebiten.Image) {
-	w := float64(s.width)
-	h := float64(s.height)
+	// Black letterbox background
+	screen.Fill(color.RGBA{A: 0xFF})
 
-	// CRT monitor background (fills entire screen)
-	if s.bgImage != nil {
-		op := &ebiten.DrawImageOptions{}
-		bw := float64(s.bgImage.Bounds().Dx())
-		bh := float64(s.bgImage.Bounds().Dy())
-		op.GeoM.Scale(w/bw, h/bh)
-		screen.DrawImage(s.bgImage, op)
-	} else {
-		screen.Fill(color.RGBA{R: 0x10, G: 0x10, B: 0x10, A: 0xFF})
+	bootProgress := float64(s.bootTick) / 90.0
+	if bootProgress > 1 {
+		bootProgress = 1
 	}
 
-	// Boot animation: screen brightness fades in
-	brightness := 1.0
+	// Phase 1 (0-0.5): Show dim/off screen
+	// Phase 2 (0.5-1.0): Fade in bright screen + wallpaper
+	if bootProgress < 0.5 {
+		// Show powered-off monitor
+		s.drawBG(screen, s.bgDim, 1.0)
+	} else {
+		// Cross-fade to powered-on monitor
+		fade := (bootProgress - 0.5) * 2 // 0→1
 
-	if !s.enabled {
-		brightness = float64(s.bootTick) / 60.0
-		if brightness > 1 {
-			brightness = 1
+		s.drawBG(screen, s.bgDim, 1.0-fade)
+		s.drawBG(screen, s.bgBright, fade)
+
+		// Wallpaper fades in
+		if s.wallpaper != nil && fade > 0.1 {
+			sx, sy, sw, sh := s.screenRect[0], s.screenRect[1], s.screenRect[2], s.screenRect[3]
+			op := &ebiten.DrawImageOptions{}
+			ww := float64(s.wallpaper.Bounds().Dx())
+			wh := float64(s.wallpaper.Bounds().Dy())
+			op.GeoM.Scale(sw/ww, sh/wh)
+			op.GeoM.Translate(sx, sy)
+			op.ColorScale.Scale(float32(fade), float32(fade), float32(fade), 1)
+			screen.DrawImage(s.wallpaper, op)
 		}
 	}
 
-	// Screen content area (inside the CRT bezel)
-	// The CRT screen area is roughly centered, ~60% of the image
-	screenX := w * 0.22
-	screenY := h * 0.08
-	screenW := w * 0.56
-	screenH := h * 0.78
+	// Desktop content (only when boot complete)
+	if s.enabled {
+		sx, sy, _, sh := s.screenRect[0], s.screenRect[1], s.screenRect[2], s.screenRect[3]
 
-	// Draw wallpaper on the CRT screen area
-	if s.wallpaper != nil && brightness > 0.01 {
-		op := &ebiten.DrawImageOptions{}
-		ww := float64(s.wallpaper.Bounds().Dx())
-		wh := float64(s.wallpaper.Bounds().Dy())
-		op.GeoM.Scale(screenW/ww, screenH/wh)
-		op.GeoM.Translate(screenX, screenY)
-		op.ColorScale.Scale(float32(brightness), float32(brightness), float32(brightness), 1)
-		screen.DrawImage(s.wallpaper, op)
+		// App icon
+		if s.appIcon != nil {
+			iconSize := sh * 0.12
+			iconX := sx + s.screenRect[2]*0.05
+			iconY := sy + sh*0.05
+
+			op := &ebiten.DrawImageOptions{}
+			iw := float64(s.appIcon.Bounds().Dx())
+			scale := iconSize / iw
+			op.GeoM.Scale(scale, scale)
+			op.GeoM.Translate(iconX, iconY)
+			screen.DrawImage(s.appIcon, op)
+
+			// Label
+			face := ui.Face(false, 10)
+			ui.DrawTextCentered(screen, "Fingerprinting", face,
+				iconX+iconSize/2, iconY+iconSize+5, ui.ColorTextPrimary)
+		}
+
+		// Quit label (bottom-right)
+		face := ui.Face(false, 11)
+		quitX := sx + s.screenRect[2]*0.88
+		quitY := sy + sh*0.93
+		ui.DrawText(screen, "Quit", face, quitX, quitY, ui.ColorTextSecond)
 	}
 
-	// Draw app icon
-	if s.appIcon != nil && s.enabled {
-		iconX := screenX + 30
-		iconY := screenY + 30
-		op := &ebiten.DrawImageOptions{}
-		iw := float64(s.appIcon.Bounds().Dx())
-
-		scale := 80.0 / iw
-		op.GeoM.Scale(scale, scale)
-		op.GeoM.Translate(iconX, iconY)
-		screen.DrawImage(s.appIcon, op)
-
-		// Label under icon
-		face := ui.Face(false, 10)
-		ui.DrawTextCentered(screen, "Fingerprinting", face, iconX+40, iconY+85, ui.ColorTextPrimary)
-	}
-
-	// Custom cursor (drawn last, on top)
+	// Custom cursor (always on top)
 	if s.cursor != nil && s.enabled {
 		mx, my := ebiten.CursorPosition()
 		op := &ebiten.DrawImageOptions{}
 		cw := float64(s.cursor.Bounds().Dx())
-
-		cursorScale := 32.0 / cw
-		op.GeoM.Scale(cursorScale, cursorScale)
+		scale := 32.0 / cw
+		op.GeoM.Scale(scale, scale)
 		op.GeoM.Translate(float64(mx), float64(my))
 		screen.DrawImage(s.cursor, op)
 	}
+}
+
+func (s *DesktopScene) drawBG(screen *ebiten.Image, img *ebiten.Image, alpha float64) {
+	if img == nil || alpha <= 0 {
+		return
+	}
+
+	op := &ebiten.DrawImageOptions{}
+	bw := float64(img.Bounds().Dx())
+	bh := float64(img.Bounds().Dy())
+
+	// Scale to fit, centered
+	scale := float64(s.width) / bw
+	scaleY := float64(s.height) / bh
+
+	if scaleY < scale {
+		scale = scaleY
+	}
+
+	op.GeoM.Scale(scale, scale)
+	scaledW := bw * scale
+	scaledH := bh * scale
+	op.GeoM.Translate((float64(s.width)-scaledW)/2, (float64(s.height)-scaledH)/2)
+	op.ColorScale.Scale(float32(alpha), float32(alpha), float32(alpha), float32(alpha))
+	screen.DrawImage(img, op)
 }
 
 func (s *DesktopScene) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -226,8 +304,13 @@ func (s *DesktopScene) Layout(outsideWidth, outsideHeight int) (int, int) {
 
 	w := int(math.Ceil(float64(outsideWidth) * scale))
 	h := int(math.Ceil(float64(outsideHeight) * scale))
-	s.width = w
-	s.height = h
+
+	if w != s.width || h != s.height {
+		s.width = w
+		s.height = h
+		s.computeLayout()
+		s.registerZones()
+	}
 
 	return w, h
 }
