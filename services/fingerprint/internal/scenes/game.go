@@ -48,7 +48,12 @@ type GameScene struct {
 	cases        []*domain.CaseConfig
 
 	// Puzzle state
-	holdingPiece int // index in tray (-1 = none)
+	holdingPiece int                   // index in tray (-1 = none)
+	showResult   int                   // 0=none, 1=success, 2=fail
+	resultTick   int                   // frames to show result
+	caseImages   [3]*FingerprintImages // cut fingerprint images per case
+	greyImages   [3]*FingerprintImages // grey versions (when color hidden)
+	assetsDir    string                // path to fingerprint assets
 
 	// Scaling: map is 4000×2176, screen may differ
 	scaleX, scaleY float64
@@ -131,7 +136,32 @@ func (s *GameScene) Load() error {
 
 	s.loadGameState()
 
-	slog.Info("cases generated", "count", len(s.cases))
+	// Load fingerprint images for each case
+	s.assetsDir = FindFingerprintAssetsDir()
+
+	if s.assetsDir != "" {
+		for i, c := range s.cases {
+			imgs, err := LoadFingerprintImages(s.assetsDir, c.TargetRecord)
+			if err != nil {
+				slog.Warn("load fingerprint", "case", i, "error", err)
+			} else {
+				s.caseImages[i] = imgs
+			}
+
+			// Load grey version if color is hidden
+			if c.HideColor {
+				grey, err := LoadGreyFingerprintImages(s.assetsDir, c.TargetRecord.Variant,
+					c.TargetRecord.Rotation, c.TargetRecord.Mirrored)
+				if err != nil {
+					slog.Warn("load grey fingerprint", "case", i, "error", err)
+				} else {
+					s.greyImages[i] = grey
+				}
+			}
+		}
+	}
+
+	slog.Info("cases generated", "count", len(s.cases), "assetsDir", s.assetsDir)
 
 	// Start in disabled state (PC off)
 	s.state = StateDisabled
@@ -184,6 +214,14 @@ func (s *GameScene) Update() error {
 		}
 
 	case StateApplicationNet:
+		// Result display timer
+		if s.resultTick > 0 {
+			s.resultTick--
+			if s.resultTick == 0 {
+				s.showResult = 0
+			}
+		}
+
 		if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
 			s.state = StateApplicationLayout
 			s.registerAppLayoutZones()
@@ -246,6 +284,15 @@ func (s *GameScene) Draw(screen *ebiten.Image) {
 		s.drawImageLayer(screen, "application-net-layout")
 		s.drawTileLayer(screen, "application-net-layout")
 		s.drawPuzzleContent(screen)
+	}
+
+	// Result overlay (success/fail)
+	if s.showResult > 0 && s.state == StateApplicationNet {
+		if s.showResult == 1 {
+			s.drawTileLayer(screen, "application-net-layout-success")
+		} else {
+			s.drawTileLayer(screen, "application-net-layout-fail")
+		}
 	}
 
 	// Held piece follows cursor
@@ -354,15 +401,41 @@ func (s *GameScene) drawTileLayer(screen *ebiten.Image, name string) {
 }
 
 func (s *GameScene) drawCursor(screen *ebiten.Image) {
-	// Find cursor image from buttons tileset (tile id=3)
 	cursorImg := s.tmap.GetImage("ui/cursor.png")
 	if cursorImg == nil {
 		return
 	}
 
 	mx, my := ebiten.CursorPosition()
-	op := &ebiten.DrawImageOptions{}
 
+	// Clamp cursor to cursor-room (from TMX main objectgroup)
+	mainOG := s.tmap.FindObjectGroup("main")
+	if mainOG != nil {
+		if room := tilemap.FindObject(mainOG, "cursor-room"); room != nil {
+			minX := int(room.X * s.scaleX)
+			minY := int(room.Y * s.scaleY)
+			maxX := int((room.X + room.Width) * s.scaleX)
+			maxY := int((room.Y + room.Height) * s.scaleY)
+
+			if mx < minX {
+				mx = minX
+			}
+
+			if mx > maxX {
+				mx = maxX
+			}
+
+			if my < minY {
+				my = minY
+			}
+
+			if my > maxY {
+				my = maxY
+			}
+		}
+	}
+
+	op := &ebiten.DrawImageOptions{}
 	cw := float64(cursorImg.Bounds().Dx())
 	cursorScale := 32.0 / cw
 	op.GeoM.Scale(cursorScale, cursorScale)
@@ -486,14 +559,13 @@ func (s *GameScene) drawAppContent(screen *ebiten.Image) {
 
 // --- Step 5: Puzzle workspace content ---
 
-func (s *GameScene) drawPuzzleContent(screen *ebiten.Image) {
+func (s *GameScene) drawPuzzleContent(screen *ebiten.Image) { //nolint:gocyclo // puzzle rendering
 	og := s.tmap.FindObjectGroup("application-net-layout")
 	if og == nil {
 		return
 	}
 
 	faceHash := ui.Face(false, 10)
-	faceSmall := ui.Face(false, 8)
 
 	// Draw hash
 	if hashObj := tilemap.FindObject(og, "hash"); hashObj != nil {
@@ -529,31 +601,51 @@ func (s *GameScene) drawPuzzleContent(screen *ebiten.Image) {
 				color.RGBA{R: 0x80, G: 0x80, B: 0x80, A: 0x40})
 		}
 
-		// Draw piece indices (placeholder — real images come from fingerprint cutting)
 		if s.selectedCase >= 0 && s.selectedCase < len(s.cases) {
 			c := s.cases[s.selectedCase]
+			caseIdx := s.selectedCase
+
 			missingSet := make(map[int]bool)
 
 			for _, idx := range c.MissingIndices {
 				missingSet[idx] = true
 			}
 
+			// Get the fingerprint images for this case
+			imgs := s.caseImages[caseIdx]
+			greyImgs := s.greyImages[caseIdx]
+
+			// Draw pre-filled pieces (not missing)
 			for idx := range 100 {
 				if missingSet[idx] {
-					continue // missing piece — empty slot
+					continue
 				}
 
 				col := idx % 10
 				row := idx / 10
-				cx := px + float64(col)*cellW + cellW*0.3
-				cy := py + float64(row)*cellH + cellH*0.3
+				cx := px + float64(col)*cellW
+				cy := py + float64(row)*cellH
 
-				ui.DrawText(screen, fmt.Sprintf("%d", idx+1), faceSmall, cx, cy,
-					color.RGBA{R: 0x4D, G: 0x8B, B: 0x8B, A: 0x80})
+				// Use grey images if color is hidden, otherwise colored
+				var pieceImg *ebiten.Image
+
+				if c.HideColor && greyImgs != nil {
+					pieceImg = greyImgs.Pieces[idx]
+				} else if imgs != nil {
+					pieceImg = imgs.Pieces[idx]
+				}
+
+				if pieceImg != nil {
+					op := &ebiten.DrawImageOptions{}
+					iw := float64(pieceImg.Bounds().Dx())
+					op.GeoM.Scale(cellW/iw, cellH/iw)
+					op.GeoM.Translate(cx, cy)
+					screen.DrawImage(pieceImg, op)
+				}
 			}
 
-			// Track which grid cells have been filled by placed pieces
-			placedAt := make(map[int]int) // gridIdx → trayIdx
+			// Track placed pieces
+			placedAt := make(map[int]int)
 
 			for ti, tp := range c.TrayPieces {
 				if tp.IsPlaced {
@@ -562,7 +654,7 @@ func (s *GameScene) drawPuzzleContent(screen *ebiten.Image) {
 				}
 			}
 
-			// Draw missing slots
+			// Draw missing slots (empty or with placed piece)
 			for _, idx := range c.MissingIndices {
 				col := idx % 10
 				row := idx / 10
@@ -570,10 +662,27 @@ func (s *GameScene) drawPuzzleContent(screen *ebiten.Image) {
 				cy := py + float64(row)*cellH
 
 				if ti, ok := placedAt[idx]; ok {
-					// Piece placed here
+					// Draw the placed piece image (colored, from tray)
 					tp := c.TrayPieces[ti]
-					clr := color.RGBA{R: 0x4D, G: 0x8B, B: 0x8B, A: 0xCC}
 
+					if imgs != nil && !tp.IsDecoy && tp.OriginalX >= 0 {
+						origIdx := tp.OriginalY*10 + tp.OriginalX
+						if origIdx >= 0 && origIdx < 100 {
+							pieceImg := imgs.Pieces[origIdx]
+							if pieceImg != nil {
+								op := &ebiten.DrawImageOptions{}
+								iw := float64(pieceImg.Bounds().Dx())
+								op.GeoM.Scale(cellW/iw, cellH/iw)
+								op.GeoM.Translate(cx, cy)
+								screen.DrawImage(pieceImg, op)
+
+								continue
+							}
+						}
+					}
+
+					// Fallback: colored rectangle
+					clr := color.RGBA{R: 0x4D, G: 0x8B, B: 0x8B, A: 0xCC}
 					if tp.IsDecoy {
 						clr = color.RGBA{R: 0x8B, G: 0x4D, B: 0x4D, A: 0xCC}
 					}
@@ -581,7 +690,7 @@ func (s *GameScene) drawPuzzleContent(screen *ebiten.Image) {
 					ui.DrawRoundedRect(screen, float32(cx+1), float32(cy+1),
 						float32(cellW-2), float32(cellH-2), 1, clr)
 				} else {
-					// Empty missing slot
+					// Empty slot highlight
 					ui.DrawRoundedRect(screen, float32(cx+1), float32(cy+1),
 						float32(cellW-2), float32(cellH-2), 1,
 						color.RGBA{R: 0xFF, G: 0xA0, B: 0x00, A: 0x30})
@@ -600,6 +709,9 @@ func (s *GameScene) drawPuzzleContent(screen *ebiten.Image) {
 			c := s.cases[s.selectedCase]
 			pieceSize := pw / 3 // 3 columns in tray
 
+			caseIdx := s.selectedCase
+			cImgs := s.caseImages[caseIdx]
+
 			for i, tp := range c.TrayPieces {
 				if tp.IsPlaced {
 					continue
@@ -610,18 +722,42 @@ func (s *GameScene) drawPuzzleContent(screen *ebiten.Image) {
 				tx := px + float64(col)*pieceSize
 				ty := py + float64(row)*pieceSize
 
-				// Color based on decoy or correct
-				clr := color.RGBA{R: 0x4D, G: 0x8B, B: 0x8B, A: 0xCC}
-				if tp.IsDecoy {
-					clr = color.RGBA{R: 0x8B, G: 0x4D, B: 0x4D, A: 0xCC}
+				// Draw actual piece image if available
+				var drawn bool
+
+				if cImgs != nil && !tp.IsDecoy && tp.OriginalX >= 0 {
+					origIdx := tp.OriginalY*10 + tp.OriginalX
+					if origIdx >= 0 && origIdx < 100 {
+						pieceImg := cImgs.Pieces[origIdx]
+						if pieceImg != nil {
+							op := &ebiten.DrawImageOptions{}
+							iw := float64(pieceImg.Bounds().Dx())
+							op.GeoM.Scale(pieceSize/iw, pieceSize/iw)
+							op.GeoM.Translate(tx, ty)
+							screen.DrawImage(pieceImg, op)
+
+							drawn = true
+						}
+					}
 				}
 
-				ui.DrawRoundedRect(screen, float32(tx+1), float32(ty+1),
-					float32(pieceSize-2), float32(pieceSize-2), 2, clr)
+				if !drawn {
+					// Fallback rectangle
+					clr := color.RGBA{R: 0x4D, G: 0x8B, B: 0x8B, A: 0xCC}
+					if tp.IsDecoy {
+						clr = color.RGBA{R: 0x8B, G: 0x4D, B: 0x4D, A: 0xCC}
+					}
 
-				// Show piece index
-				ui.DrawText(screen, fmt.Sprintf("R%d", tp.Rotation), faceSmall,
-					tx+4, ty+4, color.RGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xFF})
+					ui.DrawRoundedRect(screen, float32(tx+1), float32(ty+1),
+						float32(pieceSize-2), float32(pieceSize-2), 2, clr)
+				}
+
+				// Highlight if this piece is being held
+				if i == s.holdingPiece {
+					ui.DrawRoundedRect(screen, float32(tx), float32(ty),
+						float32(pieceSize), float32(pieceSize), 2,
+						color.RGBA{R: 0xFF, G: 0xFF, B: 0x00, A: 0x60})
+				}
 			}
 		}
 	}
@@ -782,6 +918,19 @@ func (s *GameScene) registerPuzzleZones() {
 					})
 				}
 			}
+		case "hash":
+			// Send button: positioned near the hash area (from tile layer at 1760,1408)
+			sendX := 1760.0 * s.scaleX
+			sendY := 1408.0 * s.scaleY
+			sendW := 200.0 * s.scaleX
+			sendH := 50.0 * s.scaleY
+
+			s.input.AddZone(&systems.Zone{
+				Spatial: shapes.NewBox(shapes.NewPoint(sendX, sendY), sendW, sendH),
+				OnClick: func() {
+					s.submitPuzzle()
+				},
+			})
 		case "puzzle":
 			// Click grid cell — place held piece
 			if s.selectedCase >= 0 && s.selectedCase < len(s.cases) {
@@ -813,6 +962,22 @@ func (s *GameScene) registerPuzzleZones() {
 					s.input.AddZone(&systems.Zone{
 						Spatial: shapes.NewBox(shapes.NewPoint(cx, cy), cellW, cellH),
 						OnClick: func() {
+							// If clicking a cell that already has a placed piece, pick it up
+							for ti := range c.TrayPieces {
+								tp := &c.TrayPieces[ti]
+								if tp.IsPlaced && tp.PlacedY*10+tp.PlacedX == gIdx {
+									tp.IsPlaced = false
+									tp.PlacedX = -1
+									tp.PlacedY = -1
+									s.holdingPiece = ti
+
+									slog.Info("picked up placed piece", "tray", ti, "grid", gIdx)
+
+									return
+								}
+							}
+
+							// Place the held piece
 							if s.holdingPiece < 0 || s.holdingPiece >= len(c.TrayPieces) {
 								return
 							}
@@ -826,8 +991,6 @@ func (s *GameScene) registerPuzzleZones() {
 								"grid", gIdx, "x", tp.PlacedX, "y", tp.PlacedY)
 
 							s.holdingPiece = -1
-
-							// Save state after each placement
 							s.saveGameState()
 						},
 					})
@@ -835,6 +998,32 @@ func (s *GameScene) registerPuzzleZones() {
 			}
 		}
 	}
+}
+
+func (s *GameScene) submitPuzzle() {
+	if s.selectedCase < 0 || s.selectedCase >= len(s.cases) {
+		return
+	}
+
+	c := s.cases[s.selectedCase]
+
+	// Compute the current hash from the grid state
+	// For now, check if the target hash matches by looking up in DB
+	targetHash := c.TargetRecord.Hash
+	found := s.db.LookupByHash(targetHash)
+
+	if found != nil {
+		slog.Info("SUBMIT: person found!", "name", found.PersonName, "hash", targetHash)
+
+		s.showResult = 1
+	} else {
+		slog.Info("SUBMIT: no person found", "hash", targetHash)
+
+		s.showResult = 2
+	}
+
+	s.resultTick = 180 // show for 3 seconds
+	s.saveGameState()
 }
 
 func (s *GameScene) saveGameState() {
