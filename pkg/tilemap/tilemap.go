@@ -198,12 +198,15 @@ func (m *Map) DrawTileLayer(dst *ebiten.Image, layer *tiled.Layer, scaleX, scale
 			continue
 		}
 
-		// Position at grid cell, draw at actual image size (scaled to screen)
+		// Large tiles anchor at bottom-left of grid cell (Tiled convention)
+		imgH := float64(tileImg.Bounds().Dy())
+		yOffset := (imgH - float64(tileH)) * scaleY
+
 		op := &ebiten.DrawImageOptions{}
 		op.GeoM.Scale(scaleX, scaleY)
 		op.GeoM.Translate(
 			offsetX+float64(col)*float64(tileW)*scaleX,
-			offsetY+float64(row)*float64(tileH)*scaleY,
+			offsetY+float64(row)*float64(tileH)*scaleY-yOffset,
 		)
 
 		dst.DrawImage(tileImg, op)
@@ -220,7 +223,7 @@ func (m *Map) getTileImage(tile *tiled.LayerTile) *ebiten.Image {
 		return nil
 	}
 
-	localID := tile.ID - ts.FirstGID
+	localID := tile.ID // already local (go-tiled subtracts FirstGID)
 
 	// Collection-of-images tileset
 	for _, t := range ts.Tiles {
@@ -274,7 +277,7 @@ func (m *Map) loadImage(source string) error {
 
 	m.images[source] = ebiten.NewImageFromImage(img)
 
-	slog.Info("tilemap: loaded image", "source", source,
+	slog.Debug("tilemap: loaded image", "source", source,
 		"size", fmt.Sprintf("%dx%d", img.Bounds().Dx(), img.Bounds().Dy()))
 
 	return nil
