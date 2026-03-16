@@ -416,6 +416,58 @@ func TestComputeHashDeterministic(t *testing.T) {
 	}
 }
 
+func TestGenerateCases(t *testing.T) {
+	db := GenerateDB(42)
+	cases := GenerateCases(db, 99)
+
+	if len(cases) != 3 {
+		t.Fatalf("expected 3 cases, got %d", len(cases))
+	}
+
+	// Case 1: 4-8 pieces, Case 2: 8-12, Case 3: 12-16
+	for i, c := range cases {
+		if c.TargetRecord == nil {
+			t.Fatalf("case %d: no target record", i)
+		}
+
+		if len(c.MissingIndices) != c.PiecesToSolve {
+			t.Fatalf("case %d: missing %d != piecesToSolve %d",
+				i, len(c.MissingIndices), c.PiecesToSolve)
+		}
+
+		// Tray has missing pieces + decoys
+		correctPieces := 0
+		decoyPieces := 0
+
+		for _, tp := range c.TrayPieces {
+			if tp.IsDecoy {
+				decoyPieces++
+			} else {
+				correctPieces++
+			}
+		}
+
+		if correctPieces != c.PiecesToSolve {
+			t.Fatalf("case %d: correct pieces %d != %d", i, correctPieces, c.PiecesToSolve)
+		}
+
+		if decoyPieces == 0 {
+			t.Fatalf("case %d: no decoy pieces", i)
+		}
+	}
+
+	// All cases should use different target records
+	ids := make(map[int]bool)
+
+	for _, c := range cases {
+		if ids[c.TargetRecord.ID] {
+			t.Fatal("cases should use different records")
+		}
+
+		ids[c.TargetRecord.ID] = true
+	}
+}
+
 func TestDatabaseLookup(t *testing.T) {
 	db := NewDatabase()
 

@@ -236,9 +236,30 @@ func (s *GameScene) drawDisabled(screen *ebiten.Image) {
 	}
 }
 
+var enabledLogOnce bool //nolint:gochecknoglobals // debug
+
 func (s *GameScene) drawEnabled(screen *ebiten.Image) {
 	s.drawImageLayer(screen, "enabled")
 	s.drawTileLayer(screen, "enabled")
+
+	if !enabledLogOnce {
+		enabledLogOnce = true
+
+		layer := s.tmap.FindTileLayer("enabled")
+		if layer == nil {
+			slog.Warn("enabled tile layer not found")
+		} else {
+			nonZero := 0
+
+			for _, t := range layer.Tiles {
+				if !t.IsNil() {
+					nonZero++
+				}
+			}
+
+			slog.Info("enabled tile layer", "tiles", len(layer.Tiles), "nonZero", nonZero)
+		}
+	}
 }
 
 func (s *GameScene) drawImageLayer(screen *ebiten.Image, name string) {

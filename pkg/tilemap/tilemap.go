@@ -198,6 +198,7 @@ func (m *Map) DrawTileLayer(dst *ebiten.Image, layer *tiled.Layer, scaleX, scale
 			continue
 		}
 
+		// Position at grid cell, draw at actual image size (scaled to screen)
 		op := &ebiten.DrawImageOptions{}
 		op.GeoM.Scale(scaleX, scaleY)
 		op.GeoM.Translate(
@@ -273,7 +274,7 @@ func (m *Map) loadImage(source string) error {
 
 	m.images[source] = ebiten.NewImageFromImage(img)
 
-	slog.Debug("tilemap: loaded image", "source", source,
+	slog.Info("tilemap: loaded image", "source", source,
 		"size", fmt.Sprintf("%dx%d", img.Bounds().Dx(), img.Bounds().Dy()))
 
 	return nil
