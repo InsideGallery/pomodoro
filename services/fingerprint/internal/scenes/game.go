@@ -129,6 +129,8 @@ func (s *GameScene) Load() error {
 	s.selectedCase = 0
 	s.holdingPiece = -1
 
+	s.loadGameState()
+
 	slog.Info("cases generated", "count", len(s.cases))
 
 	// Start in disabled state (PC off)
@@ -187,6 +189,28 @@ func (s *GameScene) Update() error {
 			s.registerAppLayoutZones()
 		}
 
+		// Camera zoom: Z = zoom in, X = zoom out, C = reset
+		if inpututil.IsKeyJustPressed(ebiten.KeyZ) {
+			s.Camera.ZoomFactor += 5
+		}
+
+		if inpututil.IsKeyJustPressed(ebiten.KeyX) {
+			s.Camera.ZoomFactor -= 5
+		}
+
+		if inpututil.IsKeyJustPressed(ebiten.KeyC) {
+			s.Camera.Reset()
+		}
+
+		// Mouse wheel: rotate held piece
+		_, wy := ebiten.Wheel()
+		if wy != 0 && s.holdingPiece >= 0 && s.selectedCase >= 0 {
+			c := s.cases[s.selectedCase]
+			if s.holdingPiece < len(c.TrayPieces) {
+				c.TrayPieces[s.holdingPiece].Rotation = (c.TrayPieces[s.holdingPiece].Rotation + 1) % 4
+			}
+		}
+
 		if err := s.input.Update(s.Ctx); err != nil {
 			return err
 		}
@@ -222,6 +246,28 @@ func (s *GameScene) Draw(screen *ebiten.Image) {
 		s.drawImageLayer(screen, "application-net-layout")
 		s.drawTileLayer(screen, "application-net-layout")
 		s.drawPuzzleContent(screen)
+	}
+
+	// Held piece follows cursor
+	if s.holdingPiece >= 0 && s.state == StateApplicationNet && s.selectedCase >= 0 {
+		c := s.cases[s.selectedCase]
+		if s.holdingPiece < len(c.TrayPieces) {
+			tp := c.TrayPieces[s.holdingPiece]
+			mx, my := ebiten.CursorPosition()
+
+			clr := color.RGBA{R: 0x4D, G: 0x8B, B: 0x8B, A: 0x90}
+			if tp.IsDecoy {
+				clr = color.RGBA{R: 0x8B, G: 0x4D, B: 0x4D, A: 0x90}
+			}
+
+			sz := 30.0
+			ui.DrawRoundedRect(screen, float32(float64(mx)-sz/2), float32(float64(my)-sz/2),
+				float32(sz), float32(sz), 3, clr)
+
+			face := ui.Face(false, 7)
+			ui.DrawText(screen, fmt.Sprintf("R%d", tp.Rotation), face,
+				float64(mx)-8, float64(my)-4, color.RGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xFF})
+		}
 	}
 
 	// Custom cursor (always on top, after boot)
@@ -506,16 +552,40 @@ func (s *GameScene) drawPuzzleContent(screen *ebiten.Image) {
 					color.RGBA{R: 0x4D, G: 0x8B, B: 0x8B, A: 0x80})
 			}
 
-			// Draw missing slots as highlighted
+			// Track which grid cells have been filled by placed pieces
+			placedAt := make(map[int]int) // gridIdx → trayIdx
+
+			for ti, tp := range c.TrayPieces {
+				if tp.IsPlaced {
+					gIdx := tp.PlacedY*10 + tp.PlacedX
+					placedAt[gIdx] = ti
+				}
+			}
+
+			// Draw missing slots
 			for _, idx := range c.MissingIndices {
 				col := idx % 10
 				row := idx / 10
 				cx := px + float64(col)*cellW
 				cy := py + float64(row)*cellH
 
-				ui.DrawRoundedRect(screen, float32(cx+1), float32(cy+1),
-					float32(cellW-2), float32(cellH-2), 1,
-					color.RGBA{R: 0xFF, G: 0xA0, B: 0x00, A: 0x30})
+				if ti, ok := placedAt[idx]; ok {
+					// Piece placed here
+					tp := c.TrayPieces[ti]
+					clr := color.RGBA{R: 0x4D, G: 0x8B, B: 0x8B, A: 0xCC}
+
+					if tp.IsDecoy {
+						clr = color.RGBA{R: 0x8B, G: 0x4D, B: 0x4D, A: 0xCC}
+					}
+
+					ui.DrawRoundedRect(screen, float32(cx+1), float32(cy+1),
+						float32(cellW-2), float32(cellH-2), 1, clr)
+				} else {
+					// Empty missing slot
+					ui.DrawRoundedRect(screen, float32(cx+1), float32(cy+1),
+						float32(cellW-2), float32(cellH-2), 1,
+						color.RGBA{R: 0xFF, G: 0xA0, B: 0x00, A: 0x30})
+				}
 			}
 		}
 	}
@@ -679,8 +749,148 @@ func (s *GameScene) registerPuzzleZones() {
 					s.registerEnabledZones()
 				},
 			})
+		case "pieces":
+			// Clickable piece tray — pick up piece
+			if s.selectedCase >= 0 && s.selectedCase < len(s.cases) {
+				c := s.cases[s.selectedCase]
+				px := obj.X * s.scaleX
+				py := obj.Y * s.scaleY
+				pw := obj.Width * s.scaleX
+				pieceSize := pw / 3
+
+				for i := range c.TrayPieces {
+					if c.TrayPieces[i].IsPlaced {
+						continue
+					}
+
+					idx := i
+					col := i % 3
+					row := i / 3
+					tx := px + float64(col)*pieceSize
+					ty := py + float64(row)*pieceSize
+
+					s.input.AddZone(&systems.Zone{
+						Spatial: shapes.NewBox(shapes.NewPoint(tx, ty), pieceSize, pieceSize),
+						OnClick: func() {
+							if s.holdingPiece == idx {
+								s.holdingPiece = -1 // drop
+							} else {
+								s.holdingPiece = idx // pick up
+								slog.Info("picked up piece", "index", idx)
+							}
+						},
+					})
+				}
+			}
+		case "puzzle":
+			// Click grid cell — place held piece
+			if s.selectedCase >= 0 && s.selectedCase < len(s.cases) {
+				c := s.cases[s.selectedCase]
+				px := obj.X * s.scaleX
+				py := obj.Y * s.scaleY
+				pw := obj.Width * s.scaleX
+				ph := obj.Height * s.scaleY
+				cellW := pw / 10
+				cellH := ph / 10
+
+				missingSet := make(map[int]bool)
+
+				for _, idx := range c.MissingIndices {
+					missingSet[idx] = true
+				}
+
+				for gridIdx := range 100 {
+					if !missingSet[gridIdx] {
+						continue // only missing slots are clickable
+					}
+
+					gIdx := gridIdx
+					col := gridIdx % 10
+					row := gridIdx / 10
+					cx := px + float64(col)*cellW
+					cy := py + float64(row)*cellH
+
+					s.input.AddZone(&systems.Zone{
+						Spatial: shapes.NewBox(shapes.NewPoint(cx, cy), cellW, cellH),
+						OnClick: func() {
+							if s.holdingPiece < 0 || s.holdingPiece >= len(c.TrayPieces) {
+								return
+							}
+
+							tp := &c.TrayPieces[s.holdingPiece]
+							tp.IsPlaced = true
+							tp.PlacedX = gIdx % 10
+							tp.PlacedY = gIdx / 10
+
+							slog.Info("placed piece", "tray", s.holdingPiece,
+								"grid", gIdx, "x", tp.PlacedX, "y", tp.PlacedY)
+
+							s.holdingPiece = -1
+
+							// Save state after each placement
+							s.saveGameState()
+						},
+					})
+				}
+			}
 		}
 	}
+}
+
+func (s *GameScene) saveGameState() {
+	save := &domain.GameSave{}
+
+	for i, c := range s.cases {
+		cs := domain.CaseSave{CaseIndex: i}
+
+		for j, tp := range c.TrayPieces {
+			if tp.IsPlaced {
+				cs.PlacedPieces = append(cs.PlacedPieces, domain.PlacedSave{
+					TrayIndex: j,
+					GridX:     tp.PlacedX,
+					GridY:     tp.PlacedY,
+					Rotation:  tp.Rotation,
+				})
+			}
+		}
+
+		save.Cases = append(save.Cases, cs)
+	}
+
+	if err := domain.SaveGame(save, domain.DefaultSavePath()); err != nil {
+		slog.Warn("save game", "error", err)
+	}
+}
+
+func (s *GameScene) loadGameState() {
+	save, err := domain.LoadGame(domain.DefaultSavePath())
+	if err != nil {
+		return // no save file = fresh game
+	}
+
+	for _, cs := range save.Cases {
+		if cs.CaseIndex < 0 || cs.CaseIndex >= len(s.cases) {
+			continue
+		}
+
+		c := s.cases[cs.CaseIndex]
+
+		for _, pp := range cs.PlacedPieces {
+			if pp.TrayIndex < 0 || pp.TrayIndex >= len(c.TrayPieces) {
+				continue
+			}
+
+			tp := &c.TrayPieces[pp.TrayIndex]
+			tp.IsPlaced = true
+			tp.PlacedX = pp.GridX
+			tp.PlacedY = pp.GridY
+			tp.Rotation = pp.Rotation
+		}
+
+		c.ID = cs.CaseIndex + 1
+	}
+
+	slog.Info("game state loaded")
 }
 
 func scaleBox(obj *tiled.Object, sx, sy float64) shapes.Spatial { //nolint:ireturn // spatial for RTree
