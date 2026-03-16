@@ -8,7 +8,6 @@ import (
 func TestEncodeTile(t *testing.T) {
 	val := EncodeTile(5, 10, 2, 200)
 
-	// x=5 in byte 0, y=10 in byte 1, rotation=2 in byte 2, content=200 in byte 3
 	if val&0xFF != 5 {
 		t.Fatal("x byte wrong")
 	}
@@ -26,7 +25,7 @@ func TestEncodeTile(t *testing.T) {
 	}
 }
 
-func TestTileRotation(t *testing.T) {
+func TestTileRotation8Steps(t *testing.T) {
 	tile := Tile{Content: 42, X: 3, Y: 5}
 	tile.Recompute(0)
 
@@ -40,9 +39,10 @@ func TestTileRotation(t *testing.T) {
 		t.Fatalf("expected rotation 1, got %d", tile.Rotation())
 	}
 
-	tile.Rotate()
-	tile.Rotate()
-	tile.Rotate()
+	// Full cycle: 8 rotations should return to 0
+	for range 7 {
+		tile.Rotate()
+	}
 
 	if tile.Rotation() != 0 {
 		t.Fatalf("expected rotation 0 after full cycle, got %d", tile.Rotation())
@@ -77,6 +77,30 @@ func TestTileIsCorrect(t *testing.T) {
 	}
 }
 
+func TestEveryRotationProducesDifferentValue(t *testing.T) {
+	tile := Tile{Content: 42, X: 3, Y: 5}
+	values := make(map[uint32]bool)
+
+	for rot := uint8(0); rot < RotationSteps; rot++ {
+		tile.Recompute(rot)
+		if values[tile.Value] {
+			t.Fatalf("rotation %d produced duplicate value", rot)
+		}
+
+		values[tile.Value] = true
+	}
+}
+
+func TestRotationDegrees(t *testing.T) {
+	expected := []int{0, 45, 90, 135, 180, 225, 270, 315}
+	for i, want := range expected {
+		got := RotationDegrees(i)
+		if got != want {
+			t.Fatalf("RotationDegrees(%d) = %d, want %d", i, got, want)
+		}
+	}
+}
+
 func TestFingerprintHashDeterministic(t *testing.T) {
 	gen := NewPuzzleGenerator(42)
 	fp1 := gen.GenerateSolvedFingerprint(3, 3, ColorGreen)
@@ -98,7 +122,6 @@ func TestFingerprintHashChangesWithRotation(t *testing.T) {
 	fp := gen.GenerateSolvedFingerprint(3, 3, ColorGreen)
 	correctHash := fp.Hash()
 
-	// Rotate one tile — hash should change
 	fp.Tiles[0].Rotate()
 	wrongHash := fp.Hash()
 
@@ -127,17 +150,14 @@ func TestPuzzlePreComputedHash(t *testing.T) {
 
 	result := gen.GeneratePuzzle(solved, 5)
 
-	// Pre-computed hash should match the solved fingerprint
 	if result.TargetID != solved.UniqueID() {
 		t.Fatal("target ID should match solved fingerprint")
 	}
 
-	// Puzzle has holes
 	if result.Puzzle.EmptyCount() != 5 {
 		t.Fatalf("expected 5 empty, got %d", result.Puzzle.EmptyCount())
 	}
 
-	// Pieces are rotated (not at rotation 0)
 	allRotZero := true
 
 	for _, p := range result.Pieces {
@@ -152,14 +172,12 @@ func TestPuzzlePreComputedHash(t *testing.T) {
 		t.Fatal("pieces should be rotated away from 0")
 	}
 
-	// Place pieces back correctly → hash should match
 	for _, piece := range result.Pieces {
 		tile := result.Puzzle.TileAt(piece.X, piece.Y)
 		if tile == nil {
 			t.Fatalf("tile position (%d,%d) out of bounds", piece.X, piece.Y)
 		}
 
-		// Reset to correct rotation
 		tile.Content = piece.Content
 		tile.Recompute(0)
 	}
@@ -179,7 +197,6 @@ func TestCaseSubmitCorrect(t *testing.T) {
 
 	result := gen.GeneratePuzzle(solved, 3)
 
-	// Fix all pieces
 	for _, piece := range result.Pieces {
 		tile := result.Puzzle.TileAt(piece.X, piece.Y)
 		tile.Content = piece.Content
@@ -206,7 +223,6 @@ func TestCaseSubmitWrong(t *testing.T) {
 
 	result := gen.GeneratePuzzle(solved, 3)
 
-	// Don't fix pieces — submit with holes
 	c := NewCase(1, result.Puzzle)
 	person, correct := c.Submit(db, result.TargetID)
 
@@ -224,7 +240,6 @@ func TestWrongPositionChangesHash(t *testing.T) {
 	solved := gen.GenerateSolvedFingerprint(4, 4, ColorGreen)
 	correctHash := solved.Hash()
 
-	// Swap two tiles — hash should change
 	solved.Tiles[0], solved.Tiles[1] = solved.Tiles[1], solved.Tiles[0]
 	swappedHash := solved.Hash()
 
@@ -240,7 +255,6 @@ func TestWrongColorChangesUniqueID(t *testing.T) {
 	gen2 := NewPuzzleGenerator(99)
 	fp2 := gen2.GenerateSolvedFingerprint(3, 3, ColorRed)
 
-	// Same tiles but different color → different UniqueID
 	if fp1.Hash() != fp2.Hash() {
 		t.Fatal("same seed should produce same hash regardless of color")
 	}
@@ -268,7 +282,6 @@ func TestLargeGrid10x10(t *testing.T) {
 		t.Fatalf("expected 30 pieces, got %d", len(result.Pieces))
 	}
 
-	// Reconstruct solved from puzzle + pieces → hash must match
 	for _, piece := range result.Pieces {
 		tile := result.Puzzle.TileAt(piece.X, piece.Y)
 		tile.Content = piece.Content
@@ -287,11 +300,10 @@ func TestMirroredPiecesProduceDifferentHash(t *testing.T) {
 
 	mirrored := MirrorPieces(result.Pieces, 4)
 
-	// Place mirrored pieces — should NOT match target hash
 	for _, piece := range mirrored {
 		tile := result.Puzzle.TileAt(piece.X, piece.Y)
 		if tile == nil {
-			continue // mirrored position might be out of bounds
+			continue
 		}
 
 		tile.Content = piece.Content
@@ -303,25 +315,11 @@ func TestMirroredPiecesProduceDifferentHash(t *testing.T) {
 	}
 }
 
-func TestEveryRotationProducesDifferentValue(t *testing.T) {
-	tile := Tile{Content: 42, X: 3, Y: 5}
-	values := make(map[uint32]bool)
-
-	for rot := uint8(0); rot < 4; rot++ {
-		tile.Recompute(rot)
-		if values[tile.Value] {
-			t.Fatalf("rotation %d produced duplicate value", rot)
-		}
-
-		values[tile.Value] = true
-	}
-}
-
-func TestGenerateDB(t *testing.T) {
+func TestGenerateDB256(t *testing.T) {
 	db := GenerateDB(42)
 
-	if len(db.Records) != 100 {
-		t.Fatalf("expected 100 records, got %d", len(db.Records))
+	if len(db.Records) != MaxFingerprints() {
+		t.Fatalf("expected %d records, got %d", MaxFingerprints(), len(db.Records))
 	}
 
 	// All hashes should be unique
@@ -348,6 +346,24 @@ func TestGenerateDB(t *testing.T) {
 		if r.Hash[:1] != letter {
 			t.Fatalf("record %d: hash %s should start with %s", r.ID, r.Hash, letter)
 		}
+	}
+
+	// Verify all 256 combinations exist
+	type combo struct {
+		color    string
+		variant  int
+		rotation int
+		mirrored bool
+	}
+
+	seen := make(map[combo]bool)
+
+	for _, r := range db.Records {
+		seen[combo{r.Color, r.Variant, r.Rotation, r.Mirrored}] = true
+	}
+
+	if len(seen) != MaxFingerprints() {
+		t.Fatalf("expected %d unique combos, got %d", MaxFingerprints(), len(seen))
 	}
 }
 
@@ -383,8 +399,8 @@ func TestDBSaveLoad(t *testing.T) {
 		t.Fatalf("load: %v", err)
 	}
 
-	if len(loaded.Records) != 100 {
-		t.Fatalf("loaded %d records, expected 100", len(loaded.Records))
+	if len(loaded.Records) != MaxFingerprints() {
+		t.Fatalf("loaded %d records, expected %d", len(loaded.Records), MaxFingerprints())
 	}
 
 	if loaded.Records[0].Hash != db.Records[0].Hash {
@@ -406,7 +422,6 @@ func TestComputeHashDeterministic(t *testing.T) {
 		t.Fatal("same pieces should produce same hash")
 	}
 
-	// Change one piece → different hash
 	pieces[50].Value = 99999
 
 	h3 := ComputeHash(pieces)
@@ -417,29 +432,53 @@ func TestComputeHashDeterministic(t *testing.T) {
 }
 
 func TestGenerateCases(t *testing.T) {
+	// Load stories from assets
+	_ = LoadStories("../../../../assets/external/fingerprint")
+
 	db := GenerateDB(42)
 	cases := GenerateCases(db, 99)
 
-	if len(cases) != 3 {
-		t.Fatalf("expected 3 cases, got %d", len(cases))
+	if len(cases) == 0 {
+		t.Fatal("expected cases to be generated")
 	}
 
-	// Case 1: 4-8 pieces, Case 2: 8-12, Case 3: 12-16
 	for i, c := range cases {
-		if c.Puzzles[0].TargetRecord == nil {
+		if len(c.Puzzles) != PuzzlesPerCase {
+			t.Fatalf("case %d: expected %d puzzles, got %d", i, PuzzlesPerCase, len(c.Puzzles))
+		}
+
+		p := c.Puzzles[0]
+		if p.TargetRecord == nil {
 			t.Fatalf("case %d: no target record", i)
 		}
 
-		if len(c.Puzzles[0].MissingIndices) != c.Puzzles[0].PiecesToSolve {
+		if len(p.MissingIndices) != p.PiecesToSolve {
 			t.Fatalf("case %d: missing %d != piecesToSolve %d",
-				i, len(c.Puzzles[0].MissingIndices), c.Puzzles[0].PiecesToSolve)
+				i, len(p.MissingIndices), p.PiecesToSolve)
 		}
 
-		// Tray has missing pieces + decoys
+		// Verify difficulty: EASY(0-19)=3, MEDIUM(20-34)=6, HARD(35-49)=12
+		expectedPieces, expectedGrey := caseDifficulty(i)
+		if p.PiecesToSolve != expectedPieces {
+			t.Fatalf("case %d: expected %d pieces, got %d", i, expectedPieces, p.PiecesToSolve)
+		}
+
+		if expectedGrey && !p.HideColor {
+			t.Fatalf("case %d: hard case should be grey", i)
+		}
+
+		// No corner pieces in missing indices
+		for _, idx := range p.MissingIndices {
+			if CornerIndices[idx] {
+				t.Fatalf("case %d: missing index %d is a corner piece", i, idx)
+			}
+		}
+
+		// Decoys = 2 groups of N pieces each (N = piecesToSolve)
 		correctPieces := 0
 		decoyPieces := 0
 
-		for _, tp := range c.Puzzles[0].TrayPieces {
+		for _, tp := range p.TrayPieces {
 			if tp.IsDecoy {
 				decoyPieces++
 			} else {
@@ -447,24 +486,97 @@ func TestGenerateCases(t *testing.T) {
 			}
 		}
 
-		if correctPieces != c.Puzzles[0].PiecesToSolve {
-			t.Fatalf("case %d: correct pieces %d != %d", i, correctPieces, c.Puzzles[0].PiecesToSolve)
+		if correctPieces != p.PiecesToSolve {
+			t.Fatalf("case %d: correct pieces %d != %d", i, correctPieces, p.PiecesToSolve)
 		}
 
-		if decoyPieces == 0 {
-			t.Fatalf("case %d: no decoy pieces", i)
+		expectedDecoys := DecoyGroups * p.PiecesToSolve
+		if decoyPieces != expectedDecoys {
+			t.Fatalf("case %d: expected %d decoys (2*%d), got %d", i, expectedDecoys, p.PiecesToSolve, decoyPieces)
+		}
+
+		// Total = 3 * piecesToSolve
+		expectedTotal := 3 * p.PiecesToSolve
+		if len(p.TrayPieces) != expectedTotal {
+			t.Fatalf("case %d: tray has %d pieces, expected %d", i, len(p.TrayPieces), expectedTotal)
 		}
 	}
+}
 
-	// All cases should use different target records
-	ids := make(map[int]bool)
+func TestDecoyGroupsExact(t *testing.T) {
+	_ = LoadStories("../../../../assets/external/fingerprint")
 
-	for _, c := range cases {
-		if ids[c.Puzzles[0].TargetRecord.ID] {
-			t.Fatal("cases should use different records")
+	db := GenerateDB(42)
+
+	// Test each difficulty level directly
+	for _, tc := range []struct {
+		name   string
+		pieces int
+	}{
+		{"EASY", DiffEasy},
+		{"MEDIUM", DiffMedium},
+		{"HARD", DiffHard},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cases := GenerateCases(db, 123)
+
+			// Find a case with matching difficulty
+			for ci, c := range cases {
+				p := c.Puzzles[0]
+				if p.PiecesToSolve != tc.pieces {
+					continue
+				}
+
+				correct := 0
+				decoy := 0
+
+				for _, tp := range p.TrayPieces {
+					if tp.IsDecoy {
+						decoy++
+					} else {
+						correct++
+					}
+				}
+
+				if correct != tc.pieces {
+					t.Fatalf("case %d: expected %d correct, got %d", ci, tc.pieces, correct)
+				}
+
+				expectedDecoy := DecoyGroups * tc.pieces
+				if decoy != expectedDecoy {
+					t.Fatalf("case %d: expected %d decoy (%d groups * %d), got %d",
+						ci, expectedDecoy, DecoyGroups, tc.pieces, decoy)
+				}
+
+				total := correct + decoy
+				if total != 3*tc.pieces {
+					t.Fatalf("case %d: expected %d total (3*%d), got %d", ci, 3*tc.pieces, tc.pieces, total)
+				}
+
+				t.Logf("case %d: %d correct + %d decoy = %d total (OK)", ci, correct, decoy, total)
+
+				break
+			}
+		})
+	}
+}
+
+func TestValidPieceIndicesExcludesCorners(t *testing.T) {
+	if len(ValidPieceIndices) != 88 {
+		t.Fatalf("expected 88 valid indices (100 - 12 corners), got %d", len(ValidPieceIndices))
+	}
+
+	for _, idx := range ValidPieceIndices {
+		if CornerIndices[idx] {
+			t.Fatalf("valid index %d is a corner", idx)
 		}
+	}
+}
 
-		ids[c.Puzzles[0].TargetRecord.ID] = true
+func TestMaxFingerprints(t *testing.T) {
+	expected := 4 * 4 * 8 * 2 // colors * variants * rotations * mirror
+	if MaxFingerprints() != expected {
+		t.Fatalf("MaxFingerprints() = %d, want %d", MaxFingerprints(), expected)
 	}
 }
 

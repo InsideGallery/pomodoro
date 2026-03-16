@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image"
 	"image/draw"
+	"math"
 	"os"
 	"path/filepath"
 
@@ -15,9 +16,15 @@ import (
 )
 
 const (
-	puzzleSize = 690 // fingerprint scaled to 690×690
+	cropSize   = 480 // centered crop from source image
+	puzzleSize = 690 // upscaled for puzzle grid
 	cellSize   = 69  // 690 / 10
 )
+
+// largeCrop is the crop size for non-90° angles to ensure full coverage after rotation.
+// For 45° rotation of a square s, inscribed square = s/sqrt(2).
+// We need: inscribed >= puzzleSize, so s >= puzzleSize*sqrt(2) ≈ 976.
+const largeCrop = 980
 
 // FingerprintImages holds the cut pieces for a fingerprint.
 type FingerprintImages struct {
@@ -36,21 +43,7 @@ func LoadFingerprintImages(assetsDir string, rec *domain.FingerprintRecord) (*Fi
 		return nil, fmt.Errorf("load %s: %w", path, err)
 	}
 
-	// Crop to centered square, then scale to 690×690
-	cropped := cropCenteredSquare(srcImg)
-	scaled := scaleImage(cropped, puzzleSize, puzzleSize)
-
-	// Apply rotation
-	rotated := rotateImage(scaled, rec.Rotation)
-
-	// Apply mirror
-	var final image.Image = rotated
-
-	if rec.Mirrored {
-		final = mirrorImage(rotated)
-	}
-
-	// Convert to ebiten
+	final := prepareFingerprint(srcImg, rec.Rotation, rec.Mirrored)
 	fullImg := ebiten.NewImageFromImage(final)
 
 	// Cut into 10×10 grid
@@ -80,16 +73,7 @@ func LoadGreyFingerprintImages(assetsDir string, variant int, rotation int, mirr
 		return nil, fmt.Errorf("load %s: %w", path, err)
 	}
 
-	cropped := cropCenteredSquare(srcImg)
-	scaled := scaleImage(cropped, puzzleSize, puzzleSize)
-	rotated := rotateImage(scaled, rotation)
-
-	var final image.Image = rotated
-
-	if mirrored {
-		final = mirrorImage(rotated)
-	}
-
+	final := prepareFingerprint(srcImg, rotation, mirrored)
 	fullImg := ebiten.NewImageFromImage(final)
 	fi := &FingerprintImages{Full: fullImg}
 
@@ -107,23 +91,68 @@ func LoadGreyFingerprintImages(assetsDir string, variant int, rotation int, mirr
 	return fi, nil
 }
 
-// cropCenteredSquare takes the largest centered square from the image.
-func cropCenteredSquare(src image.Image) image.Image {
+// cropCentered crops a centered cropW×cropH rectangle from the image.
+func cropCentered(src image.Image, cropW, cropH int) *image.RGBA {
 	b := src.Bounds()
-	w, h := b.Dx(), b.Dy()
+	x0 := b.Min.X + (b.Dx()-cropW)/2
+	y0 := b.Min.Y + (b.Dy()-cropH)/2
 
-	size := w
-	if h < size {
-		size = h
-	}
-
-	x0 := b.Min.X + (w-size)/2
-	y0 := b.Min.Y + (h-size)/2
-
-	cropped := image.NewRGBA(image.Rect(0, 0, size, size))
+	cropped := image.NewRGBA(image.Rect(0, 0, cropW, cropH))
 	draw.Draw(cropped, cropped.Bounds(), src, image.Pt(x0, y0), draw.Src)
 
 	return cropped
+}
+
+// prepareFingerprint crops, scales, rotates and mirrors a source image into a 690×690 result.
+// For 45° angles, crops larger to ensure full coverage after rotation.
+func prepareFingerprint(srcImg image.Image, degrees int, mirrored bool) *image.RGBA {
+	degrees = ((degrees % 360) + 360) % 360
+	is45 := degrees%90 != 0
+
+	// For 45° angles, crop larger from source so rotation doesn't leave gaps
+	crop := cropSize
+	if is45 {
+		crop = largeCrop
+	}
+
+	cropped := cropCentered(srcImg, crop, crop)
+
+	// Upscale to working size
+	workSize := puzzleSize
+	if is45 {
+		workSize = int(math.Ceil(float64(puzzleSize) * math.Sqrt2))
+	}
+
+	upscaled := scaleImage(cropped, workSize, workSize)
+
+	// Rotate
+	rotated := rotateImage(upscaled, degrees)
+
+	// Mirror
+	var result image.Image = rotated
+	if mirrored {
+		result = mirrorImage(rotated)
+	}
+
+	// Crop center puzzleSize×puzzleSize from the (possibly larger) result
+	return cropCentered(result, puzzleSize, puzzleSize)
+}
+
+// scaleImage resizes src to dstW×dstH using nearest-neighbor.
+func scaleImage(src *image.RGBA, dstW, dstH int) *image.RGBA {
+	srcW := src.Bounds().Dx()
+	srcH := src.Bounds().Dy()
+	dst := image.NewRGBA(image.Rect(0, 0, dstW, dstH))
+
+	for y := range dstH {
+		for x := range dstW {
+			sx := x * srcW / dstW
+			sy := y * srcH / dstH
+			dst.Set(x, y, src.At(sx, sy))
+		}
+	}
+
+	return dst
 }
 
 func loadStdImage(path string) (image.Image, error) {
@@ -138,33 +167,6 @@ func loadStdImage(path string) (image.Image, error) {
 	return img, err
 }
 
-func scaleImage(src image.Image, w, h int) *image.RGBA {
-	srcB := src.Bounds()
-	dst := image.NewRGBA(image.Rect(0, 0, w, h))
-
-	scaleX := float64(srcB.Dx()) / float64(w)
-	scaleY := float64(srcB.Dy()) / float64(h)
-
-	for y := range h {
-		for x := range w {
-			srcX := int(float64(x) * scaleX)
-			srcY := int(float64(y) * scaleY)
-
-			if srcX >= srcB.Dx() {
-				srcX = srcB.Dx() - 1
-			}
-
-			if srcY >= srcB.Dy() {
-				srcY = srcB.Dy() - 1
-			}
-
-			dst.Set(x, y, src.At(srcB.Min.X+srcX, srcB.Min.Y+srcY))
-		}
-	}
-
-	return dst
-}
-
 func rotateImage(src *image.RGBA, degrees int) *image.RGBA {
 	degrees = ((degrees % 360) + 360) % 360
 	if degrees == 0 {
@@ -174,6 +176,7 @@ func rotateImage(src *image.RGBA, degrees int) *image.RGBA {
 	w := src.Bounds().Dx()
 	h := src.Bounds().Dy()
 
+	// Fast path for 90° increments
 	switch degrees {
 	case 90:
 		dst := image.NewRGBA(image.Rect(0, 0, h, w))
@@ -207,7 +210,34 @@ func rotateImage(src *image.RGBA, degrees int) *image.RGBA {
 		return dst
 	}
 
-	return src
+	// General rotation for arbitrary angles (45°, 135°, etc.)
+	rad := float64(degrees) * math.Pi / 180.0
+	cosA := math.Cos(rad)
+	sinA := math.Sin(rad)
+
+	newW := int(math.Ceil(math.Abs(float64(w)*cosA) + math.Abs(float64(h)*sinA)))
+	newH := int(math.Ceil(math.Abs(float64(w)*sinA) + math.Abs(float64(h)*cosA)))
+
+	dst := image.NewRGBA(image.Rect(0, 0, newW, newH))
+	cx := float64(w) / 2
+	cy := float64(h) / 2
+	ncx := float64(newW) / 2
+	ncy := float64(newH) / 2
+
+	for dy := range newH {
+		for dx := range newW {
+			fx := float64(dx) - ncx
+			fy := float64(dy) - ncy
+			sx := cosA*fx + sinA*fy + cx
+			sy := -sinA*fx + cosA*fy + cy
+
+			if sx >= 0 && sx < float64(w)-1 && sy >= 0 && sy < float64(h)-1 {
+				dst.Set(dx, dy, src.At(int(sx), int(sy)))
+			}
+		}
+	}
+
+	return dst
 }
 
 func mirrorImage(src image.Image) *image.RGBA {

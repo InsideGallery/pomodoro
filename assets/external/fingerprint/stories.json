@@ -1,0 +1,299 @@
+{
+  "city": "Muldrow",
+  "cases": [
+    {
+      "name": "MOTEL",
+      "intro": "A man was found dead in room 14 of a roadside motel. The room was locked from inside.",
+      "evidence": ["on the door handle","on the bedside table","on the TV remote","on the bathroom mirror","on the window latch","on the phone receiver","on the lamp switch","on a beer bottle","on the room key","on the curtain rod","on the nightstand drawer","on the mini fridge","on the air vent cover","on the closet door","on a cigarette lighter","on the shower faucet","on the thermostat","on the deadbolt lock","on the ice bucket","on a newspaper"],
+      "solved": ["{name}'s prints confirm they entered room 14 that night.","{name} touched the evidence — placing them at the scene.","{name}'s fingerprints were a direct match. They were here."]
+    },
+    {
+      "name": "CAR WASH",
+      "intro": "An abandoned vehicle at the car wash contained traces of a struggle. The owner is missing.",
+      "evidence": ["on the steering wheel","on the glove box","on the rearview mirror","on the gear shift","on the trunk latch","on the car door handle","on the dashboard","on the coin slot","on a vacuum hose","on the windshield wiper lever","on the fuel cap","on the seat belt buckle","on the radio dial","on the sun visor","on the cup holder","on the key fob","on the hood release","on the parking ticket","on the tire iron","on a water bottle"],
+      "solved": ["{name} was the last person to handle this vehicle.","{name}'s prints tie them directly to the missing person's car.","{name} left clear evidence of their presence."]
+    },
+    {
+      "name": "EDEN",
+      "intro": "A break-in at the Eden nightclub. The safe was emptied and the security guard was drugged.",
+      "evidence": ["on the safe dial","on the back door handle","on a cocktail glass","on the DJ booth controls","on the cash register","on the VIP rope","on the fire exit bar","on a pool cue","on the bar counter","on the security camera mount","on a bottle of champagne","on the jukebox buttons","on the light switch panel","on a bar stool","on the ice machine","on a shot glass","on the stage railing","on the coat rack","on the restroom door","on a menu card"],
+      "solved": ["{name} broke into Eden that night. The prints don't lie.","{name}'s fingerprints were found — they were inside Eden.","{name} handled the evidence directly."]
+    },
+    {
+      "name": "DOCKS",
+      "intro": "A shipping container at the docks was found with contraband. Someone tipped off the police.",
+      "evidence": ["on the container lock","on a cargo manifest","on a forklift steering wheel","on the dock gate latch","on a rope cleat","on a loading crane lever","on a crate lid","on the harbor master's desk","on a metal chain","on the container door hinge","on a clipboard","on a flashlight","on a padlock","on a shipping label","on a dock pylon","on a fuel drum","on a walkie-talkie","on a tarp fastener","on a life preserver ring","on a boat railing"],
+      "solved": ["{name} handled the contraband container directly.","{name}'s prints place them at the docks that night.","{name} was involved in the smuggling operation."]
+    },
+    {
+      "name": "CASINO",
+      "intro": "The casino vault was breached during a power outage. Millions in chips are missing.",
+      "evidence": ["on the vault keypad","on a poker chip tray","on the roulette wheel","on a slot machine lever","on the cashier window","on a blackjack table edge","on the elevator button","on a security badge","on the power panel","on a dice cup","on the surveillance room door","on a card shoe","on the high roller lounge door","on a champagne flute","on the emergency exit","on a chip rack","on the counting room table","on a velvet rope post","on the manager's desk","on a safe deposit box"],
+      "solved": ["{name} accessed the vault during the blackout.","{name}'s prints were on critical casino equipment.","{name} is linked to the chip heist."]
+    },
+    {
+      "name": "SUBWAY",
+      "intro": "A commuter was assaulted on the late-night subway. Security cameras were disabled.",
+      "evidence": ["on the emergency lever","on a handrail","on the ticket machine","on a bench armrest","on the platform edge","on the conductor's door","on an overhead strap","on the intercom button","on a trash can lid","on the turnstile","on a vending machine","on the map display glass","on a newspaper dispenser","on the escalator rail","on a payphone receiver","on the tunnel access door","on a fire extinguisher","on the platform clock","on a drainage grate","on the signal box"],
+      "solved": ["{name} was on that subway car.","{name}'s prints match — they were at the scene.","{name} touched the evidence at the station."]
+    },
+    {
+      "name": "PENTHOUSE",
+      "intro": "A wealthy art collector was found poisoned in his penthouse. A painting is missing.",
+      "evidence": ["on the wine glass","on the painting frame hook","on the balcony railing","on the elevator panel","on the front door handle","on a sculpture pedestal","on the kitchen counter","on a medicine cabinet","on the chandelier chain","on the safe behind the painting","on a crystal decanter","on the piano keys","on a bookshelf","on the fireplace mantle","on the bedroom door knob","on a cigar box","on the wet bar","on a photo frame","on the terrace door","on a jewelry box"],
+      "solved": ["{name} was in the penthouse the night of the poisoning.","{name}'s prints were found among the collector's things.","{name} handled items near the victim."]
+    },
+    {
+      "name": "FACTORY",
+      "intro": "An explosion at the old factory was ruled arson. A worker is in critical condition.",
+      "evidence": ["on the fuse box","on a gas valve","on the factory gate","on a welding torch","on the foreman's locker","on a tool chest","on the assembly line controls","on a fire alarm pull","on a chemical drum","on the loading bay door","on a hard hat","on the time clock","on a wrench","on the ventilation controls","on a safety goggle case","on the break room fridge","on a circuit breaker","on a fire hose reel","on the roof access ladder","on a storage cage lock"],
+      "solved": ["{name} tampered with factory equipment before the blast.","{name}'s prints were on the ignition source.","{name} was in the restricted area."]
+    },
+    {
+      "name": "AIRPORT",
+      "intro": "A diplomat's briefcase was swapped at the airport. Classified documents are at risk.",
+      "evidence": ["on the briefcase clasp","on a luggage cart handle","on the check-in counter","on a boarding pass printer","on a locker door","on the security tray","on a baggage carousel button","on the duty-free shelf","on a restroom stall lock","on the departure gate handle","on a customs stamp","on an overhead bin latch","on a terminal bench","on the taxi stand sign","on a coffee cup","on the arrivals board controls","on a passport scanner","on a wheelchair handle","on the jet bridge door","on a luggage tag"],
+      "solved": ["{name} swapped the diplomat's briefcase.","{name}'s prints were found at the exchange point.","{name} handled the classified documents."]
+    },
+    {
+      "name": "VAULT",
+      "intro": "The city bank's underground vault was tunneled into overnight. No alarms were triggered.",
+      "evidence": ["on the drill handle","on a tunnel support beam","on the vault door wheel","on a deposit box","on the alarm panel","on a flashlight","on a crowbar","on the ventilation shaft grate","on a duffel bag zipper","on the sewer access cover","on a pair of bolt cutters","on the electrical conduit","on a blueprint tube","on a walkie-talkie","on the bank lobby door","on a cash counter","on a security camera cable","on a ladder rung","on the teller window","on a coin wrapper"],
+      "solved": ["{name} dug into the vault.","{name}'s prints were found in the tunnel.","{name} accessed the deposit boxes."]
+    },
+    {
+      "name": "HARBOR",
+      "intro": "A yacht exploded in Muldrow Harbor. The owner's business partner is under suspicion.",
+      "evidence": ["on the yacht helm","on the fuel line valve","on the anchor winch","on a life jacket clip","on the engine room hatch","on a mooring cleat","on the radio transmitter","on a flare gun","on the dock power outlet","on a navigation chart","on the cabin door","on a fire extinguisher pin","on the compass housing","on a rope coil","on the bilge pump switch","on a cooler lid","on the boarding ladder","on a fishing rod reel","on the porthole latch","on a tackle box"],
+      "solved": ["{name} rigged the yacht's fuel system.","{name}'s prints were on the explosive device components.","{name} was aboard the yacht before detonation."]
+    },
+    {
+      "name": "LIBRARY",
+      "intro": "Rare manuscripts were stolen from the Muldrow Library archive. The alarm was bypassed.",
+      "evidence": ["on the archive cabinet","on a display case","on the reading lamp","on a card catalog drawer","on the fire escape window","on a book trolley","on the front desk bell","on a study carrel","on the rare books vault","on a magnifying glass","on the photocopier lid","on a wooden chair","on the stairwell railing","on a return slot","on the periodical shelf","on a globe stand","on the microfilm viewer","on the restroom key","on a donation box","on the clock pendulum"],
+      "solved": ["{name} accessed the restricted archive.","{name}'s prints were on the stolen manuscript case.","{name} bypassed library security."]
+    },
+    {
+      "name": "CHURCH",
+      "intro": "The Muldrow Cathedral's golden chalice vanished during evening mass.",
+      "evidence": ["on the altar rail","on a pew hymnal rack","on the vestry door","on the organ keyboard","on a collection plate","on the bell tower rope","on a confessional door","on the baptismal font","on a candelabra","on the sacristy cabinet","on a prayer bench","on the stained glass frame","on a flower vase","on the crypt gate","on the offering box","on the chalice stand","on a bible cover","on the choir loft railing","on the back entrance","on a memorial plaque"],
+      "solved": ["{name} took the chalice from the altar.","{name}'s prints were found in the vestry.","{name} was near the altar during the theft."]
+    },
+    {
+      "name": "HOSPITAL",
+      "intro": "A patient was given a lethal overdose at Muldrow General. The nurse on duty has disappeared.",
+      "evidence": ["on the IV pump","on the medication cart","on the patient chart","on the supply closet door","on a syringe wrapper","on the nurse's station keyboard","on the elevator call button","on a bed rail","on the oxygen valve","on a pill bottle","on the fire exit handle","on a wheelchair brake","on the laundry chute","on a medical monitor","on the break room microwave","on a disposable glove box","on the morgue door","on a clipboard pen","on the pharmacy window","on a storage bin lid"],
+      "solved": ["{name} administered the lethal dose.","{name}'s prints were on the medication.","{name} accessed the drug supply."]
+    },
+    {
+      "name": "SCHOOL",
+      "intro": "A chemistry lab at Muldrow High was used to manufacture illegal substances over the weekend.",
+      "evidence": ["on a beaker","on the lab fume hood","on a Bunsen burner valve","on the chemical storage cabinet","on a flask clamp","on the lab sink faucet","on a graduated cylinder","on the classroom door","on a textbook","on the supply room padlock","on a scale balance","on the whiteboard marker tray","on a test tube rack","on the emergency shower pull","on a lab notebook","on the janitor's closet","on a fire blanket case","on the window crank","on a stool leg","on the eye wash station"],
+      "solved": ["{name} used the school lab after hours.","{name}'s prints were on the manufacturing equipment.","{name} broke into the chemical storage."]
+    },
+    {
+      "name": "GREENHOUSE",
+      "intro": "Exotic poisonous plants were stolen from the Muldrow Botanical Greenhouse.",
+      "evidence": ["on a plant pot","on the greenhouse door latch","on a watering can","on the thermostat dial","on a garden trowel","on the sprinkler valve","on a seed drawer","on the compost bin lid","on a pruning shear","on the ventilation fan switch","on a fertilizer bag","on a plant label stake","on the tool shed lock","on a wheelbarrow handle","on a hose nozzle","on the irrigation timer","on a glass pane","on a bench plank","on a bird feeder","on the rain gauge"],
+      "solved": ["{name} stole the poisonous specimens.","{name}'s prints were in the restricted greenhouse section.","{name} handled the stolen plants."]
+    },
+    {
+      "name": "TRAIN STATION",
+      "intro": "A bomb threat was called in at Muldrow Central Station. A suspicious package was found.",
+      "evidence": ["on the locker handle","on a ticket window","on the platform bench","on an information kiosk","on the waiting room door","on a luggage rack","on the departure board panel","on a payphone","on the station master's desk","on a trash receptacle","on the clock tower access","on a rail signal lever","on the lost-and-found cabinet","on a water fountain button","on the newsstand counter","on a fire alarm box","on a mail drop slot","on the restroom key chain","on a platform railing","on the taxi dispatch radio"],
+      "solved": ["{name} planted the suspicious package.","{name}'s prints were on the locker used.","{name} made the threat call from the station."]
+    },
+    {
+      "name": "PARKING GARAGE",
+      "intro": "A hit-and-run vehicle was found abandoned on level 3 of the downtown parking garage.",
+      "evidence": ["on the steering column","on the parking meter","on the stairwell door","on the elevator button","on a concrete pillar","on the ticket dispenser","on the payment machine","on the exit barrier arm","on a fire hose cabinet","on the security booth window","on a motorcycle handlebar","on the speed bump sign","on a shopping cart","on the ventilation duct","on a drainage pipe","on the emergency phone","on a light switch","on the ramp railing","on the roof access door","on a bike rack"],
+      "solved": ["{name} drove the hit-and-run vehicle.","{name}'s prints were found in the abandoned car.","{name} fled through the parking garage."]
+    },
+    {
+      "name": "BAKERY",
+      "intro": "The owner of Muldrow Bakery was found unconscious. The day's earnings and a recipe book are gone.",
+      "evidence": ["on the cash register","on the display case glass","on the oven door handle","on a rolling pin","on the flour bin lid","on the walk-in fridge","on a bread knife","on the front door bell","on a mixing bowl","on the recipe book shelf","on a baking tray","on the back door deadbolt","on a dough scraper","on the light switch","on a cake stand","on the coffee machine","on a paper bag dispenser","on the tip jar","on a cooling rack","on the storage room latch"],
+      "solved": ["{name} robbed the bakery and attacked the owner.","{name}'s prints were on the stolen recipe book.","{name} was behind the counter that morning."]
+    },
+    {
+      "name": "MUSEUM",
+      "intro": "A priceless Egyptian artifact vanished from the Muldrow Museum during renovation.",
+      "evidence": ["on the display pedestal","on the security panel","on a scaffolding bar","on the curator's desk","on a glass cutter","on the loading dock door","on a paint bucket handle","on the skylight latch","on a tool belt","on the artifact crate","on a dust cloth","on the gift shop register","on a restoration table","on the archive drawer","on a fire suppression lever","on the exhibit barrier","on a stepladder","on the climate control dial","on a packing blanket","on the storage vault"],
+      "solved": ["{name} removed the artifact during renovation chaos.","{name}'s prints were on the empty display case.","{name} accessed the secure storage."]
+    },
+    {
+      "name": "GAS STATION",
+      "intro": "The attendant at Muldrow Gas was held at gunpoint. The robber escaped on foot.",
+      "evidence": ["on the pump handle","on the register drawer","on the security camera angle","on the beer cooler door","on a lottery ticket dispenser","on the restroom key","on the ice machine","on a snack shelf","on the front door push bar","on the newspaper rack","on the ATM keypad","on a windshield squeegee","on the propane cage lock","on the air pump hose","on the dumpster lid","on a cigarette display","on the coffee pot handle","on the back office desk","on the safe dial","on a receipt printer"],
+      "solved": ["{name} held up the gas station.","{name}'s prints match the robbery evidence.","{name} fled from the scene on foot."]
+    },
+    {
+      "name": "THEATER",
+      "intro": "Lead actress found drugged before opening night. Her understudy went on instead.",
+      "evidence": ["on the dressing room mirror","on a makeup kit","on the stage door handle","on a prop sword","on the lighting board","on a costume hanger","on the curtain pull rope","on a water bottle backstage","on the director's chair","on a script binder","on the spotlight housing","on the orchestra pit railing","on a fog machine","on the green room fridge","on the box office window","on a microphone stand","on the rigging cleat","on a ticket stub tray","on the trap door handle","on a wig stand"],
+      "solved": ["{name} drugged the lead actress.","{name}'s prints were found backstage.","{name} tampered with the actress's belongings."]
+    },
+    {
+      "name": "CEMETERY",
+      "intro": "A grave was disturbed at Muldrow Cemetery. The casket was opened and jewelry was taken.",
+      "evidence": ["on a shovel handle","on the cemetery gate","on a headstone","on the groundskeeper's shed","on a wheelbarrow","on the chapel door","on a lantern","on a flower vase","on the casket lid","on a rake","on the columbarium niche","on a memorial bench","on the fence post","on a garden hose","on the tool storage","on a stone angel wing","on the mausoleum door","on a leaf blower","on the irrigation valve","on a gravel path border"],
+      "solved": ["{name} desecrated the grave.","{name}'s prints were on the digging tools.","{name} stole from the dead."]
+    },
+    {
+      "name": "LAUNDROMAT",
+      "intro": "A witness in a federal case was strangled in the back of the Muldrow Laundromat.",
+      "evidence": ["on a washing machine lid","on the dryer door","on a detergent dispenser","on the folding table","on the back room door","on a laundry cart","on the change machine","on a clothing hanger","on the bulletin board","on a lint trap","on the vending machine","on a bleach bottle","on the front window latch","on the utility sink faucet","on a lost sock bin","on the thermostat","on a magazine rack","on the circuit breaker panel","on a mop handle","on the storage closet"],
+      "solved": ["{name} killed the witness.","{name}'s prints were found at the murder scene.","{name} was in the laundromat that night."]
+    },
+    {
+      "name": "PAWN SHOP",
+      "intro": "Stolen electronics traced to Muldrow Pawn. The owner claims ignorance.",
+      "evidence": ["on the display counter","on a guitar case","on the security gate","on a jewelry tray","on the back room shelf","on a TV screen","on the price tag gun","on a watch display","on the safe door","on a camera lens","on the front door buzzer","on a tool set","on the cash drawer","on a receipt book","on a laptop lid","on the surveillance monitor","on a coin collection case","on a stereo dial","on the storage cage","on a musical instrument case"],
+      "solved": ["{name} fenced the stolen goods here.","{name}'s prints were on the stolen merchandise.","{name} dealt with the pawn shop directly."]
+    },
+    {
+      "name": "ROOFTOP",
+      "intro": "A sniper's nest was found on a Muldrow rooftop overlooking City Hall.",
+      "evidence": ["on the roof access door","on a spent shell casing","on a sandbag","on the ventilation unit","on a tripod leg","on the parapet edge","on a water tank ladder","on a discarded cigarette","on the fire escape","on a tarp","on the antenna mount","on a pair of binoculars","on a thermos lid","on the elevator shaft door","on a cable conduit","on a folding chair","on the satellite dish arm","on a rain gutter","on a brick ledge","on a discarded glove"],
+      "solved": ["{name} set up the sniper position.","{name}'s prints were found on the rooftop.","{name} planned the assassination attempt."]
+    },
+    {
+      "name": "JUNKYARD",
+      "intro": "A body was found crushed in the car compactor at Muldrow Junkyard.",
+      "evidence": ["on the compactor controls","on a car door","on the office desk","on a tire stack","on the gate padlock","on a crane lever","on a hubcap","on the security dog kennel","on a filing cabinet","on a car battery","on the weigh station","on a tow truck key","on a chain link fence","on a windshield","on the break room table","on a radio antenna","on a gas can","on a tool box","on the conveyor belt switch","on a license plate"],
+      "solved": ["{name} operated the compactor.","{name}'s prints were found on the murder weapon.","{name} was at the junkyard that night."]
+    },
+    {
+      "name": "PHARMACY",
+      "intro": "Controlled substances were diverted from Muldrow Pharmacy. Prescriptions were forged.",
+      "evidence": ["on the pill counter","on the prescription drop-off window","on a medicine bottle","on the storage shelf","on the refrigerator handle","on a mortar and pestle","on the computer keyboard","on a prescription pad","on the cash register","on the security shutter","on a vitamin display","on the drive-through window","on a label printer","on a consultation counter","on the safe combination dial","on a hand sanitizer dispenser","on the back door","on a shipping box","on a dosage chart","on the alarm keypad"],
+      "solved": ["{name} forged the prescriptions.","{name}'s prints were on the diverted medication.","{name} accessed the controlled substances."]
+    },
+    {
+      "name": "BOXING GYM",
+      "intro": "A boxer was found beaten nearly to death in the Muldrow Boxing Gym after hours.",
+      "evidence": ["on a punching bag chain","on the locker room door","on a pair of boxing gloves","on the ring ropes","on a water bottle","on a jump rope handle","on the timer bell","on a speed bag mount","on the office desk","on a towel rack","on the mirror frame","on a weight rack","on the shower valve","on a mouth guard case","on the first aid kit","on the entrance buzzer","on a bench press bar","on the janitor closet","on a trophy case","on the rooftop access"],
+      "solved": ["{name} beat the boxer after hours.","{name}'s prints were found at the gym.","{name} attacked the victim in the ring area."]
+    },
+    {
+      "name": "RADIO TOWER",
+      "intro": "The Muldrow radio tower's broadcast was hijacked to send encrypted messages.",
+      "evidence": ["on the transmitter panel","on the tower access door","on a cable splice","on the control room desk","on a microphone","on the antenna tuner","on a logbook","on the generator switch","on a ladder rung","on a toolbox","on the frequency dial","on a headphone jack","on the backup power panel","on a coaxial connector","on the roof hatch","on a clipboard","on the security fence gate","on a cable drum","on a chair armrest","on the grounding rod"],
+      "solved": ["{name} hijacked the radio broadcast.","{name}'s prints were on the transmitter.","{name} accessed the control room."]
+    },
+    {
+      "name": "BOWLING ALLEY",
+      "intro": "A man collapsed from poison at Muldrow Lanes. His drink was tampered with.",
+      "evidence": ["on a bowling ball","on the shoe rental counter","on a beer pitcher","on the scoring console","on a chair back","on the ball return","on a locker handle","on the bar tap","on a nacho tray","on the arcade machine","on the pin setter panel","on the front desk","on a coat hook","on the restroom door","on a pool table rail","on the jukebox","on a dartboard","on the kitchen pass-through","on a trophy shelf","on the emergency exit"],
+      "solved": ["{name} poisoned the victim's drink.","{name}'s prints were found at the bowling alley bar.","{name} tampered with the beverage."]
+    },
+    {
+      "name": "BRIDGE",
+      "intro": "A car was pushed off the Old Muldrow Bridge late at night. The driver survived.",
+      "evidence": ["on the bridge railing","on the victim's car bumper","on a guardrail bolt","on the pedestrian walkway","on a streetlight pole","on the toll booth window","on a road sign","on the drainage grate","on a concrete barrier","on the emergency phone","on a traffic cone","on the maintenance hatch","on a cable anchor","on a discarded tool","on the observation platform","on a bench","on the bike lane rail","on a storm drain cover","on a metal joint","on the access gate"],
+      "solved": ["{name} pushed the car off the bridge.","{name}'s prints were on the victim's vehicle.","{name} was on the bridge that night."]
+    },
+    {
+      "name": "FIRE STATION",
+      "intro": "Equipment was sabotaged at Muldrow Fire Station, delaying response to a deadly blaze.",
+      "evidence": ["on the fire truck door","on the dispatch radio","on a hose coupling","on the pole slide rail","on the tool cabinet","on the bay door switch","on a helmet visor","on an axe handle","on the air tank valve","on the station kitchen","on a locker door","on the alarm panel","on a ladder lock","on the generator","on the hydrant wrench","on the map board","on a first aid kit","on the watch room chair","on the fuel pump","on the supply room"],
+      "solved": ["{name} sabotaged the fire equipment.","{name}'s prints were on the tampered gear.","{name} delayed the emergency response."]
+    },
+    {
+      "name": "APARTMENT",
+      "intro": "A woman was found strangled in her Muldrow Heights apartment. The door was unlocked.",
+      "evidence": ["on the door knob","on the kitchen counter","on the window sill","on a coffee mug","on the light switch","on the bathroom faucet","on a picture frame","on the TV remote","on a bookshelf","on the closet door","on a wine glass","on the balcony slider","on a pillow","on the desk drawer","on the refrigerator handle","on a flower vase","on the mail slot","on the thermostat","on a candle holder","on the shoe rack"],
+      "solved": ["{name} was inside the victim's apartment.","{name}'s prints were found at the crime scene.","{name} strangled the victim."]
+    },
+    {
+      "name": "BUTCHER SHOP",
+      "intro": "Human remains were found in the freezer of Muldrow Meats.",
+      "evidence": ["on the freezer door handle","on a meat hook","on the cutting board","on a cleaver","on the cash register","on the display case","on a scale","on the walk-in cooler","on a sausage stuffer","on the grinder switch","on an apron hook","on the delivery entrance","on a price marker","on the hand wash station","on a bone saw","on a meat tray","on the storage shelf","on the shop door","on a receipt spike","on the floor drain cover"],
+      "solved": ["{name} disposed of the remains here.","{name}'s prints were found in the freezer.","{name} used the butcher's equipment."]
+    },
+    {
+      "name": "CITY HALL",
+      "intro": "Confidential city records were leaked to the press. An insider is suspected.",
+      "evidence": ["on the filing cabinet","on the mayor's desk","on the copy machine","on a folder tab","on the conference room table","on the water cooler","on the elevator button","on a computer mouse","on the archive room door","on a stapler","on the reception desk","on a coat rack","on the ballot box","on a shredder","on the supply closet","on the council chamber podium","on the janitor cart","on the stairwell railing","on a name plate","on the parking pass dispenser"],
+      "solved": ["{name} leaked the confidential records.","{name}'s prints were on the stolen files.","{name} accessed the restricted archive."]
+    },
+    {
+      "name": "PET STORE",
+      "intro": "Exotic animals were smuggled through the Muldrow Pet Emporium.",
+      "evidence": ["on an aquarium lid","on a bird cage latch","on the register","on a dog leash rack","on the storage room door","on a feed bin","on a terrarium heat lamp","on the grooming table","on a cat tree","on the adoption board","on a water filter","on the loading dock","on a hamster wheel","on a fish net handle","on the medication shelf","on a collar display","on the security gate","on a toy bin","on the back office chair","on a cleaning supplies cabinet"],
+      "solved": ["{name} smuggled the exotic animals.","{name}'s prints were on the contraband containers.","{name} used the pet store as a front."]
+    },
+    {
+      "name": "TATTOO PARLOR",
+      "intro": "A client died from a toxic ink reaction at Muldrow Ink. The ink was deliberately tainted.",
+      "evidence": ["on an ink bottle","on the tattoo chair","on a needle cartridge pack","on the autoclave door","on a stencil paper","on the cash box","on a power supply dial","on the shop front door","on a flash sheet frame","on the mirror","on a disposable razor","on the ink cup holder","on a bandage roll","on the appointment book","on a consent form pen","on the light arm","on a water spray bottle","on the biohazard bin","on the back room shelf","on a portfolio binder"],
+      "solved": ["{name} tainted the tattoo ink.","{name}'s prints were on the toxic ink bottle.","{name} deliberately poisoned the client."]
+    },
+    {
+      "name": "WINE CELLAR",
+      "intro": "A vintner was locked in his own wine cellar. Rare bottles worth millions were taken.",
+      "evidence": ["on a wine rack","on the cellar door bolt","on a bottle label","on the temperature gauge","on a corkscrew","on a tasting glass","on the stone wall bracket","on a barrel spigot","on the light chain","on a decanter","on the inventory ledger","on a wooden crate","on the ventilation grille","on a cheese board","on the spiral staircase rail","on a candle sconce","on the floor drain","on a storage bin","on the humidifier dial","on a wax seal stamp"],
+      "solved": ["{name} locked the vintner and stole the wine.","{name}'s prints were found in the cellar.","{name} took the rare collection."]
+    },
+    {
+      "name": "CONSTRUCTION SITE",
+      "intro": "A worker fell from scaffolding at the Muldrow Tower project. Safety harnesses were cut.",
+      "evidence": ["on the scaffolding clamp","on a hard hat","on the crane controls","on a safety harness clip","on the site office door","on a cement mixer lever","on a tool belt","on the blueprint table","on a rebar tie","on the portable toilet door","on a power drill","on the generator switch","on a wheelbarrow","on the dumpster gate","on a nail gun","on the surveyor tripod","on a paint sprayer","on a lumber stack","on the water cooler","on the elevator shaft gate"],
+      "solved": ["{name} cut the safety harnesses.","{name}'s prints were at the scaffolding.","{name} sabotaged the worksite."]
+    },
+    {
+      "name": "BARBER SHOP",
+      "intro": "The barber was attacked and his hidden floor safe was emptied.",
+      "evidence": ["on the barber chair lever","on a straight razor","on the cash register","on a hair clipper","on the mirror shelf","on a comb sanitizer","on the front door","on a shaving cream dispenser","on the appointment book","on a cape hook","on the floor tile","on a cologne bottle","on the hot towel cabinet","on a broom handle","on the back room curtain","on a scissors case","on the radio dial","on a tip jar","on the light fixture chain","on the window blind cord"],
+      "solved": ["{name} attacked the barber.","{name}'s prints were found at the crime scene.","{name} emptied the floor safe."]
+    },
+    {
+      "name": "ARCADE",
+      "intro": "Money laundering was traced to the Muldrow Arcade token machines.",
+      "evidence": ["on a token machine","on an arcade cabinet","on the prize counter","on the change machine","on a claw crane joystick","on the office door","on a pinball machine","on the security camera housing","on a basketball hoop game","on the token slot","on a racing game wheel","on the ticket counter","on a photo booth curtain","on the snack bar","on the air hockey table","on a dance pad","on the coin box","on a light gun","on the maintenance panel","on the storage room lock"],
+      "solved": ["{name} laundered money through the arcade.","{name}'s prints were on the token machines.","{name} ran the laundering operation."]
+    },
+    {
+      "name": "FLOWER SHOP",
+      "intro": "Threatening letters with rare flower petals were sent to a judge. Traced to Muldrow Blooms.",
+      "evidence": ["on a flower bucket","on the cooler door","on a pair of shears","on the wrapping paper roll","on the ribbon dispenser","on the cash register","on a delivery van key","on a vase","on the order book","on a foam block","on the spray bottle","on the card holder","on the back entrance","on a plant stand","on the phone handset","on a watering pitcher","on the compost bin","on a dried flower frame","on the shop window latch","on a seed packet rack"],
+      "solved": ["{name} sent the threatening letters.","{name}'s prints were found at the flower shop.","{name} sourced the rare petals here."]
+    },
+    {
+      "name": "MOTEL POOL",
+      "intro": "A guest was found drowned in the Starlight Motel pool. The security footage was erased.",
+      "evidence": ["on the pool gate latch","on a lounge chair","on the towel rack","on the pool skimmer pole","on the chemical storage shed","on a diving board bolt","on the drain cover","on a pool float","on the outdoor shower","on the fence post","on a drink glass","on the pool pump controls","on a life ring mount","on the ice machine","on a patio umbrella pole","on the hot tub controls","on a pool noodle basket","on the vending machine","on a flip-flop rack","on the security camera mount"],
+      "solved": ["{name} drowned the guest.","{name}'s prints were found at the pool area.","{name} erased the security footage."]
+    },
+    {
+      "name": "WAREHOUSE",
+      "intro": "A kidnapping victim was held in a Muldrow warehouse for three days before rescue.",
+      "evidence": ["on the warehouse roller door","on a folding chair","on a zip tie package","on the light switch","on a water jug","on the office desk","on a chain","on a duct tape roll","on the loading dock","on a wooden pallet","on the forklift key","on a cell phone charger","on the breaker panel","on a blanket","on the restroom door","on a trash bag","on the fire exit bar","on a shelf bracket","on a padlock","on the security alarm panel"],
+      "solved": ["{name} held the victim captive.","{name}'s prints were found in the warehouse.","{name} kidnapped and detained the victim."]
+    },
+    {
+      "name": "CLOCK TOWER",
+      "intro": "The historic Muldrow Clock Tower was vandalized. Its century-old mechanism was damaged.",
+      "evidence": ["on the tower door lock","on a gear cog","on the clock face frame","on a winding key","on the bell hammer","on the spiral staircase rail","on a maintenance hatch","on a wooden beam","on the pendulum rod","on a wrench","on the observation deck railing","on a pigeon net","on the electrical panel","on a paint spray can","on a rope pulley","on the window shutter","on a brass fitting","on the floor trapdoor","on a chimney bracket","on the weather vane base"],
+      "solved": ["{name} vandalized the clock mechanism.","{name}'s prints were inside the tower.","{name} damaged the historic landmark."]
+    },
+    {
+      "name": "DINER",
+      "intro": "The cook at Rosie's Diner was poisoned. A rival restaurant owner had motive.",
+      "evidence": ["on the salt shaker","on the kitchen door","on a coffee pot handle","on the booth table","on a ketchup bottle","on the jukebox","on the pie display case","on a napkin dispenser","on the grill knob","on a menu","on the cash register","on a milkshake glass","on the back door","on a serving tray","on the deep fryer basket","on a spice rack","on the refrigerator","on a stool cushion","on the dishwasher door","on the coat hook"],
+      "solved": ["{name} poisoned the cook's food.","{name}'s prints were in the kitchen.","{name} had access to the diner after hours."]
+    },
+    {
+      "name": "YACHT CLUB",
+      "intro": "A member of the Muldrow Yacht Club was found dead in the trophy room. Blunt force trauma.",
+      "evidence": ["on a trophy","on the trophy case glass","on the bar counter","on a ship model","on the billiard cue","on the member sign-in book","on a brandy snifter","on the terrace door","on a cigar cutter","on the coat room handle","on a nautical chart","on the piano bench","on a compass display","on the locker room door","on a towel","on the window latch","on a magazine","on the light dimmer","on a name badge","on the fire poker"],
+      "solved": ["{name} killed the club member.","{name}'s prints were on the murder weapon.","{name} was in the trophy room that evening."]
+    },
+    {
+      "name": "TUNNEL",
+      "intro": "An underground smuggling tunnel was discovered beneath the Muldrow border checkpoint.",
+      "evidence": ["on a tunnel support","on a ventilation pipe","on a pull cart","on a lighting rig","on the entrance hatch","on a shovel","on a bucket handle","on a power cable spool","on a water pump","on a support jack","on the exit ladder","on a tool bag","on a plywood sheet","on a drainage hose","on a radio","on a generator fuel cap","on a hard hat","on a blueprint tube","on a rail track bolt","on the camouflage cover"],
+      "solved": ["{name} built the smuggling tunnel.","{name}'s prints were throughout the passage.","{name} operated the underground route."]
+    }
+  ]
+}

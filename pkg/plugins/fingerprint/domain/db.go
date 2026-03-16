@@ -9,12 +9,25 @@ import (
 	"path/filepath"
 )
 
+// DB constants.
+const (
+	NumColors   = 4
+	NumVariants = 4
+	NumMirror   = 2
+)
+
+// MaxFingerprints returns the total number of unique fingerprints:
+// 4 colors × 4 variants × 8 rotations × 2 mirror = 256.
+func MaxFingerprints() int {
+	return NumColors * NumVariants * RotationSteps * NumMirror
+}
+
 // FingerprintRecord is a pre-generated fingerprint in the DB.
 type FingerprintRecord struct {
 	ID       int    `json:"id"`
 	Color    string `json:"color"`    // "green", "red", "yellow", "blue"
 	Variant  int    `json:"variant"`  // 1-4
-	Rotation int    `json:"rotation"` // 0, 90, 180, 270
+	Rotation int    `json:"rotation"` // 0, 45, 90, 135, 180, 225, 270, 315
 	Mirrored bool   `json:"mirrored"`
 	Hash     string `json:"hash"` // "{LETTER}{CRC64}"
 
@@ -39,6 +52,9 @@ type FingerprintDB struct {
 }
 
 var crcTable = crc64.MakeTable(crc64.ECMA) //nolint:gochecknoglobals // CRC table
+
+// Colors is the ordered list of fingerprint colors.
+var Colors = []string{"green", "red", "yellow", "blue"} //nolint:gochecknoglobals // constant
 
 // ColorLetter maps color name to hash prefix letter.
 func ColorLetter(color string) string {
@@ -78,58 +94,51 @@ func ComputeFullHash(color string, pieces []PieceRecord) string {
 	return fmt.Sprintf("%s%d", ColorLetter(color), ComputeHash(pieces))
 }
 
-// GenerateDB creates 100 fingerprint records with unique hashes.
+// GenerateDB creates 256 deterministic fingerprint records:
+// 4 colors × 4 variants × 8 rotations × 2 mirror.
 func GenerateDB(seed uint64) *FingerprintDB {
 	rng := rand.New(rand.NewPCG(seed, seed^0xDEADBEEF)) //nolint:gosec // game logic
 
-	colors := []string{"green", "red", "yellow", "blue"}
-	names := []string{
-		"O'Connel, Thomas", "Moretti, Isabella", "Blackwood, James",
-		"McQueen, Sarah", "Fitzgerald, Patrick", "Chen, Wei Lin",
-		"Kovacs, Elena", "Santos, Miguel", "Petrov, Nikolai",
-		"Williams, Grace", "Nakamura, Yuki", "Al-Rashid, Omar",
-		"O'Brien, Molly", "Johansson, Erik", "Reyes, Carmen",
-		"Kim, Soo-Jin", "Müller, Hans", "Dubois, Jean",
-		"Rossi, Marco", "Kowalski, Anna",
-	}
-
 	db := &FingerprintDB{}
+	id := 0
 
-	for i := range 100 {
-		color := colors[rng.IntN(len(colors))]
-		variant := rng.IntN(4) + 1
-		rotation := []int{0, 90, 180, 270}[rng.IntN(4)]
-		mirrored := rng.IntN(2) == 1
+	for ci := range NumColors {
+		clr := Colors[ci]
 
-		// Generate 100 pieces (10×10 grid)
-		pieces := make([]PieceRecord, 100)
+		for v := 1; v <= NumVariants; v++ {
+			for rot := range RotationSteps {
+				for _, mirror := range []bool{false, true} {
+					id++
 
-		for y := range 10 {
-			for x := range 10 {
-				idx := y*10 + x
-				// uint32 encodes position + content byte unique to this fingerprint
-				content := uint8(rng.IntN(255) + 1)
-				value := EncodeTile(uint8(x), uint8(y), 0, content)
+					pieces := make([]PieceRecord, 100)
+					for y := range 10 {
+						for x := range 10 {
+							idx := y*10 + x
+							content := uint8(rng.IntN(255) + 1)
+							value := EncodeTile(uint8(x), uint8(y), 0, content)
+							pieces[idx] = PieceRecord{X: x, Y: y, Value: value}
+						}
+					}
 
-				pieces[idx] = PieceRecord{X: x, Y: y, Value: value}
+					hash := ComputeFullHash(clr, pieces)
+					character := CharacterForRecord(&FingerprintRecord{ID: id})
+					personName := character.Name
+					avatarKey := character.Avatar
+
+					db.Records = append(db.Records, FingerprintRecord{
+						ID:         id,
+						Color:      clr,
+						Variant:    v,
+						Rotation:   RotationDegrees(rot),
+						Mirrored:   mirror,
+						Hash:       hash,
+						Pieces:     pieces,
+						PersonName: personName,
+						AvatarKey:  avatarKey,
+					})
+				}
 			}
 		}
-
-		hash := ComputeFullHash(color, pieces)
-		personName := names[i%len(names)]
-		avatarKey := fmt.Sprintf("%d", (i%5)+1)
-
-		db.Records = append(db.Records, FingerprintRecord{
-			ID:         i + 1,
-			Color:      color,
-			Variant:    variant,
-			Rotation:   rotation,
-			Mirrored:   mirrored,
-			Hash:       hash,
-			Pieces:     pieces,
-			PersonName: personName,
-			AvatarKey:  avatarKey,
-		})
 	}
 
 	return db
@@ -183,4 +192,14 @@ func DefaultDBPath() string {
 	}
 
 	return filepath.Join(home, ".config", "pomodoro", "fingerprint", "db.json")
+}
+
+// DefaultPuzzlesPath returns the path for puzzles.json (regeneratable).
+func DefaultPuzzlesPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "puzzles.json"
+	}
+
+	return filepath.Join(home, ".config", "pomodoro", "fingerprint", "puzzles.json")
 }

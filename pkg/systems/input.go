@@ -54,6 +54,9 @@ type InputSystem struct {
 
 	// Scroll offset: subtracted from mouse Y to convert screen→content space.
 	scrollOffsetY float64
+
+	// CursorOverride: if set, use these coordinates instead of ebiten.CursorPosition().
+	CursorOverride *[2]int
 }
 
 // NewInputSystem creates an InputSystem backed by the given RTree.
@@ -81,7 +84,13 @@ func (s *InputSystem) ClearZones() {
 
 // Update processes mouse events: hover, press, drag, release.
 func (s *InputSystem) Update(_ context.Context) error {
-	rawMX, rawMY := ebiten.CursorPosition()
+	var rawMX, rawMY int
+	if s.CursorOverride != nil {
+		rawMX, rawMY = s.CursorOverride[0], s.CursorOverride[1]
+	} else {
+		rawMX, rawMY = ebiten.CursorPosition()
+	}
+
 	mx := rawMX
 	my := rawMY - int(s.scrollOffsetY)
 

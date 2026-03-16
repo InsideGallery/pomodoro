@@ -24,11 +24,11 @@
             "scaleInEditor": 1
         },
         "fingerprint.tmx": {
-            "scale": 0.25,
-            "selectedLayer": 11,
+            "scale": 0.75,
+            "selectedLayer": 6,
             "viewCenter": {
-                "x": 1668,
-                "y": 912
+                "x": 2080,
+                "y": 648
             }
         },
         "fingerprinting-icon.tsx": {

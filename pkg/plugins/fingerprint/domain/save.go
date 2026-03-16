@@ -15,17 +15,25 @@ type GameSave struct {
 // CaseSave stores one case's progress.
 type CaseSave struct {
 	CaseIndex    int          `json:"case_index"`
+	ActivePuzzle int          `json:"active_puzzle"`
+	Puzzles      []PuzzleSave `json:"puzzles"`
+}
+
+// PuzzleSave stores one puzzle's progress within a case.
+type PuzzleSave struct {
 	Solved       bool         `json:"solved"`
 	Failed       bool         `json:"failed"`
 	PlacedPieces []PlacedSave `json:"placed_pieces"`
 }
 
-// PlacedSave records where a tray piece was placed.
+// PlacedSave records where a tray piece was placed or positioned.
 type PlacedSave struct {
-	TrayIndex int `json:"tray_index"`
-	GridX     int `json:"grid_x"`
-	GridY     int `json:"grid_y"`
-	Rotation  int `json:"rotation"`
+	TrayIndex int     `json:"tray_index"`
+	GridX     int     `json:"grid_x"`
+	GridY     int     `json:"grid_y"`
+	Rotation  int     `json:"rotation"`
+	TrayX     float64 `json:"tray_x,omitempty"`
+	TrayY     float64 `json:"tray_y,omitempty"`
 }
 
 // SaveGame writes game state to disk.

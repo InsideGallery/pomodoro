@@ -1,7 +1,11 @@
 package domain
 
+// RotationSteps is the number of discrete rotation angles (every 45°).
+const RotationSteps = 8
+
 // Tile represents a single piece of a fingerprint.
 // Value encodes (x, y, rotation, content) as uint32.
+// Rotation 0-7 → 0°, 45°, 90°, 135°, 180°, 225°, 270°, 315°.
 // Value 0 = missing (needs to be placed by the player).
 type Tile struct {
 	Value   uint32
@@ -26,16 +30,21 @@ func (t *Tile) Recompute(rotation uint8) {
 	t.Value = EncodeTile(uint8(t.X), uint8(t.Y), rotation, t.Content)
 }
 
-// Rotate cycles rotation clockwise and recomputes Value.
+// Rotate cycles rotation clockwise (45° step) and recomputes Value.
 func (t *Tile) Rotate() {
 	rot := DecodeRotation(t.Value)
-	rot = (rot + 1) % 4
+	rot = (rot + 1) % RotationSteps
 	t.Recompute(rot)
 }
 
-// Rotation returns the current rotation (0-3).
+// Rotation returns the current rotation (0-7).
 func (t *Tile) Rotation() uint8 {
 	return DecodeRotation(t.Value)
+}
+
+// RotationDegrees returns rotation in degrees (0, 45, 90, ..., 315).
+func RotationDegrees(step int) int {
+	return (step % RotationSteps) * 45
 }
 
 // IsEmpty returns true if this tile slot is missing.

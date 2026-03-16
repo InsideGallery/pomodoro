@@ -80,7 +80,7 @@ func (g *PuzzleGenerator) GeneratePuzzle(solved *Fingerprint, removeCount int) P
 
 	// Randomize rotation of removed pieces (makes them wrong until player fixes)
 	for i := range removed {
-		rotations := g.rng.IntN(3) + 1 // 1-3 rotations (never 0 = already correct)
+		rotations := g.rng.IntN(RotationSteps-1) + 1 // 1-7 rotations (never 0 = already correct)
 
 		for range rotations {
 			removed[i].Rotate()
@@ -120,7 +120,7 @@ func MirrorPieces(pieces []Tile, gridW int) []Tile {
 	for i, p := range pieces {
 		mirrored[i] = p
 		mirrored[i].X = gridW - 1 - p.X
-		mirrored[i].Recompute((p.Rotation() + 2) % 4)
+		mirrored[i].Recompute((p.Rotation() + RotationSteps/2) % RotationSteps)
 	}
 
 	return mirrored
