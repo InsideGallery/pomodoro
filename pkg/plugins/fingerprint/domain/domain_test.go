@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"path/filepath"
 	"testing"
 )
 
@@ -313,6 +314,105 @@ func TestEveryRotationProducesDifferentValue(t *testing.T) {
 		}
 
 		values[tile.Value] = true
+	}
+}
+
+func TestGenerateDB(t *testing.T) {
+	db := GenerateDB(42)
+
+	if len(db.Records) != 100 {
+		t.Fatalf("expected 100 records, got %d", len(db.Records))
+	}
+
+	// All hashes should be unique
+	hashes := make(map[string]bool)
+
+	for _, r := range db.Records {
+		if hashes[r.Hash] {
+			t.Fatalf("duplicate hash: %s", r.Hash)
+		}
+
+		hashes[r.Hash] = true
+	}
+
+	// Each record should have 100 pieces
+	for _, r := range db.Records {
+		if len(r.Pieces) != 100 {
+			t.Fatalf("record %d: expected 100 pieces, got %d", r.ID, len(r.Pieces))
+		}
+	}
+
+	// Hash should start with color letter
+	for _, r := range db.Records {
+		letter := ColorLetter(r.Color)
+		if r.Hash[:1] != letter {
+			t.Fatalf("record %d: hash %s should start with %s", r.ID, r.Hash, letter)
+		}
+	}
+}
+
+func TestDBLookupByHash(t *testing.T) {
+	db := GenerateDB(42)
+	target := db.Records[0]
+
+	found := db.LookupByHash(target.Hash)
+	if found == nil {
+		t.Fatal("should find record by hash")
+	}
+
+	if found.ID != target.ID {
+		t.Fatalf("expected ID %d, got %d", target.ID, found.ID)
+	}
+
+	notFound := db.LookupByHash("XNOTEXIST")
+	if notFound != nil {
+		t.Fatal("should not find nonexistent hash")
+	}
+}
+
+func TestDBSaveLoad(t *testing.T) {
+	db := GenerateDB(42)
+	path := filepath.Join(t.TempDir(), "test_db.json")
+
+	if err := db.Save(path); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	loaded, err := LoadDB(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+
+	if len(loaded.Records) != 100 {
+		t.Fatalf("loaded %d records, expected 100", len(loaded.Records))
+	}
+
+	if loaded.Records[0].Hash != db.Records[0].Hash {
+		t.Fatal("loaded hash doesn't match saved hash")
+	}
+}
+
+func TestComputeHashDeterministic(t *testing.T) {
+	pieces := make([]PieceRecord, 100)
+
+	for i := range pieces {
+		pieces[i] = PieceRecord{X: i % 10, Y: i / 10, Value: uint32(i + 1)}
+	}
+
+	h1 := ComputeHash(pieces)
+	h2 := ComputeHash(pieces)
+
+	if h1 != h2 {
+		t.Fatal("same pieces should produce same hash")
+	}
+
+	// Change one piece → different hash
+	pieces[50].Value = 99999
+
+	h3 := ComputeHash(pieces)
+
+	if h1 == h3 {
+		t.Fatal("different pieces should produce different hash")
 	}
 }
 

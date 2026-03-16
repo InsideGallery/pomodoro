@@ -91,29 +91,19 @@ app.New(app.Config{
 
 ### Fingerprint Lab Game Design
 
-**Domain model** (pkg/plugins/fingerprint/domain/, 11 tests):
-- Tile: uint32 = EncodeTile(x, y, rotation, content)
-- Fingerprint: color uint8 + tiles → 9-digit SHA256 hash
-- Person + Database: lookup by fingerprint UniqueID
-- Case: unsolved/solved/failed, submit against DB
-- PuzzleGenerator: solved → remove tiles → puzzle + pieces (rotated)
+**TMX-driven**: `fingerprint.tmx` is the source of truth for all layout.
+Single scene with state machine (disabled → enabled → app → puzzle).
+See `Fingerprint.md` for complete implementation guide.
 
-**Assets** (assets/external/fingerprint/):
-- CRT monitor background (Фон), desktop wallpaper (робочий стіл фон)
-- Screen brightness variants (підвищена/понижена яскравість)
-- Window frame (рама), workspace with grid (Робоче поле)
-- Custom cursor (курсор.png), highlighter (підсвітка)
-- 3-column app layout (Вікно вибору відбитка) with wireframe (Трасування колонок)
-- 16 colored fingerprints (4 colors × 4 variants, each 100 pieces) + 4 grey
-- 5 suspect avatars, UI buttons with hover states
-- Loading animation 8 frames, success/fail stamps
-- Design: Sylfaen 44pt codes, Georgia 72+43pt text, #d5f2f1 #ffffff #4d4b4b
+**Domain** (pkg/plugins/fingerprint/domain/, 16 tests):
+- Tile uint32 from (x,y), CRC64 hash, color letter prefix
+- Person DB with 100 pre-generated records (db.json)
+- Case: 3 hardcoded, difficulty scaling (4-16 missing pieces)
+- Decoy pieces from other fingerprint variants
 
-**Scene flow:**
-1. Loading — animated preloader, async resource loading
-2. Desktop — CRT with boot animation, app icon clickable
-3. App — 3-column: cases | codes | suspect profile
-4. Puzzle — 10×10 grid, place/rotate pieces, choose color, submit
+**pkg/tilemap/** — shared TMX loader (reused from detective patterns)
+
+**7 implementation steps** — see Fingerprint.md
 
 ## Build Commands
 

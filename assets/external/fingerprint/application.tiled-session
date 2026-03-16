@@ -3,21 +3,38 @@
         "height": 4300,
         "width": 2
     },
-    "activeFile": "",
+    "activeFile": "fingerprint.tmx",
     "expandedProjectPaths": [
+        "."
     ],
     "fileStates": {
         "avatars.tsx": {
-            "dynamicWrapping": true
+            "dynamicWrapping": true,
+            "scaleInDock": 1,
+            "scaleInEditor": 1
         },
         "buttons.tsx": {
-            "dynamicWrapping": true
+            "dynamicWrapping": true,
+            "scaleInDock": 1,
+            "scaleInEditor": 1
         },
         "exit-activated.tsx": {
-            "dynamicWrapping": false
+            "dynamicWrapping": false,
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "fingerprint.tmx": {
+            "scale": 0.25,
+            "selectedLayer": 11,
+            "viewCenter": {
+                "x": 1668,
+                "y": 912
+            }
         },
         "fingerprinting-icon.tsx": {
-            "dynamicWrapping": false
+            "dynamicWrapping": false,
+            "scaleInDock": 0.75,
+            "scaleInEditor": 1
         }
     },
     "last.imagePath": "/home/gollariel/go/src/github.com/InsideGallery/pomodoro/assets/external/fingerprint/ui",
@@ -25,9 +42,19 @@
     "map.lastUsedFormat": "tmx",
     "map.width": 125,
     "openFiles": [
+        "fingerprint.tmx",
+        "fingerprinting-icon.tsx",
+        "exit-activated.tsx",
+        "avatars.tsx",
+        "buttons.tsx"
     ],
     "project": "application.tiled-project",
     "recentFiles": [
+        "buttons.tsx",
+        "avatars.tsx",
+        "exit-activated.tsx",
+        "fingerprinting-icon.tsx",
+        "fingerprint.tmx"
     ],
     "tileset.lastUsedFormat": "tsx",
     "tileset.tileSize": {

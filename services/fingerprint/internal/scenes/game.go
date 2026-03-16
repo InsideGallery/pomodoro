@@ -13,6 +13,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/lafriks/go-tiled"
 
+	"github.com/InsideGallery/pomodoro/pkg/plugins/fingerprint/domain"
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 	"github.com/InsideGallery/pomodoro/pkg/systems"
 	"github.com/InsideGallery/pomodoro/pkg/tilemap"
@@ -38,6 +39,7 @@ type GameScene struct {
 
 	input *systems.InputSystem
 	tmap  *tilemap.Map
+	db    *domain.FingerprintDB
 
 	state    GameState
 	bootTick int
@@ -90,6 +92,25 @@ func (s *GameScene) Load() error {
 		"imageLayers", len(s.tmap.ImageLayers),
 		"objectGroups", len(s.tmap.ObjectGroups),
 		"tilesets", len(s.tmap.Tilesets))
+
+	// Load or generate fingerprint DB
+	dbPath := domain.DefaultDBPath()
+
+	var dbErr error
+
+	s.db, dbErr = domain.LoadDB(dbPath)
+	if dbErr != nil {
+		slog.Info("generating fingerprint DB (first run)")
+
+		s.db = domain.GenerateDB(42)
+		if err := s.db.Save(dbPath); err != nil {
+			slog.Warn("save db", "error", err)
+		} else {
+			slog.Info("fingerprint DB saved", "path", dbPath, "records", len(s.db.Records))
+		}
+	} else {
+		slog.Info("fingerprint DB loaded", "records", len(s.db.Records))
+	}
 
 	// Compute scaling
 	mapW := float64(s.tmap.MapPixelWidth())
