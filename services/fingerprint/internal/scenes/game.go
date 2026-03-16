@@ -44,16 +44,17 @@ type GameScene struct {
 
 	state        GameState
 	bootTick     int
-	selectedCase int // 0-2, which case is selected in app-layout
+	selectedCase int // 0-2, which case is selected
 	cases        []*domain.CaseConfig
 
 	// Puzzle state
-	holdingPiece int                   // index in tray (-1 = none)
-	showResult   int                   // 0=none, 1=success, 2=fail
-	resultTick   int                   // frames to show result
-	caseImages   [3]*FingerprintImages // cut fingerprint images per case
-	greyImages   [3]*FingerprintImages // grey versions (when color hidden)
-	assetsDir    string                // path to fingerprint assets
+	holdingPiece int                           // index in tray (-1 = none)
+	showResult   int                           // 0=none, 1=success, 2=fail
+	resultTick   int                           // frames to show result
+	caseImages   [3]*FingerprintImages         // cut fingerprint images per case
+	greyImages   [3]*FingerprintImages         // grey versions (when color hidden)
+	allImages    map[string]*FingerprintImages // "color.variant" → images (for decoys)
+	assetsDir    string
 
 	// Scaling: map is 4000×2176, screen may differ
 	scaleX, scaleY float64
@@ -64,6 +65,8 @@ type GameScene struct {
 func NewGameScene() *GameScene {
 	return &GameScene{}
 }
+
+// currentPuzzle returns the active puzzle, or nil.
 
 func (s *GameScene) Name() string { return GameSceneName }
 
@@ -136,29 +139,53 @@ func (s *GameScene) Load() error {
 
 	s.loadGameState()
 
-	// Load fingerprint images for each case
+	// Load ALL fingerprint images (for target + decoy pieces)
 	s.assetsDir = FindFingerprintAssetsDir()
+	s.allImages = make(map[string]*FingerprintImages)
 
 	if s.assetsDir != "" {
-		for i, c := range s.cases {
-			imgs, err := LoadFingerprintImages(s.assetsDir, c.TargetRecord)
-			if err != nil {
-				slog.Warn("load fingerprint", "case", i, "error", err)
-			} else {
-				s.caseImages[i] = imgs
-			}
+		// Load all color/variant combinations
+		colors := []string{"green", "red", "yellow", "blue"}
 
-			// Load grey version if color is hidden
-			if c.HideColor {
-				grey, err := LoadGreyFingerprintImages(s.assetsDir, c.TargetRecord.Variant,
-					c.TargetRecord.Rotation, c.TargetRecord.Mirrored)
+		for _, clr := range colors {
+			for v := 1; v <= 4; v++ {
+				rec := &domain.FingerprintRecord{Color: clr, Variant: v, Rotation: 0, Mirrored: false}
+
+				key := fmt.Sprintf("%s.%d", clr, v)
+
+				imgs, err := LoadFingerprintImages(s.assetsDir, rec)
 				if err != nil {
-					slog.Warn("load grey fingerprint", "case", i, "error", err)
+					slog.Warn("load fingerprint", "key", key, "error", err)
 				} else {
-					s.greyImages[i] = grey
+					s.allImages[key] = imgs
 				}
 			}
 		}
+
+		// Load grey variants
+		for v := 1; v <= 4; v++ {
+			key := fmt.Sprintf("grey.%d", v)
+			imgs, err := LoadGreyFingerprintImages(s.assetsDir, v, 0, false)
+			if err != nil {
+				slog.Warn("load grey", "key", key, "error", err)
+			} else {
+				s.allImages[key] = imgs
+			}
+		}
+
+		// Assign case images
+		for i, c := range s.cases {
+			key := fmt.Sprintf("%s.%d", c.Puzzles[0].TargetRecord.Color, c.Puzzles[0].TargetRecord.Variant)
+
+			s.caseImages[i] = s.allImages[key]
+
+			if c.Puzzles[0].HideColor {
+				greyKey := fmt.Sprintf("grey.%d", c.Puzzles[0].TargetRecord.Variant)
+				s.greyImages[i] = s.allImages[greyKey]
+			}
+		}
+
+		slog.Info("fingerprint images loaded", "total", len(s.allImages))
 	}
 
 	slog.Info("cases generated", "count", len(s.cases), "assetsDir", s.assetsDir)
@@ -244,8 +271,8 @@ func (s *GameScene) Update() error {
 		_, wy := ebiten.Wheel()
 		if wy != 0 && s.holdingPiece >= 0 && s.selectedCase >= 0 {
 			c := s.cases[s.selectedCase]
-			if s.holdingPiece < len(c.TrayPieces) {
-				c.TrayPieces[s.holdingPiece].Rotation = (c.TrayPieces[s.holdingPiece].Rotation + 1) % 4
+			if s.holdingPiece < len(c.Puzzles[0].TrayPieces) {
+				c.Puzzles[0].TrayPieces[s.holdingPiece].Rotation = (c.Puzzles[0].TrayPieces[s.holdingPiece].Rotation + 1) % 4
 			}
 		}
 
@@ -298,8 +325,8 @@ func (s *GameScene) Draw(screen *ebiten.Image) {
 	// Held piece follows cursor
 	if s.holdingPiece >= 0 && s.state == StateApplicationNet && s.selectedCase >= 0 {
 		c := s.cases[s.selectedCase]
-		if s.holdingPiece < len(c.TrayPieces) {
-			tp := c.TrayPieces[s.holdingPiece]
+		if s.holdingPiece < len(c.Puzzles[0].TrayPieces) {
+			tp := c.Puzzles[0].TrayPieces[s.holdingPiece]
 			mx, my := ebiten.CursorPosition()
 
 			clr := color.RGBA{R: 0x4D, G: 0x8B, B: 0x8B, A: 0x90}
@@ -485,9 +512,9 @@ func (s *GameScene) drawAppContent(screen *ebiten.Image) {
 			ry := y + float64(i)*rowH
 			name := "Unknown ?"
 
-			if c.TargetRecord != nil {
+			if c.Puzzles[0].TargetRecord != nil {
 				// Show person name only if case is solved (for now always show hash)
-				name = c.TargetRecord.Hash
+				name = c.Puzzles[0].TargetRecord.Hash
 			}
 
 			clr := color.RGBA{R: 0x4D, G: 0x4B, B: 0x4B, A: 0xFF}
@@ -508,7 +535,7 @@ func (s *GameScene) drawAppContent(screen *ebiten.Image) {
 
 		if s.selectedCase >= 0 && s.selectedCase < len(s.cases) {
 			c := s.cases[s.selectedCase]
-			avatarSrc := fmt.Sprintf("avatars/%s.jpg", c.TargetRecord.AvatarKey)
+			avatarSrc := fmt.Sprintf("avatars/%s.jpg", c.Puzzles[0].TargetRecord.AvatarKey)
 			avatarImg := s.tmap.GetImage(avatarSrc)
 
 			if avatarImg != nil {
@@ -536,16 +563,16 @@ func (s *GameScene) drawAppContent(screen *ebiten.Image) {
 
 		if s.selectedCase >= 0 && s.selectedCase < len(s.cases) {
 			c := s.cases[s.selectedCase]
-			rec := c.TargetRecord
+			rec := c.Puzzles[0].TargetRecord
 
 			lines := []string{
 				fmt.Sprintf("Case: %s", c.Name),
-				fmt.Sprintf("Difficulty: %d pieces", c.PiecesToSolve),
+				fmt.Sprintf("Difficulty: %d pieces", c.Puzzles[0].PiecesToSolve),
 				fmt.Sprintf("Color: %s", rec.Color),
 				fmt.Sprintf("Variant: %d", rec.Variant),
 			}
 
-			if c.HideColor {
+			if c.Puzzles[0].HideColor {
 				lines = append(lines, "Color: HIDDEN (grey)")
 			}
 
@@ -574,7 +601,7 @@ func (s *GameScene) drawPuzzleContent(screen *ebiten.Image) { //nolint:gocyclo /
 
 		if s.selectedCase >= 0 && s.selectedCase < len(s.cases) {
 			c := s.cases[s.selectedCase]
-			hashText := c.TargetRecord.Hash
+			hashText := c.Puzzles[0].TargetRecord.Hash
 
 			ui.DrawText(screen, hashText, faceHash, hx+4, hy+4,
 				color.RGBA{R: 0x4D, G: 0x4B, B: 0x4B, A: 0xFF})
@@ -607,7 +634,7 @@ func (s *GameScene) drawPuzzleContent(screen *ebiten.Image) { //nolint:gocyclo /
 
 			missingSet := make(map[int]bool)
 
-			for _, idx := range c.MissingIndices {
+			for _, idx := range c.Puzzles[0].MissingIndices {
 				missingSet[idx] = true
 			}
 
@@ -629,7 +656,7 @@ func (s *GameScene) drawPuzzleContent(screen *ebiten.Image) { //nolint:gocyclo /
 				// Use grey images if color is hidden, otherwise colored
 				var pieceImg *ebiten.Image
 
-				if c.HideColor && greyImgs != nil {
+				if c.Puzzles[0].HideColor && greyImgs != nil {
 					pieceImg = greyImgs.Pieces[idx]
 				} else if imgs != nil {
 					pieceImg = imgs.Pieces[idx]
@@ -647,7 +674,7 @@ func (s *GameScene) drawPuzzleContent(screen *ebiten.Image) { //nolint:gocyclo /
 			// Track placed pieces
 			placedAt := make(map[int]int)
 
-			for ti, tp := range c.TrayPieces {
+			for ti, tp := range c.Puzzles[0].TrayPieces {
 				if tp.IsPlaced {
 					gIdx := tp.PlacedY*10 + tp.PlacedX
 					placedAt[gIdx] = ti
@@ -655,7 +682,7 @@ func (s *GameScene) drawPuzzleContent(screen *ebiten.Image) { //nolint:gocyclo /
 			}
 
 			// Draw missing slots (empty or with placed piece)
-			for _, idx := range c.MissingIndices {
+			for _, idx := range c.Puzzles[0].MissingIndices {
 				col := idx % 10
 				row := idx / 10
 				cx := px + float64(col)*cellW
@@ -663,7 +690,7 @@ func (s *GameScene) drawPuzzleContent(screen *ebiten.Image) { //nolint:gocyclo /
 
 				if ti, ok := placedAt[idx]; ok {
 					// Draw the placed piece image (colored, from tray)
-					tp := c.TrayPieces[ti]
+					tp := c.Puzzles[0].TrayPieces[ti]
 
 					if imgs != nil && !tp.IsDecoy && tp.OriginalX >= 0 {
 						origIdx := tp.OriginalY*10 + tp.OriginalX
@@ -712,7 +739,7 @@ func (s *GameScene) drawPuzzleContent(screen *ebiten.Image) { //nolint:gocyclo /
 			caseIdx := s.selectedCase
 			cImgs := s.caseImages[caseIdx]
 
-			for i, tp := range c.TrayPieces {
+			for i, tp := range c.Puzzles[0].TrayPieces {
 				if tp.IsPlaced {
 					continue
 				}
@@ -894,8 +921,8 @@ func (s *GameScene) registerPuzzleZones() {
 				pw := obj.Width * s.scaleX
 				pieceSize := pw / 3
 
-				for i := range c.TrayPieces {
-					if c.TrayPieces[i].IsPlaced {
+				for i := range c.Puzzles[0].TrayPieces {
+					if c.Puzzles[0].TrayPieces[i].IsPlaced {
 						continue
 					}
 
@@ -944,7 +971,7 @@ func (s *GameScene) registerPuzzleZones() {
 
 				missingSet := make(map[int]bool)
 
-				for _, idx := range c.MissingIndices {
+				for _, idx := range c.Puzzles[0].MissingIndices {
 					missingSet[idx] = true
 				}
 
@@ -963,8 +990,8 @@ func (s *GameScene) registerPuzzleZones() {
 						Spatial: shapes.NewBox(shapes.NewPoint(cx, cy), cellW, cellH),
 						OnClick: func() {
 							// If clicking a cell that already has a placed piece, pick it up
-							for ti := range c.TrayPieces {
-								tp := &c.TrayPieces[ti]
+							for ti := range c.Puzzles[0].TrayPieces {
+								tp := &c.Puzzles[0].TrayPieces[ti]
 								if tp.IsPlaced && tp.PlacedY*10+tp.PlacedX == gIdx {
 									tp.IsPlaced = false
 									tp.PlacedX = -1
@@ -978,11 +1005,11 @@ func (s *GameScene) registerPuzzleZones() {
 							}
 
 							// Place the held piece
-							if s.holdingPiece < 0 || s.holdingPiece >= len(c.TrayPieces) {
+							if s.holdingPiece < 0 || s.holdingPiece >= len(c.Puzzles[0].TrayPieces) {
 								return
 							}
 
-							tp := &c.TrayPieces[s.holdingPiece]
+							tp := &c.Puzzles[0].TrayPieces[s.holdingPiece]
 							tp.IsPlaced = true
 							tp.PlacedX = gIdx % 10
 							tp.PlacedY = gIdx / 10
@@ -1009,7 +1036,7 @@ func (s *GameScene) submitPuzzle() {
 
 	// Compute the current hash from the grid state
 	// For now, check if the target hash matches by looking up in DB
-	targetHash := c.TargetRecord.Hash
+	targetHash := c.Puzzles[0].TargetRecord.Hash
 	found := s.db.LookupByHash(targetHash)
 
 	if found != nil {
@@ -1032,7 +1059,7 @@ func (s *GameScene) saveGameState() {
 	for i, c := range s.cases {
 		cs := domain.CaseSave{CaseIndex: i}
 
-		for j, tp := range c.TrayPieces {
+		for j, tp := range c.Puzzles[0].TrayPieces {
 			if tp.IsPlaced {
 				cs.PlacedPieces = append(cs.PlacedPieces, domain.PlacedSave{
 					TrayIndex: j,
@@ -1065,11 +1092,11 @@ func (s *GameScene) loadGameState() {
 		c := s.cases[cs.CaseIndex]
 
 		for _, pp := range cs.PlacedPieces {
-			if pp.TrayIndex < 0 || pp.TrayIndex >= len(c.TrayPieces) {
+			if pp.TrayIndex < 0 || pp.TrayIndex >= len(c.Puzzles[0].TrayPieces) {
 				continue
 			}
 
-			tp := &c.TrayPieces[pp.TrayIndex]
+			tp := &c.Puzzles[0].TrayPieces[pp.TrayIndex]
 			tp.IsPlaced = true
 			tp.PlacedX = pp.GridX
 			tp.PlacedY = pp.GridY

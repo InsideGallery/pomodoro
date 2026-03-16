@@ -426,20 +426,20 @@ func TestGenerateCases(t *testing.T) {
 
 	// Case 1: 4-8 pieces, Case 2: 8-12, Case 3: 12-16
 	for i, c := range cases {
-		if c.TargetRecord == nil {
+		if c.Puzzles[0].TargetRecord == nil {
 			t.Fatalf("case %d: no target record", i)
 		}
 
-		if len(c.MissingIndices) != c.PiecesToSolve {
+		if len(c.Puzzles[0].MissingIndices) != c.Puzzles[0].PiecesToSolve {
 			t.Fatalf("case %d: missing %d != piecesToSolve %d",
-				i, len(c.MissingIndices), c.PiecesToSolve)
+				i, len(c.Puzzles[0].MissingIndices), c.Puzzles[0].PiecesToSolve)
 		}
 
 		// Tray has missing pieces + decoys
 		correctPieces := 0
 		decoyPieces := 0
 
-		for _, tp := range c.TrayPieces {
+		for _, tp := range c.Puzzles[0].TrayPieces {
 			if tp.IsDecoy {
 				decoyPieces++
 			} else {
@@ -447,8 +447,8 @@ func TestGenerateCases(t *testing.T) {
 			}
 		}
 
-		if correctPieces != c.PiecesToSolve {
-			t.Fatalf("case %d: correct pieces %d != %d", i, correctPieces, c.PiecesToSolve)
+		if correctPieces != c.Puzzles[0].PiecesToSolve {
+			t.Fatalf("case %d: correct pieces %d != %d", i, correctPieces, c.Puzzles[0].PiecesToSolve)
 		}
 
 		if decoyPieces == 0 {
@@ -460,11 +460,11 @@ func TestGenerateCases(t *testing.T) {
 	ids := make(map[int]bool)
 
 	for _, c := range cases {
-		if ids[c.TargetRecord.ID] {
+		if ids[c.Puzzles[0].TargetRecord.ID] {
 			t.Fatal("cases should use different records")
 		}
 
-		ids[c.TargetRecord.ID] = true
+		ids[c.Puzzles[0].TargetRecord.ID] = true
 	}
 }
 

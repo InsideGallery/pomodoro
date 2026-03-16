@@ -122,7 +122,7 @@ func TestWeeklyFilters(t *testing.T) {
 
 	s.Days = []DailyMetrics{
 		{Date: "2020-01-01", FocusStarted: 100}, // old data
-		{Date: "2026-03-14", FocusStarted: 5},   // today
+		{Date: "2026-03-16", FocusStarted: 5},   // today
 	}
 
 	weekly := s.Weekly()
@@ -137,7 +137,7 @@ func TestMonthlyFilters(t *testing.T) {
 	s.Days = []DailyMetrics{
 		{Date: "2026-02-15", FocusStarted: 100}, // last month
 		{Date: "2026-03-01", FocusStarted: 3},
-		{Date: "2026-03-14", FocusStarted: 7},
+		{Date: "2026-03-16", FocusStarted: 7},
 	}
 
 	monthly := s.Monthly()

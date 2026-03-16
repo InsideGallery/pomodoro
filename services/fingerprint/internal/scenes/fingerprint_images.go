@@ -36,8 +36,9 @@ func LoadFingerprintImages(assetsDir string, rec *domain.FingerprintRecord) (*Fi
 		return nil, fmt.Errorf("load %s: %w", path, err)
 	}
 
-	// Scale to 690×690
-	scaled := scaleImage(srcImg, puzzleSize, puzzleSize)
+	// Crop to centered square, then scale to 690×690
+	cropped := cropCenteredSquare(srcImg)
+	scaled := scaleImage(cropped, puzzleSize, puzzleSize)
 
 	// Apply rotation
 	rotated := rotateImage(scaled, rec.Rotation)
@@ -79,7 +80,8 @@ func LoadGreyFingerprintImages(assetsDir string, variant int, rotation int, mirr
 		return nil, fmt.Errorf("load %s: %w", path, err)
 	}
 
-	scaled := scaleImage(srcImg, puzzleSize, puzzleSize)
+	cropped := cropCenteredSquare(srcImg)
+	scaled := scaleImage(cropped, puzzleSize, puzzleSize)
 	rotated := rotateImage(scaled, rotation)
 
 	var final image.Image = rotated
@@ -103,6 +105,25 @@ func LoadGreyFingerprintImages(assetsDir string, variant int, rotation int, mirr
 	}
 
 	return fi, nil
+}
+
+// cropCenteredSquare takes the largest centered square from the image.
+func cropCenteredSquare(src image.Image) image.Image {
+	b := src.Bounds()
+	w, h := b.Dx(), b.Dy()
+
+	size := w
+	if h < size {
+		size = h
+	}
+
+	x0 := b.Min.X + (w-size)/2
+	y0 := b.Min.Y + (h-size)/2
+
+	cropped := image.NewRGBA(image.Rect(0, 0, size, size))
+	draw.Draw(cropped, cropped.Bounds(), src, image.Pt(x0, y0), draw.Src)
+
+	return cropped
 }
 
 func loadStdImage(path string) (image.Image, error) {
