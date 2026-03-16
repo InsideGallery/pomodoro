@@ -1,23 +1,154 @@
-Okay, here is more detailed instruction, how use resources to build UI and fingerprint game. I made an UI window by using Tiled (fingerprint.tmx), it's have all states of game, and pre-defined space and UI. In that files we use next convention.
+# Fingerprint Lab — Game Behavior Specification
 
-1. On start game, after preloader, we must play animation of enabling PC. That means we must have disables all layer, show one "disabled" image layer.
-2. Then we draw over previous one ALL kind of "enabled" layers (after that we can hide disabled layer). It's include one Image Layer, one Tile Layer and one Object Layer. For that specific Object Layer, we must get the coordinates, and correctly map buttons to that regions, it's include: button-run-fingerprint (class button-play), button-quit-os (class: button-quit). Here, button-run-fingerprint already draw in Tile Layer, but I do not have design for button-quit-os - we can draw in that polygon Quit OS button (probably red)
-3. Then we must draw our custom cursor. We also must limit room for cursor by main Object Layer box called "cursor-room".
-4. If user click  button-run-fingerprint, we must hide enabled Tile Layer and enabled Object Layer, but we must keep enabled Image Layer, and we must draw application-layout Image Layer, application-layout Tile Layer. Here we have in application-layout Object Layer, list-of-cases - that's room to draw button (with Cases Names), we must have 3 hard-coded cases for now. We have first one clicked and selected by default. Then we have fingerprints-user-names room, that a place for button with User Names (if fingerprint solved) or Unknow and "?" if not. By default first one selected (even if it ?). ALso we have room to show details about case and user avatar. Avatar must be drawen in avatar Object Layer, description of case must be showed in description. That main story what happens there. Also, we have button exit, click on it we must see loaded application (main desktop enabled stage). Also we have defined button (without design) - play-puzzle. When user click on it, we must go into puzzle window (next layers).
-5. When user click on play-puzzle we hide  application-layout Image Layer, application-layout Object Layer, application-layout Tile Layer (but keep enabled Image Layout), and draw application-net-layout Image Layer, application-net-layout Tile Layer. In application-net-layout Object Layot we have defined: back object - when click we back to choose case, hash - room to draw hash of fingerprint, exit to quit to desktop (enabled state), puzzle - room where we have preloaded fingerprint to "fix" with some missing pieces, each piece it's and square.  And we have pieces room where we show dragable pieces of fingerprint (missed parts).
-6. Then about game logic. We must choose:
-   1. colour (green/red/yellow/blue), it's one of letters: G, R, Y, B. That first byte of hash
-   2. we must choose fingerprint (one of four). All fingerprints are located in fingerprints folder and have next structure: {colour}.{from 1 to 4}.png (for exampel blue.1.png)
-   3. we must choose angle rotation
-   4. we must choose between true/false (shoud we mirror it)
-   5. then we take a picture from fingerpints folder corresponded our color and kind, scale it to fit 690x690px square, and we apply angle rotation in that fingerprint, then we apply mirror (if it bool) on that fingerprint.
-   6. then we must generate pieces, how todo that, we have image, and we must drop it on pieces (apply grid). Our default grid it's 10x10 (every cell 69px). So not we have fingerprint image. So now we have 100 pieces of fingerprint. Here we must have unique uint32 attached to each piece, that uint16 based on x,y coordinate (1-10). We must take all images in correspoded id (in order from 1 to 100) and generate crc64 hash of it, that's our right hash, we will compare result with it. Then we must choose number (for case one between 4-8, for case two 8-12, for case three 12-16), let's called that {pieces-to-solve} number, then we generate {pieces-to-solve} amount numbers from 1 to 100, with exclusion (it means by choose 12, we can not choose it again). That's how we choose missed pieces, they must appear in pieces room and must be drag-and-drop inside application (application-net-layout Object Layer, drag-and-drop-zone). When we draw each piece in pieces room , we should apply random rotation level. when you choose element, it attached to cursor, and you should be able to rotate it by mouse wheel, then you can click on every missed (from 100) places for fingerprint and it's detach piece from cursor. ALl the time we generate current hash in hash room based on current uint16 hash.
-   7. then we generate randomly 1 or 0, if 1 - means we are going to hide colour, if 0 - means we must show original colour. Game splits a bit here.
-   8. If we select to show colour, we must write first letter to hash G,R,Y or B, if not we draw "?". So result hash {LETTER}{CRC64}.
-   9. IF we choose to hide colour, we MUST draw fingerprint not missed pieces as GREY, we have corresponded same fingerprint in grey colour. missed pieces must be in right color (which we will drag-n-drop)
-   10. If we chose to show colour, we use original colour as expected everywhere.
-   11. Then we take all other fingerprints (if we choose 4, we will also load 1,2 and 3 all colours). Then from each we take 5 pieces from random place and add to pieces which user must drag-n-drop. That's makes challange for user
-   12. And last but not least, we add camera, and user must have hot-key to zoom game (around zenter of desktop), and reset hotkey.
-   13. When user click send button, we compare hash and show notification, if hash gotten by use is attached to ANY possible users from DB, then we show application-net-layout-success, and if we do not find anyone application-net-layout-fail. We store state anyway. Fail here means we do not found people, and it can be expected result.
-   14. Also we must have state on disk (save game). Every solved puzzle, set piece on right place, we must store state and restore it after restart game.
-   15. Also we must on game starts generate DB of fingerprints (hashes and configs). Just to simplify logic, and reduct step when we do prepare fingerprint on fly, we on first init run must generate 100 records in db.json. Hash map with struct which contains selected fingerprint image, rotation, hash, pieces, uint16 of each, colour, etc. (on preloader step). So, we can simplify f. and just choose fingerprint to draw, and simplify k. choose from DB wrong pieces and draw them.
+## Game Concept
+
+Forensic fingerprint puzzle game set in the fictional city of Muldrow.
+Player works as a forensic analyst, matching fingerprint pieces to identify
+suspects across 50 crime scene cases.
+
+## UI Flow
+
+All UI defined in `fingerprint.tmx` (4000×2176). The game is a single scene
+with states controlling layer visibility.
+
+### 1. Boot Sequence (StateLoading → StateDisabled)
+- Show "Loading..." with progress bar while assets load in background
+- After loading: cross-fade from "disabled" (PC off) to "enabled" (desktop)
+- Animation: 90 frames (~1.5 seconds)
+
+### 2. Desktop (StateEnabled)
+- Show enabled Image Layer + Tile Layer (fingerprint app icon visible)
+- Custom cursor clamped to `cursor-room` (delta-based, no stickiness)
+- `button-run-fingerprint` → open fingerprint application
+- `button-quit-os` → quit game (drawn programmatically, red, 200×50)
+
+### 3. Application Layout (StateApplicationLayout)
+Three-column layout:
+- **Left**: Scrollable list of 50 cases (city locations from stories.json)
+  Each button shows: "MOTEL (3/20)" — name + solved count
+- **Middle**: Scrollable list of 20 fingerprint puzzles for selected case
+  Each button shows: "1. Rob Malfoy" (solved) or "1. Unknown" (unsolved)
+- **Right**: Avatar (unkown.jpg until solved, then character photo) +
+  Description (word-wrapped, scrollable narrative from stories.json)
+
+Buttons:
+- `play-puzzle` → open selected puzzle (teal, programmatic)
+- `regenerate-puzzles` → regenerate all 1000 puzzles, keep 256 fingerprints (orange)
+- `exit` → back to desktop
+
+Mouse wheel scrolls whichever area the cursor is over (cases, names, or description).
+
+### 4. Puzzle Workspace (StateApplicationNet)
+- **Puzzle grid**: 10×10 forced-square area with fingerprint image
+  Pre-filled pieces shown, missing pieces as orange-highlighted empty slots
+- **Piece tray**: Two rectangular rooms with draggable pieces (free-form positions)
+  Pieces same size as grid cells
+- **Hash display**: Live CRC64 hash updates as pieces are placed
+- **Send button**: Submit current hash for verification (tile layer design)
+
+## Fingerprint Database (256 records)
+
+Exhaustive enumeration of all possible fingerprints:
+```
+4 colors (green, red, yellow, blue)
+× 4 variants (fingerprint images 1-4)
+× 8 rotations (0°, 45°, 90°, 135°, 180°, 225°, 270°, 315°)
+× 2 mirror states (normal, mirrored)
+= 256 unique fingerprints
+```
+
+Stored in `db.json`. Only regenerated if file is deleted.
+
+Each record contains:
+- Color, variant, rotation angle, mirror flag
+- 100 piece records (10×10 grid), each with uint32 value encoding (x, y, rotation, content)
+- CRC64 hash of all piece values
+- Person name and avatar filename
+
+### Image Processing Pipeline
+```
+fingerprints/{color}.{variant}.png
+  → crop centered 480×480
+  → upscale to 690×690 (nearest-neighbor)
+  → rotate by record's angle
+  → mirror if flagged
+  → crop center 690×690 (for 45° angles: uses 980×980 intermediate)
+  → cut into 10×10 grid of 69×69 pixel pieces
+```
+
+### Hash Computation
+Each piece encoded as uint32: `x | (y<<8) | (rotation<<16) | (content<<24)`
+CRC64-ECMA computed over all 100 uint32 values in grid order.
+Full hash string: `{COLOR_LETTER}{CRC64_NUMBER}` (e.g. "G14976251236816614454")
+
+## Puzzle System (1000 puzzles)
+
+50 cases × 20 puzzles each. Cases loaded from `stories.json`.
+
+### Difficulty
+- Cases 0-19 (EASY): 3 missing pieces, random color visibility
+- Cases 20-34 (MEDIUM): 6 missing pieces, random color visibility
+- Cases 35-49 (HARD): 12 missing pieces, always grey/hidden color
+
+### Piece Selection
+12 corner pieces excluded (L-shape at each corner of 10×10 grid):
+indices {0, 1, 10, 8, 9, 19, 80, 90, 91, 89, 98, 99}
+Remaining 88 valid positions used for piece removal.
+
+### Decoy Pieces
+For N missing pieces, the tray always contains 3×N total:
+- N correct pieces from the target fingerprint
+- N fake pieces from random fingerprint A (different variant than target)
+- N fake pieces from random fingerprint B (different variant than target)
+
+Fake pieces loaded with TARGET's rotation+mirror so they're visually indistinguishable by angle.
+Color of fake groups is random — can be same as target or different.
+
+### Grey (Hidden Color) Mode
+- Puzzle grid shows grey version of fingerprint
+- All tray pieces (correct + fake) show in their actual colors
+- Hash displays "?" prefix instead of color letter
+- On submit: system tries all 4 color letters. If match found, color is revealed.
+
+## Drag-and-Drop
+
+- Mouse press on piece in tray → pick up (attaches to cursor)
+- Mouse press on placed piece in grid → unplace, pick up
+- Mouse wheel → rotate held piece (up=clockwise, down=counter-clockwise, 8 steps of 45°)
+- Mouse release on empty missing grid cell → place piece there
+- Mouse release elsewhere → drop at cursor position within drag-and-drop-zone
+- Pieces have free-form positions in tray (not grid-aligned)
+
+## Submit & Verification
+
+- Click send button → compute current hash from grid state
+- If color hidden: try G, R, Y, B prefixes against DB
+- If match found → mark puzzle SOLVED, show success overlay, reveal avatar + name
+- If no match → mark puzzle FAILED (valid outcome), show fail overlay
+- Solved/failed state persisted to save.json
+
+## Persistence
+
+Three files in `~/.config/pomodoro/fingerprint/`:
+- `db.json` — 256 fingerprint records (static, regenerate = delete file)
+- `puzzles.json` — 50×20 puzzle configs (regenerate via button)
+- `save.json` — per-puzzle: solved/failed flags, placed piece positions, tray positions
+
+## Characters
+
+4 suspects cycle across 256 fingerprint records by ID:
+- Rob Malfoy — `m.{Rob Malfoy}.jpg`
+- Steve Gilber — `m.{Steve Gilber}.jpg`
+- Elizabet Queen — `w.{Elizabet Queen}.jpg`
+- May Forty — `w.{May Forty}.jpg`
+- Unknown (unsolved) — `unkown.jpg`
+
+## Stories (stories.json)
+
+50 locations in city of Muldrow. Each case has:
+- Location name (MOTEL, CAR WASH, EDEN, DOCKS, CASINO, etc.)
+- Intro text describing the crime
+- 20 evidence locations (one per puzzle: "on the door handle", "on the bedside table", etc.)
+- Solved templates with {name} placeholder for identified suspect
+
+Description text is word-wrapped to fit the TMX description box and scrollable.

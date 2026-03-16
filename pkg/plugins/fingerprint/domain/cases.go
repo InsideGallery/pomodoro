@@ -118,7 +118,7 @@ func GenerateCases(db *FingerprintDB, seed uint64) []*CaseConfig {
 		pieces, forceGrey := caseDifficulty(i)
 
 		for range PuzzlesPerCase {
-			puzzle := generatePuzzle(db, rng, pieces, forceGrey)
+			puzzle := generatePuzzle(db, rng, seed, pieces, forceGrey)
 			c.Puzzles = append(c.Puzzles, puzzle)
 		}
 
@@ -128,7 +128,7 @@ func GenerateCases(db *FingerprintDB, seed uint64) []*CaseConfig {
 	return cases
 }
 
-func generatePuzzle(db *FingerprintDB, rng *rand.Rand, piecesToSolve int, forceGrey bool) *PuzzleConfig {
+func generatePuzzle(db *FingerprintDB, rng *rand.Rand, seed uint64, piecesToSolve int, forceGrey bool) *PuzzleConfig {
 	target := &db.Records[rng.IntN(len(db.Records))]
 
 	if piecesToSolve > len(ValidPieceIndices) {
@@ -152,7 +152,7 @@ func generatePuzzle(db *FingerprintDB, rng *rand.Rand, piecesToSolve int, forceG
 
 	// 2 fake groups, each with exactly piecesToSolve pieces from a distinct fingerprint.
 	// Total tray = piecesToSolve (real) + 2 * piecesToSolve (fake) = 3 * piecesToSolve.
-	decoys := pickDecoys(db, rng, target, piecesToSolve)
+	decoys := pickDecoys(db, seed, target, piecesToSolve)
 
 	// Build tray: missing pieces + decoys, all with random rotation
 	var tray []TrayPiece
@@ -202,7 +202,11 @@ func generatePuzzle(db *FingerprintDB, rng *rand.Rand, piecesToSolve int, forceG
 
 // pickDecoys selects DecoyGroups (2) fake groups, each with exactly N pieces
 // from one distinct fingerprint record (different variant from target, any color).
-func pickDecoys(db *FingerprintDB, rng *rand.Rand, target *FingerprintRecord, n int) []DecoyPiece {
+// Uses its own deterministic RNG seeded from target ID for reproducibility.
+func pickDecoys(db *FingerprintDB, seed uint64, target *FingerprintRecord, n int) []DecoyPiece {
+	// Deterministic RNG based on target — always produces same decoys for same target
+	drng := rand.New(rand.NewPCG(seed^uint64(target.ID), uint64(target.ID)*0xBEEF)) //nolint:gosec // game
+
 	// Collect candidates: different variant than target
 	var candidates []FingerprintRecord
 
@@ -212,7 +216,7 @@ func pickDecoys(db *FingerprintDB, rng *rand.Rand, target *FingerprintRecord, n 
 		}
 	}
 
-	rng.Shuffle(len(candidates), func(a, b int) {
+	drng.Shuffle(len(candidates), func(a, b int) {
 		candidates[a], candidates[b] = candidates[b], candidates[a]
 	})
 
@@ -228,7 +232,7 @@ func pickDecoys(db *FingerprintDB, rng *rand.Rand, target *FingerprintRecord, n 
 		validCopy := make([]int, len(ValidPieceIndices))
 		copy(validCopy, ValidPieceIndices)
 
-		rng.Shuffle(len(validCopy), func(a, b int) {
+		drng.Shuffle(len(validCopy), func(a, b int) {
 			validCopy[a], validCopy[b] = validCopy[b], validCopy[a]
 		})
 
@@ -332,7 +336,7 @@ func LoadPuzzles(path string, db *FingerprintDB) ([]*CaseConfig, uint64, error) 
 				continue
 			}
 
-			puzzle := reconstructPuzzle(db, rng, target, ps)
+			puzzle := reconstructPuzzle(db, rng, save.Seed, target, ps)
 			c.Puzzles = append(c.Puzzles, puzzle)
 		}
 
@@ -342,8 +346,8 @@ func LoadPuzzles(path string, db *FingerprintDB) ([]*CaseConfig, uint64, error) 
 	return cases, save.Seed, nil
 }
 
-func reconstructPuzzle(db *FingerprintDB, rng *rand.Rand, target *FingerprintRecord, ps PuzzleSaved) *PuzzleConfig {
-	decoys := pickDecoys(db, rng, target, ps.PiecesToSolve)
+func reconstructPuzzle(db *FingerprintDB, rng *rand.Rand, seed uint64, target *FingerprintRecord, ps PuzzleSaved) *PuzzleConfig {
+	decoys := pickDecoys(db, seed, target, ps.PiecesToSolve)
 
 	var tray []TrayPiece
 

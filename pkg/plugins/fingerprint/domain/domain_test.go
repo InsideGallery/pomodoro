@@ -561,6 +561,57 @@ func TestDecoyGroupsExact(t *testing.T) {
 	}
 }
 
+func TestDecoyGroupsAfterSaveLoad(t *testing.T) {
+	_ = LoadStories("../../../../assets/external/fingerprint")
+
+	db := GenerateDB(42)
+
+	seed := uint64(999)
+	cases := GenerateCases(db, seed)
+
+	// Save and reload
+	path := filepath.Join(t.TempDir(), "puzzles.json")
+	if err := SavePuzzles(cases, seed, path); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	loaded, _, err := LoadPuzzles(path, db)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+
+	// Check first EASY case after reload
+	p := loaded[0].Puzzles[0]
+	correct := 0
+	decoy := 0
+
+	for _, tp := range p.TrayPieces {
+		if tp.IsDecoy {
+			decoy++
+		} else {
+			correct++
+		}
+	}
+
+	expectedDecoy := DecoyGroups * p.PiecesToSolve
+	if correct != p.PiecesToSolve {
+		t.Fatalf("after reload: expected %d correct, got %d", p.PiecesToSolve, correct)
+	}
+
+	if decoy != expectedDecoy {
+		t.Fatalf("after reload: expected %d decoy, got %d", expectedDecoy, decoy)
+	}
+
+	total := correct + decoy
+	expected := 3 * p.PiecesToSolve
+
+	if total != expected {
+		t.Fatalf("after reload: expected %d total, got %d", expected, total)
+	}
+
+	t.Logf("after save/load: %d correct + %d decoy = %d total (OK)", correct, decoy, total)
+}
+
 func TestValidPieceIndicesExcludesCorners(t *testing.T) {
 	if len(ValidPieceIndices) != 88 {
 		t.Fatalf("expected 88 valid indices (100 - 12 corners), got %d", len(ValidPieceIndices))
