@@ -253,28 +253,4 @@ func mirrorImage(src image.Image) *image.RGBA {
 	return dst
 }
 
-// FindFingerprintAssetsDir finds the fingerprints directory.
-func FindFingerprintAssetsDir() string {
-	candidates := []string{
-		"assets/external/fingerprint",
-		"../assets/external/fingerprint",
-		"../../assets/external/fingerprint",
-	}
-
-	if exe, err := os.Executable(); err == nil {
-		dir := filepath.Dir(exe)
-		candidates = append(candidates,
-			filepath.Join(dir, "assets", "external", "fingerprint"),
-			filepath.Join(dir, "..", "assets", "external", "fingerprint"),
-			filepath.Join(dir, "..", "..", "assets", "external", "fingerprint"),
-		)
-	}
-
-	for _, p := range candidates {
-		if _, err := os.Stat(filepath.Join(p, "fingerprints")); err == nil {
-			return p
-		}
-	}
-
-	return ""
-}
+// FindFingerprintAssetsDir is in game.go

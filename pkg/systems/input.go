@@ -159,6 +159,17 @@ func (s *InputSystem) SetScrollOffset(y float64) {
 	s.scrollOffsetY = y
 }
 
+// HasHoveredZone returns true if the cursor is currently over any registered zone.
+func (s *InputSystem) HasHoveredZone() bool {
+	if s.CursorOverride == nil {
+		return false
+	}
+
+	mx, my := s.CursorOverride[0], s.CursorOverride[1]
+
+	return s.findZoneAt(mx, my-int(s.scrollOffsetY)) != nil
+}
+
 func (s *InputSystem) findZoneAt(mx, my int) *Zone {
 	clickPoint := shapes.NewSphere(shapes.NewPoint(float64(mx), float64(my)), 1)
 
