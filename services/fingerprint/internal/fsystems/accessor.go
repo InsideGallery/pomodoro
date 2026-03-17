@@ -11,8 +11,7 @@ import (
 
 // SceneAccessor provides access to scene infrastructure for systems.
 // All mutable game state lives in GameData component — accessed via Registry.
-// This interface is for infrastructure only: TileMap, Camera, InputSystem,
-// image caches, scaling, and persistence.
+// Systems draw in world (map) coordinates. Camera handles world→screen transform.
 type SceneAccessor interface {
 	// Infrastructure
 	GetRegistry() *registry.Registry[string, uint64, any]
@@ -21,15 +20,17 @@ type SceneAccessor interface {
 	GetTileMap() *tilemap.Map
 	GetScreenSize() (int, int)
 
-	// Scaling (read-only, computed by Layout)
-	GetScaleX() float64
-	GetScaleY() float64
-	GetOffsetX() float64
-
-	// Infrastructure mutation (loading phase only)
+	// Infrastructure mutation (loading phase)
 	SetTileMap(*tilemap.Map)
-	SetScale(scaleX, scaleY, offsetX float64)
+	SetupWorld() // creates World image + configures Camera after TMX loads
 	SetCursorPos(x, y int)
+
+	// Camera
+	GetBaseZoom() float64
+	ResetCameraZoom()
+
+	// Screen↔World coordinate conversion (uses Camera)
+	ScreenToWorld(screenX, screenY float64) (float64, float64)
 
 	// Persistence
 	LoadGameState()
@@ -44,7 +45,7 @@ type SceneAccessor interface {
 	EnsureCurrentPuzzleImages()
 	InitTrayPositions()
 
-	// Image access (lazy-loaded caches, not game state)
+	// Image access (lazy-loaded caches)
 	GetTargetPieceImage(recordID, pieceIdx int) *ebiten.Image
 	GetGreyPieceImage(recordID, pieceIdx int) *ebiten.Image
 	GetDecoyPieceImage(color string, variant, rotation int, mirrored bool, pieceIdx int) *ebiten.Image

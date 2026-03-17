@@ -44,17 +44,17 @@ func CleanStateGroups(reg RegType) {
 }
 
 // CreateCursorEntity creates the singleton cursor entity if not present.
-func CreateCursorEntity(reg RegType, roomMinX, roomMinY, roomMaxX, roomMaxY int) {
+func CreateCursorEntity(reg RegType, worldMinX, worldMinY, worldMaxX, worldMaxY float64) {
 	if _, err := reg.Get(c.GroupCursor, 0); err == nil {
 		return // already exists
 	}
 
 	entity := &c.Entity{
 		Cursor: &c.Cursor{
-			RoomMinX: roomMinX,
-			RoomMinY: roomMinY,
-			RoomMaxX: roomMaxX,
-			RoomMaxY: roomMaxY,
+			WorldMinX: worldMinX,
+			WorldMinY: worldMinY,
+			WorldMaxX: worldMaxX,
+			WorldMaxY: worldMaxY,
 		},
 	}
 

@@ -7,7 +7,6 @@ import (
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	textv2 "github.com/hajimehoshi/ebiten/v2/text/v2"
 
 	"github.com/InsideGallery/pomodoro/pkg/plugins/fingerprint/domain"
 	"github.com/InsideGallery/pomodoro/pkg/tilemap"
@@ -15,7 +14,9 @@ import (
 	c "github.com/InsideGallery/pomodoro/services/fingerprint/internal/components"
 )
 
-// RenderSystem draws all entities. Implements both Draw (world space) and ScreenDraw (UI).
+// RenderSystem draws all entities in world (map) coordinates.
+// BaseScene composites World to screen via Camera.WorldMatrix().
+// Cursor drawn in ScreenDraw (screen space).
 type RenderSystem struct {
 	scene    SceneAccessor
 	dragdrop *DragDropSystem
@@ -27,53 +28,60 @@ func NewRenderSystem(scene SceneAccessor, dragdrop *DragDropSystem) *RenderSyste
 
 func (s *RenderSystem) Update(_ context.Context) error { return nil }
 
-// Draw renders world-space content (puzzle grid, pieces) with camera transform.
-func (s *RenderSystem) Draw(_ context.Context, screen *ebiten.Image) {
+// Draw renders everything in world (map) coordinates.
+func (s *RenderSystem) Draw(_ context.Context, world *ebiten.Image) {
 	reg := s.scene.GetRegistry()
-	screen.Fill(color.RGBA{A: 0xFF})
+	state := GetState(reg)
 
-	val, err := reg.Get(c.GroupGameState, 0)
-	if err != nil {
+	if state == nil {
 		return
 	}
 
-	entity, ok := val.(*c.Entity)
-	if !ok || entity.State == nil {
-		return
-	}
-
-	state := entity.State.Current
-
-	switch state {
+	switch state.Current {
 	case c.StateLoading:
-		s.drawLoading(screen, reg)
+		// Loading screen drawn in ScreenDraw (screen space)
 	case c.StateDisabled:
-		s.drawDisabled(screen, reg, entity.State.BootTick)
+		s.drawDisabled(world, state.BootTick)
 	case c.StateEnabled:
-		s.drawLayers(screen, "enabled")
-		s.drawEnabledButtons(screen)
+		s.drawLayers(world, "enabled")
+		s.drawEnabledButtons(world)
 	case c.StateApplicationLayout:
-		s.drawLayers(screen, "enabled")
-		s.drawLayers(screen, "application-layout")
-		s.drawAppContent(screen, reg)
+		s.drawLayers(world, "enabled")
+		s.drawLayers(world, "application-layout")
+		s.drawAppContent(world, reg)
 	case c.StateApplicationNet:
-		s.drawLayers(screen, "enabled")
-		s.drawLayers(screen, "application-net-layout")
-		s.drawPuzzleContent(screen, reg)
-		s.drawResultOverlay(screen, reg)
-		s.drawHeldPiece(screen, reg)
+		s.drawLayers(world, "enabled")
+		s.drawLayers(world, "application-net-layout")
+		s.drawPuzzleContent(world, reg)
+		s.drawResultOverlay(world, reg)
+		s.drawHeldPiece(world, reg)
+	}
+}
+
+// ScreenDraw draws UI overlays in screen space (no camera transform).
+func (s *RenderSystem) ScreenDraw(_ context.Context, screen *ebiten.Image) {
+	reg := s.scene.GetRegistry()
+	state := GetState(reg)
+
+	if state == nil {
+		return
 	}
 
-	// Cursor always on top (after boot)
-	if state >= c.StateEnabled {
+	// Loading screen in screen space
+	if state.Current == c.StateLoading {
+		screen.Fill(color.RGBA{A: 0xFF})
+		s.drawLoading(screen, reg)
+
+		return
+	}
+
+	// Cursor always on top in screen space
+	if state.Current >= c.StateEnabled {
 		s.drawCursor(screen, reg)
 	}
 }
 
-// ScreenDraw is called after Draw for UI overlays in screen space.
-func (s *RenderSystem) ScreenDraw(_ context.Context, _ *ebiten.Image) {}
-
-// --- Loading ---
+// --- Loading (screen space) ---
 
 func (s *RenderSystem) drawLoading(screen *ebiten.Image, reg RegType) {
 	w, h := s.scene.GetScreenSize()
@@ -83,17 +91,11 @@ func (s *RenderSystem) drawLoading(screen *ebiten.Image, reg RegType) {
 	ui.DrawTextCentered(screen, "Loading...", ui.Face(true, 14),
 		cx, cy-40, color.RGBA{R: 0xCC, G: 0xCC, B: 0xCC, A: 0xFF})
 
-	val, err := reg.Get(c.GroupGameState, 0)
-	if err != nil {
+	gd := GetGameData(reg)
+	if gd == nil {
 		return
 	}
 
-	entity, ok := val.(*c.Entity)
-	if !ok || entity.GameData == nil {
-		return
-	}
-
-	gd := entity.GameData
 	barW := 300.0
 	barH := 12.0
 	barX := cx - barW/2
@@ -116,44 +118,41 @@ func (s *RenderSystem) drawLoading(screen *ebiten.Image, reg RegType) {
 	}
 }
 
-// --- Disabled (boot animation) ---
+// --- Disabled (boot animation) — world space ---
 
-func (s *RenderSystem) drawDisabled(screen *ebiten.Image, _ RegType, bootTick int) {
+func (s *RenderSystem) drawDisabled(world *ebiten.Image, bootTick int) {
 	tmap := s.scene.GetTileMap()
 	if tmap == nil {
 		return
 	}
 
-	co := CoordsFromScene(s.scene)
 	progress := float64(bootTick) / 90.0
-
 	if progress > 1 {
 		progress = 1
 	}
 
 	if progress < 0.5 {
-		s.drawImageLayer(screen, tmap, "disabled", 1.0, co)
+		s.drawImageLayer(world, tmap, "disabled", 1.0)
 	} else {
 		fade := (progress - 0.5) * 2
-		s.drawImageLayer(screen, tmap, "disabled", 1.0-fade, co)
-		s.drawImageLayer(screen, tmap, "enabled", fade, co)
+		s.drawImageLayer(world, tmap, "disabled", 1.0-fade)
+		s.drawImageLayer(world, tmap, "enabled", fade)
 	}
 }
 
-// --- Layer rendering helpers ---
+// --- Layer rendering — world space (no scale needed!) ---
 
-func (s *RenderSystem) drawLayers(screen *ebiten.Image, prefix string) {
+func (s *RenderSystem) drawLayers(world *ebiten.Image, prefix string) {
 	tmap := s.scene.GetTileMap()
 	if tmap == nil {
 		return
 	}
 
-	co := CoordsFromScene(s.scene)
-	s.drawImageLayer(screen, tmap, prefix, 1.0, co)
-	s.drawTileLayerScaled(screen, tmap, prefix, co)
+	s.drawImageLayer(world, tmap, prefix, 1.0)
+	s.drawTileLayer(world, tmap, prefix)
 }
 
-func (s *RenderSystem) drawImageLayer(screen *ebiten.Image, tmap *tilemap.Map, name string, alpha float64, co Coords) {
+func (s *RenderSystem) drawImageLayer(world *ebiten.Image, tmap *tilemap.Map, name string, alpha float64) {
 	layer := tmap.FindImageLayer(name)
 	if layer == nil {
 		return
@@ -165,34 +164,32 @@ func (s *RenderSystem) drawImageLayer(screen *ebiten.Image, tmap *tilemap.Map, n
 	}
 
 	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Scale(co.Scale, co.Scale)
-	op.GeoM.Translate(co.OffsetX, co.OffsetY)
+	// No scale — world image is map-sized, image layers are map-sized
 
 	if alpha < 1.0 {
 		op.ColorScale.Scale(float32(alpha), float32(alpha), float32(alpha), float32(alpha))
 	}
 
-	screen.DrawImage(img, op)
+	world.DrawImage(img, op)
 }
 
-func (s *RenderSystem) drawTileLayerScaled(screen *ebiten.Image, tmap *tilemap.Map, name string, co Coords) {
+func (s *RenderSystem) drawTileLayer(world *ebiten.Image, tmap *tilemap.Map, name string) {
 	layer := tmap.FindTileLayer(name)
 	if layer == nil {
 		return
 	}
 
-	tmap.DrawTileLayer(screen, layer, co.Scale, co.Scale, co.OffsetX, co.OffsetY)
+	// Scale 1:1, offset 0 — tile layer coordinates ARE world coordinates
+	tmap.DrawTileLayer(world, layer, 1.0, 1.0, 0, 0)
 }
 
-// --- Enabled state buttons ---
+// --- Enabled state buttons — world space ---
 
-func (s *RenderSystem) drawEnabledButtons(screen *ebiten.Image) {
+func (s *RenderSystem) drawEnabledButtons(world *ebiten.Image) {
 	tmap := s.scene.GetTileMap()
 	if tmap == nil {
 		return
 	}
-
-	co := CoordsFromScene(s.scene)
 
 	og := tmap.FindObjectGroup("enabled")
 	if og == nil {
@@ -200,21 +197,18 @@ func (s *RenderSystem) drawEnabledButtons(screen *ebiten.Image) {
 	}
 
 	if quitObj := tilemap.FindObject(og, "button-quit-os"); quitObj != nil {
-		qx := co.MapToScreenX(quitObj.X)
-		qy := co.MapToScreenY(quitObj.Y)
-		qw := co.MapToScreenSize(200)
-		qh := co.MapToScreenSize(50)
-
-		ui.DrawRoundedRect(screen, float32(qx), float32(qy), float32(qw), float32(qh), 4,
+		// Draw at map coordinates directly
+		ui.DrawRoundedRect(world, float32(quitObj.X), float32(quitObj.Y), 200, 50, 4,
 			color.RGBA{R: 0xCC, G: 0x33, B: 0x33, A: 0xCC})
-		ui.DrawTextCentered(screen, "QUIT", ui.Face(true, 11), qx+qw/2, qy+qh/2-8,
+		ui.DrawTextCentered(world, "QUIT", ui.Face(true, 22),
+			quitObj.X+100, quitObj.Y+10,
 			color.RGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xFF})
 	}
 }
 
-// --- Application layout content ---
+// --- Application layout content — world space ---
 
-func (s *RenderSystem) drawAppContent(screen *ebiten.Image, reg RegType) { //nolint:gocyclo // UI rendering
+func (s *RenderSystem) drawAppContent(world *ebiten.Image, reg RegType) { //nolint:gocyclo // UI
 	tmap := s.scene.GetTileMap()
 	if tmap == nil {
 		return
@@ -225,9 +219,8 @@ func (s *RenderSystem) drawAppContent(screen *ebiten.Image, reg RegType) { //nol
 		return
 	}
 
-	co := CoordsFromScene(s.scene)
-	faceList := ui.Face(true, 9)
-	faceBtn := ui.Face(true, 8)
+	faceList := ui.Face(true, 16)
+	faceBtn := ui.Face(true, 16)
 	white := color.RGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xFF}
 	textClr := color.RGBA{R: 0x4D, G: 0x4B, B: 0x4B, A: 0xFF}
 
@@ -236,59 +229,46 @@ func (s *RenderSystem) drawAppContent(screen *ebiten.Image, reg RegType) { //nol
 		return
 	}
 
-	cases := gd.Cases
-	selectedCase := gd.SelectedCase
-	selectedPuzzle := gd.SelectedPuzzle
-
-	casesScroll := gd.CasesScroll
-
+	// Scrollable case list
 	if casesObj := tilemap.FindObject(og, "list-of-cases"); casesObj != nil {
-		x := co.MapToScreenX(casesObj.X)
-		y := co.MapToScreenY(casesObj.Y)
-		w := co.MapToScreenSize(casesObj.Width)
-		h := co.MapToScreenSize(casesObj.Height)
-		rowH := co.MapToScreenSize(45)
+		x, y, w, h := casesObj.X, casesObj.Y, casesObj.Width, casesObj.Height
+		rowH := 90.0 // map units
 
-		for i := casesScroll; i < len(cases); i++ {
-			ry := y + float64(i-casesScroll)*rowH
+		for i := gd.CasesScroll; i < len(gd.Cases); i++ {
+			ry := y + float64(i-gd.CasesScroll)*rowH
 			if ry+rowH > y+h {
 				break
 			}
 
 			btnClr := color.RGBA{R: 0x3A, G: 0x5A, B: 0x5A, A: 0x80}
-			if i == selectedCase {
+			if i == gd.SelectedCase {
 				btnClr = color.RGBA{R: 0x4D, G: 0x8B, B: 0x8B, A: 0x60}
 			}
 
-			ui.DrawRoundedRect(screen, float32(x+1), float32(ry+1), float32(w-2), float32(rowH-2), 2, btnClr)
+			ui.DrawRoundedRect(world, float32(x+2), float32(ry+2), float32(w-4), float32(rowH-4), 4, btnClr)
 
 			solved := 0
-			for _, p := range cases[i].Puzzles {
+			for _, p := range gd.Cases[i].Puzzles {
 				if p.Solved || p.Failed {
 					solved++
 				}
 			}
 
-			label := fmt.Sprintf("%s (%d/%d)", cases[i].Name, solved, len(cases[i].Puzzles))
-			ui.DrawText(screen, label, faceList, x+6, ry+8, textClr)
+			label := fmt.Sprintf("%s (%d/%d)", gd.Cases[i].Name, solved, len(gd.Cases[i].Puzzles))
+			ui.DrawText(world, label, faceList, x+12, ry+16, textClr)
 		}
 
-		s.drawScrollbar(screen, x, y, w, h, rowH, len(cases), casesScroll)
+		s.drawScrollbar(world, x, y, w, h, rowH, len(gd.Cases), gd.CasesScroll)
 	}
 
 	// Scrollable puzzle list
-	namesScroll := gd.NamesScroll
+	if namesObj := tilemap.FindObject(og, "fingerprints-user-names"); namesObj != nil && gd.SelectedCase >= 0 && gd.SelectedCase < len(gd.Cases) {
+		x, y, w, h := namesObj.X, namesObj.Y, namesObj.Width, namesObj.Height
+		rowH := 100.0
+		cs := gd.Cases[gd.SelectedCase]
 
-	if namesObj := tilemap.FindObject(og, "fingerprints-user-names"); namesObj != nil && selectedCase >= 0 && selectedCase < len(cases) {
-		x := co.MapToScreenX(namesObj.X)
-		y := co.MapToScreenY(namesObj.Y)
-		w := co.MapToScreenSize(namesObj.Width)
-		h := co.MapToScreenSize(namesObj.Height)
-		rowH := co.MapToScreenSize(50)
-		cs := cases[selectedCase]
-
-		for i := namesScroll; i < len(cs.Puzzles); i++ {
-			ry := y + float64(i-namesScroll)*rowH
+		for i := gd.NamesScroll; i < len(cs.Puzzles); i++ {
+			ry := y + float64(i-gd.NamesScroll)*rowH
 			if ry+rowH > y+h {
 				break
 			}
@@ -305,27 +285,22 @@ func (s *RenderSystem) drawAppContent(screen *ebiten.Image, reg RegType) { //nol
 			btnClr := color.RGBA{R: 0x3A, G: 0x5A, B: 0x5A, A: 0xAA}
 			txtClr := textClr
 
-			if i == selectedPuzzle {
+			if i == gd.SelectedPuzzle {
 				btnClr = color.RGBA{R: 0x2E, G: 0x86, B: 0x8E, A: 0xCC}
 				txtClr = white
 			}
 
 			label := fmt.Sprintf("%d. %s", i+1, name)
-			ui.DrawRoundedRect(screen, float32(x+1), float32(ry+1), float32(w-2), float32(rowH-2), 2, btnClr)
-			ui.DrawText(screen, label, faceList, x+6, ry+8, txtClr)
+			ui.DrawRoundedRect(world, float32(x+2), float32(ry+2), float32(w-4), float32(rowH-4), 4, btnClr)
+			ui.DrawText(world, label, faceList, x+12, ry+16, txtClr)
 		}
 
-		s.drawScrollbar(screen, x, y, w, h, rowH, len(cs.Puzzles), namesScroll)
+		s.drawScrollbar(world, x, y, w, h, rowH, len(cs.Puzzles), gd.NamesScroll)
 	}
 
 	// Avatar
 	if avatarObj := tilemap.FindObject(og, "avatar"); avatarObj != nil {
-		ax := co.MapToScreenX(avatarObj.X)
-		ay := co.MapToScreenY(avatarObj.Y)
-		aw := co.MapToScreenSize(avatarObj.Width)
-		ah := co.MapToScreenSize(avatarObj.Height)
-
-		puzzle := s.currentPuzzle()
+		puzzle := CurrentPuzzle(gd)
 		if puzzle != nil {
 			avatarFile := domain.UnknownAvatar
 			if puzzle.Solved {
@@ -337,70 +312,60 @@ func (s *RenderSystem) drawAppContent(screen *ebiten.Image, reg RegType) { //nol
 				op := &ebiten.DrawImageOptions{}
 				iw := float64(avatarImg.Bounds().Dx())
 				ih := float64(avatarImg.Bounds().Dy())
-				op.GeoM.Scale(aw/iw, ah/ih)
-				op.GeoM.Translate(ax, ay)
-				screen.DrawImage(avatarImg, op)
+				op.GeoM.Scale(avatarObj.Width/iw, avatarObj.Height/ih)
+				op.GeoM.Translate(avatarObj.X, avatarObj.Y)
+				world.DrawImage(avatarImg, op)
 			} else {
-				ui.DrawRoundedRect(screen, float32(ax), float32(ay), float32(aw), float32(ah), 4,
+				ui.DrawRoundedRect(world, float32(avatarObj.X), float32(avatarObj.Y),
+					float32(avatarObj.Width), float32(avatarObj.Height), 8,
 					color.RGBA{R: 0xD5, G: 0xF2, B: 0xF1, A: 0xFF})
-				ui.DrawTextCentered(screen, "?", ui.Face(true, 24), ax+aw/2, ay+ah/2-10, textClr)
+				ui.DrawTextCentered(world, "?", ui.Face(true, 48),
+					avatarObj.X+avatarObj.Width/2, avatarObj.Y+avatarObj.Height/2-20, textClr)
 			}
 		}
 	}
 
 	// Description
-	descScroll := gd.DescScroll
-
 	if descObj := tilemap.FindObject(og, "description"); descObj != nil {
-		dx := co.MapToScreenX(descObj.X)
-		dy := co.MapToScreenY(descObj.Y)
-		dw := co.MapToScreenSize(descObj.Width)
-		dh := co.MapToScreenSize(descObj.Height)
-
-		puzzle := s.currentPuzzle()
+		puzzle := CurrentPuzzle(gd)
 		if puzzle != nil {
 			var descText string
 
 			switch {
 			case puzzle.Solved:
-				descText = domain.SolvedDescription(selectedCase, selectedPuzzle, puzzle.TargetRecord.PersonName)
+				descText = domain.SolvedDescription(gd.SelectedCase, gd.SelectedPuzzle, puzzle.TargetRecord.PersonName)
 			case puzzle.Failed:
-				descText = domain.NoMatchDescription(selectedCase, selectedPuzzle)
+				descText = domain.NoMatchDescription(gd.SelectedCase, gd.SelectedPuzzle)
 			default:
-				descText = domain.UnsolvedDescription(selectedCase, selectedPuzzle)
+				descText = domain.UnsolvedDescription(gd.SelectedCase, gd.SelectedPuzzle)
 			}
 
-			drawWrappedText(screen, descText, dx+4, dy+4, dw-8, dh-8, descScroll, textClr)
+			drawWrappedText(world, descText, descObj.X+8, descObj.Y+8,
+				descObj.Width-16, descObj.Height-16, gd.DescScroll, textClr)
 		}
 	}
 
 	// Programmatic buttons
 	if btnObj := tilemap.FindObject(og, "play-puzzle"); btnObj != nil {
-		bx := co.MapToScreenX(btnObj.X)
-		by := co.MapToScreenY(btnObj.Y)
-		bw := co.MapToScreenSize(btnObj.Width)
-		bh := co.MapToScreenSize(btnObj.Height)
-
-		ui.DrawRoundedRect(screen, float32(bx), float32(by), float32(bw), float32(bh), 4,
+		ui.DrawRoundedRect(world, float32(btnObj.X), float32(btnObj.Y),
+			float32(btnObj.Width), float32(btnObj.Height), 8,
 			color.RGBA{R: 0x2E, G: 0x86, B: 0x8E, A: 0xDD})
-		ui.DrawTextCentered(screen, "OPEN PUZZLE", faceBtn, bx+bw/2, by+bh/2-6, white)
+		ui.DrawTextCentered(world, "OPEN PUZZLE", faceBtn,
+			btnObj.X+btnObj.Width/2, btnObj.Y+btnObj.Height/2-12, white)
 	}
 
 	if btnObj := tilemap.FindObject(og, "regenerate-puzzles"); btnObj != nil {
-		bx := co.MapToScreenX(btnObj.X)
-		by := co.MapToScreenY(btnObj.Y)
-		bw := co.MapToScreenSize(btnObj.Width)
-		bh := co.MapToScreenSize(btnObj.Height)
-
-		ui.DrawRoundedRect(screen, float32(bx), float32(by), float32(bw), float32(bh), 4,
+		ui.DrawRoundedRect(world, float32(btnObj.X), float32(btnObj.Y),
+			float32(btnObj.Width), float32(btnObj.Height), 8,
 			color.RGBA{R: 0x8E, G: 0x44, B: 0x2E, A: 0xDD})
-		ui.DrawTextCentered(screen, "REGENERATE", faceBtn, bx+bw/2, by+bh/2-6, white)
+		ui.DrawTextCentered(world, "REGENERATE", faceBtn,
+			btnObj.X+btnObj.Width/2, btnObj.Y+btnObj.Height/2-12, white)
 	}
 }
 
-// --- Puzzle workspace content ---
+// --- Puzzle workspace — world space ---
 
-func (s *RenderSystem) drawPuzzleContent(screen *ebiten.Image, _ RegType) { //nolint:gocyclo // puzzle rendering
+func (s *RenderSystem) drawPuzzleContent(world *ebiten.Image, _ RegType) { //nolint:gocyclo // puzzle
 	tmap := s.scene.GetTileMap()
 	if tmap == nil {
 		return
@@ -411,30 +376,24 @@ func (s *RenderSystem) drawPuzzleContent(screen *ebiten.Image, _ RegType) { //no
 		return
 	}
 
-	puzzle := s.currentPuzzle()
+	puzzle := CurrentPuzzle(GetGameData(s.scene.GetRegistry()))
 	if puzzle == nil {
 		return
 	}
 
-	co := CoordsFromScene(s.scene)
-	faceHash := ui.Face(false, 10)
+	faceHash := ui.Face(false, 18)
 
-	// Hash display
+	// Hash
 	if hashObj := tilemap.FindObject(og, "hash"); hashObj != nil {
-		hx := co.MapToScreenX(hashObj.X)
-		hy := co.MapToScreenY(hashObj.Y)
 		hashText := s.computeCurrentHash(puzzle)
-
-		ui.DrawText(screen, hashText, faceHash, hx+4, hy+4,
+		ui.DrawText(world, hashText, faceHash, hashObj.X+8, hashObj.Y+8,
 			color.RGBA{R: 0x4D, G: 0x4B, B: 0x4B, A: 0xFF})
 	}
 
 	// Puzzle grid
 	if puzzleObj := tilemap.FindObject(og, "puzzle"); puzzleObj != nil {
-		px := co.MapToScreenX(puzzleObj.X)
-		py := co.MapToScreenY(puzzleObj.Y)
-		pw := co.MapToScreenSize(puzzleObj.Width)
-		ph := co.MapToScreenSize(puzzleObj.Height)
+		px, py := puzzleObj.X, puzzleObj.Y
+		pw, ph := puzzleObj.Width, puzzleObj.Height
 		side := math.Min(pw, ph)
 
 		px += (pw - side) / 2
@@ -444,11 +403,11 @@ func (s *RenderSystem) drawPuzzleContent(screen *ebiten.Image, _ RegType) { //no
 		// Grid lines
 		for i := range 11 {
 			lx := float32(px + float64(i)*cellW)
-			ui.DrawRoundedRect(screen, lx, float32(py), 1, float32(side), 0,
+			ui.DrawRoundedRect(world, lx, float32(py), 1, float32(side), 0,
 				color.RGBA{R: 0x80, G: 0x80, B: 0x80, A: 0x40})
 
 			ly := float32(py + float64(i)*cellW)
-			ui.DrawRoundedRect(screen, float32(px), ly, float32(side), 1, 0,
+			ui.DrawRoundedRect(world, float32(px), ly, float32(side), 1, 0,
 				color.RGBA{R: 0x80, G: 0x80, B: 0x80, A: 0x40})
 		}
 
@@ -480,19 +439,17 @@ func (s *RenderSystem) drawPuzzleContent(screen *ebiten.Image, _ RegType) { //no
 			if pieceImg != nil {
 				op := &ebiten.DrawImageOptions{}
 				iw := float64(pieceImg.Bounds().Dx())
-				ih := float64(pieceImg.Bounds().Dy())
-				op.GeoM.Scale(cellW/iw, cellW/ih)
+				op.GeoM.Scale(cellW/iw, cellW/iw)
 				op.GeoM.Translate(cx, cy)
-				screen.DrawImage(pieceImg, op)
+				world.DrawImage(pieceImg, op)
 			}
 		}
 
-		// Placed pieces + empty slots
+		// Placed + empty slots
 		placedAt := make(map[int]int)
 		for ti, tp := range puzzle.TrayPieces {
 			if tp.IsPlaced {
-				gIdx := tp.PlacedY*10 + tp.PlacedX
-				placedAt[gIdx] = ti
+				placedAt[tp.PlacedY*10+tp.PlacedX] = ti
 			}
 		}
 
@@ -507,26 +464,26 @@ func (s *RenderSystem) drawPuzzleContent(screen *ebiten.Image, _ RegType) { //no
 				pieceImg := s.getPieceImage(puzzle, tp)
 
 				if pieceImg != nil {
-					drawRotatedPiece(screen, pieceImg, cx, cy, cellW, tp.Rotation)
+					drawRotatedPiece(world, pieceImg, cx, cy, cellW, tp.Rotation)
 				} else {
 					clr := color.RGBA{R: 0x4D, G: 0x8B, B: 0x8B, A: 0xCC}
 					if tp.IsDecoy {
 						clr = color.RGBA{R: 0x8B, G: 0x4D, B: 0x4D, A: 0xCC}
 					}
 
-					ui.DrawRoundedRect(screen, float32(cx+1), float32(cy+1),
-						float32(cellW-2), float32(cellW-2), 1, clr)
+					ui.DrawRoundedRect(world, float32(cx+1), float32(cy+1),
+						float32(cellW-2), float32(cellW-2), 2, clr)
 				}
 			} else {
-				ui.DrawRoundedRect(screen, float32(cx+1), float32(cy+1),
-					float32(cellW-2), float32(cellW-2), 1,
+				ui.DrawRoundedRect(world, float32(cx+1), float32(cy+1),
+					float32(cellW-2), float32(cellW-2), 2,
 					color.RGBA{R: 0xFF, G: 0xA0, B: 0x00, A: 0x30})
 			}
 		}
 	}
 
-	// Tray pieces
-	cellSz := s.gridCellScreenSize(co)
+	// Tray pieces at map coordinates
+	cellSz := s.gridCellMapSize()
 	holdIdx := s.dragdrop.HoldingPiece()
 	isDragging := s.dragdrop.IsDragging()
 
@@ -535,34 +492,24 @@ func (s *RenderSystem) drawPuzzleContent(screen *ebiten.Image, _ RegType) { //no
 			continue
 		}
 
-		tx := co.MapToScreenX(tp.TrayX)
-		ty := co.MapToScreenY(tp.TrayY)
-
 		pieceImg := s.getPieceImage(puzzle, tp)
 		if pieceImg != nil {
-			drawRotatedPiece(screen, pieceImg, tx, ty, cellSz, tp.Rotation)
+			drawRotatedPiece(world, pieceImg, tp.TrayX, tp.TrayY, cellSz, tp.Rotation)
 		} else {
 			clr := color.RGBA{R: 0x4D, G: 0x8B, B: 0x8B, A: 0xCC}
 			if tp.IsDecoy {
 				clr = color.RGBA{R: 0x8B, G: 0x4D, B: 0x4D, A: 0xCC}
 			}
 
-			ui.DrawRoundedRect(screen, float32(tx+1), float32(ty+1),
-				float32(cellSz-2), float32(cellSz-2), 2, clr)
+			ui.DrawRoundedRect(world, float32(tp.TrayX+1), float32(tp.TrayY+1),
+				float32(cellSz-2), float32(cellSz-2), 4, clr)
 		}
 	}
 }
 
-// --- Result overlay ---
-
-func (s *RenderSystem) drawResultOverlay(screen *ebiten.Image, reg RegType) {
+func (s *RenderSystem) drawResultOverlay(world *ebiten.Image, reg RegType) {
 	gd := GetGameData(reg)
-	if gd == nil {
-		return
-	}
-
-	showResult := gd.ShowResult
-	if showResult == 0 {
+	if gd == nil || gd.ShowResult == 0 {
 		return
 	}
 
@@ -571,46 +518,49 @@ func (s *RenderSystem) drawResultOverlay(screen *ebiten.Image, reg RegType) {
 		return
 	}
 
-	co := CoordsFromScene(s.scene)
-
-	if showResult == 1 {
-		s.drawTileLayerScaled(screen, tmap, "application-net-layout-success", co)
+	if gd.ShowResult == 1 {
+		s.drawTileLayer(world, tmap, "application-net-layout-success")
 	} else {
-		s.drawTileLayerScaled(screen, tmap, "application-net-layout-fail", co)
+		s.drawTileLayer(world, tmap, "application-net-layout-fail")
 	}
 }
 
-// --- Held piece ---
-
-func (s *RenderSystem) drawHeldPiece(screen *ebiten.Image, reg RegType) {
+func (s *RenderSystem) drawHeldPiece(world *ebiten.Image, reg RegType) {
 	if !s.dragdrop.IsDragging() || s.dragdrop.HoldingPiece() < 0 {
 		return
 	}
 
-	puzzle := s.currentPuzzle()
+	puzzle := CurrentPuzzle(GetGameData(reg))
 	if puzzle == nil || s.dragdrop.HoldingPiece() >= len(puzzle.TrayPieces) {
 		return
 	}
 
 	tp := puzzle.TrayPieces[s.dragdrop.HoldingPiece()]
-	cx, cy := s.getCursorScreenPos(reg)
-	sz := s.gridCellScreenSize(CoordsFromScene(s.scene))
+
+	// Convert screen cursor to world coordinates
+	cur := GetCursor(reg)
+	if cur == nil {
+		return
+	}
+
+	wx, wy := s.scene.ScreenToWorld(float64(cur.X), float64(cur.Y))
+	sz := s.gridCellMapSize()
 
 	pieceImg := s.getPieceImage(puzzle, tp)
 	if pieceImg != nil {
-		drawRotatedPiece(screen, pieceImg, cx-sz/2, cy-sz/2, sz, tp.Rotation)
+		drawRotatedPiece(world, pieceImg, wx-sz/2, wy-sz/2, sz, tp.Rotation)
 	} else {
 		clr := color.RGBA{R: 0x4D, G: 0x8B, B: 0x8B, A: 0x90}
 		if tp.IsDecoy {
 			clr = color.RGBA{R: 0x8B, G: 0x4D, B: 0x4D, A: 0x90}
 		}
 
-		ui.DrawRoundedRect(screen, float32(cx-sz/2), float32(cy-sz/2),
-			float32(sz), float32(sz), 3, clr)
+		ui.DrawRoundedRect(world, float32(wx-sz/2), float32(wy-sz/2),
+			float32(sz), float32(sz), 4, clr)
 	}
 }
 
-// --- Cursor ---
+// --- Cursor (screen space) ---
 
 func (s *RenderSystem) drawCursor(screen *ebiten.Image, reg RegType) {
 	tmap := s.scene.GetTileMap()
@@ -623,85 +573,39 @@ func (s *RenderSystem) drawCursor(screen *ebiten.Image, reg RegType) {
 		return
 	}
 
-	cx, cy := s.getCursorScreenPos(reg)
+	cur := GetCursor(reg)
+	if cur == nil {
+		return
+	}
 
 	op := &ebiten.DrawImageOptions{}
 	cw := float64(cursorImg.Bounds().Dx())
 	cursorScale := 32.0 / cw
 	op.GeoM.Scale(cursorScale, cursorScale)
-	op.GeoM.Translate(cx, cy)
+	op.GeoM.Translate(float64(cur.X), float64(cur.Y))
 	screen.DrawImage(cursorImg, op)
 }
 
 // --- Helpers ---
 
-func (s *RenderSystem) currentPuzzle() *domain.PuzzleConfig {
-	return CurrentPuzzle(GetGameData(s.scene.GetRegistry()))
-}
-
-func (s *RenderSystem) getCursorScreenPos(reg RegType) (float64, float64) {
-	val, err := reg.Get(c.GroupCursor, 0)
-	if err != nil {
-		return 0, 0
-	}
-
-	entity, ok := val.(*c.Entity)
-	if !ok || entity.Cursor == nil {
-		return 0, 0
-	}
-
-	return float64(entity.Cursor.X), float64(entity.Cursor.Y)
-}
-
-func (s *RenderSystem) getScrollOffset(reg RegType, group string) int {
-	val, err := reg.Get(group, 0)
-	if err != nil {
-		return 0
-	}
-
-	entity, ok := val.(*c.Entity)
-	if !ok || entity.Scrollable == nil {
-		return 0
-	}
-
-	return entity.Scrollable.Scroll
-}
-
-func (s *RenderSystem) getTextScrollOffset(reg RegType, group string) int {
-	val, err := reg.Get(group, 0)
-	if err != nil {
-		return 0
-	}
-
-	entity, ok := val.(*c.Entity)
-	if !ok || entity.TextBlock == nil {
-		return 0
-	}
-
-	return entity.TextBlock.Scroll
-}
-
-func (s *RenderSystem) gridCellScreenSize(co Coords) float64 {
+func (s *RenderSystem) gridCellMapSize() float64 {
 	tmap := s.scene.GetTileMap()
 	if tmap == nil {
-		return 40
+		return 68
 	}
 
 	og := tmap.FindObjectGroup("application-net-layout")
 	if og == nil {
-		return 40
+		return 68
 	}
 
 	for _, obj := range og.Objects {
 		if obj.Name == "puzzle" {
-			pw := co.MapToScreenSize(obj.Width)
-			ph := co.MapToScreenSize(obj.Height)
-
-			return math.Min(pw, ph) / 10
+			return math.Min(obj.Width, obj.Height) / 10
 		}
 	}
 
-	return 40
+	return 68
 }
 
 func (s *RenderSystem) getPieceImage(puzzle *domain.PuzzleConfig, tp domain.TrayPiece) *ebiten.Image {
@@ -754,12 +658,10 @@ func (s *RenderSystem) computeCurrentHash(puzzle *domain.PuzzleConfig) string {
 		colorLetter = "?"
 	}
 
-	hash := domain.ComputeHash(pieces)
-
-	return fmt.Sprintf("%s%d", colorLetter, hash)
+	return fmt.Sprintf("%s%d", colorLetter, domain.ComputeHash(pieces))
 }
 
-func (s *RenderSystem) drawScrollbar(screen *ebiten.Image, x, y, w, h, rowH float64, totalItems, scroll int) {
+func (s *RenderSystem) drawScrollbar(world *ebiten.Image, x, y, w, h, rowH float64, totalItems, scroll int) {
 	maxScroll := totalItems - int(h/rowH)
 	if maxScroll <= 0 {
 		return
@@ -767,35 +669,33 @@ func (s *RenderSystem) drawScrollbar(screen *ebiten.Image, x, y, w, h, rowH floa
 
 	sbH := h * h / (float64(totalItems) * rowH)
 	sbY := y + float64(scroll)/float64(maxScroll)*(h-sbH)
-	ui.DrawRoundedRect(screen, float32(x+w-4), float32(sbY), 3, float32(sbH), 1,
+	ui.DrawRoundedRect(world, float32(x+w-6), float32(sbY), 5, float32(sbH), 2,
 		color.RGBA{R: 0x80, G: 0x80, B: 0x80, A: 0x80})
 }
 
-// --- Standalone drawing helpers (no receiver, reusable) ---
+// --- Standalone drawing helpers ---
 
-func drawRotatedPiece(screen *ebiten.Image, img *ebiten.Image, x, y, size float64, rotation int) {
+func drawRotatedPiece(dst *ebiten.Image, img *ebiten.Image, x, y, size float64, rotation int) {
 	iw := float64(img.Bounds().Dx())
-	ih := float64(img.Bounds().Dy())
 	scale := size / iw
 
 	op := &ebiten.DrawImageOptions{}
-
-	op.GeoM.Translate(-iw/2, -ih/2)
+	op.GeoM.Translate(-iw/2, -iw/2)
 
 	angle := float64(rotation%domain.RotationSteps) * math.Pi / 4
 	if angle != 0 {
 		op.GeoM.Rotate(angle)
 	}
 
-	op.GeoM.Translate(iw/2, ih/2)
+	op.GeoM.Translate(iw/2, iw/2)
 	op.GeoM.Scale(scale, scale)
 	op.GeoM.Translate(x, y)
 
-	screen.DrawImage(img, op)
+	dst.DrawImage(img, op)
 }
 
-func drawWrappedText(screen *ebiten.Image, text string, x, y, maxW, maxH float64, scroll int, clr color.Color) {
-	face := ui.Face(false, 9)
+func drawWrappedText(dst *ebiten.Image, text string, x, y, maxW, maxH float64, scroll int, clr color.Color) {
+	face := ui.Face(false, 18)
 	lineH := face.Size * 1.5
 	lines := wrapText(text, face, maxW)
 
@@ -811,82 +711,7 @@ func drawWrappedText(screen *ebiten.Image, text string, x, y, maxW, maxH float64
 			break
 		}
 
-		ui.DrawText(screen, line, face, x, ty, clr)
+		ui.DrawText(dst, line, face, x, ty, clr)
 		drawn++
 	}
-}
-
-func wrapText(text string, face *textv2.GoTextFace, maxW float64) []string {
-	var lines []string
-
-	for _, paragraph := range splitNewlines(text) {
-		if paragraph == "" {
-			lines = append(lines, "")
-			continue
-		}
-
-		words := splitWords(paragraph)
-		current := ""
-
-		for _, word := range words {
-			test := current
-			if test != "" {
-				test += " "
-			}
-
-			test += word
-
-			w, _ := ui.MeasureText(test, face)
-			if w > maxW && current != "" {
-				lines = append(lines, current)
-				current = word
-			} else {
-				current = test
-			}
-		}
-
-		if current != "" {
-			lines = append(lines, current)
-		}
-	}
-
-	return lines
-}
-
-func splitNewlines(s string) []string {
-	var lines []string
-
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\n' {
-			lines = append(lines, s[start:i])
-			start = i + 1
-		}
-	}
-
-	lines = append(lines, s[start:])
-
-	return lines
-}
-
-func splitWords(s string) []string {
-	var words []string
-
-	start := -1
-	for i, ch := range s {
-		if ch == ' ' {
-			if start >= 0 {
-				words = append(words, s[start:i])
-				start = -1
-			}
-		} else if start < 0 {
-			start = i
-		}
-	}
-
-	if start >= 0 {
-		words = append(words, s[start:])
-	}
-
-	return words
 }

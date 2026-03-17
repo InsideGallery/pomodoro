@@ -7,6 +7,8 @@ import (
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+
+	"github.com/InsideGallery/pomodoro/pkg/platform"
 )
 
 // DB constants.
@@ -186,20 +188,10 @@ func (db *FingerprintDB) LookupByHash(hash string) *FingerprintRecord {
 
 // DefaultDBPath returns the default path for db.json.
 func DefaultDBPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "db.json"
-	}
-
-	return filepath.Join(home, ".config", "pomodoro", "fingerprint", "db.json")
+	return filepath.Join(platform.GetDataDir(), "fingerprint", "db.json")
 }
 
 // DefaultPuzzlesPath returns the path for puzzles.json (regeneratable).
 func DefaultPuzzlesPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "puzzles.json"
-	}
-
-	return filepath.Join(home, ".config", "pomodoro", "fingerprint", "puzzles.json")
+	return filepath.Join(platform.GetDataDir(), "fingerprint", "puzzles.json")
 }

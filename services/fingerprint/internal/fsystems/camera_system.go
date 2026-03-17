@@ -53,7 +53,7 @@ func (s *CameraSystem) Update(_ context.Context) error {
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyC) {
-		cam.Reset()
+		s.scene.ResetCameraZoom()
 	}
 
 	// Mobile: pinch zoom (two-finger distance change)

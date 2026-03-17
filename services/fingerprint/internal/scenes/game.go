@@ -3,14 +3,12 @@ package scenes
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"math"
 	"os"
 	"path/filepath"
 
 	"github.com/InsideGallery/core/memory/registry"
 	"github.com/InsideGallery/game-core/geometry/shapes"
-	"github.com/InsideGallery/game-core/rtree"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/lafriks/go-tiled"
 
@@ -24,32 +22,30 @@ import (
 	"github.com/InsideGallery/pomodoro/services/fingerprint/internal/fsystems"
 )
 
-func statFile(path string) (os.FileInfo, error) {
-	return os.Stat(path)
-}
-
 const GameSceneName = "fingerprint_game"
 
 // GameScene is the ECS-driven scene for the fingerprint game.
-// It holds infrastructure (BaseScene, InputSystem, image caches) but NO game state.
-// All mutable game state lives in components.GameData inside the Registry.
+// Systems draw in world (map) coordinates to the World offscreen image.
+// A base transform (scale + center) maps World to screen.
+// Camera provides additional user zoom on top of the base transform.
 type GameScene struct {
 	*scene.BaseScene
 
-	// Infrastructure (not game state — these are framework handles)
 	input *systems.InputSystem
 	tmap  *tilemap.Map
 
-	// Image caches (lazily loaded, shared across systems via accessor)
+	// Image caches
 	targetImages     map[int]*FingerprintImages
 	targetGreyImages map[int]*FingerprintImages
 	allImages        map[string]*FingerprintImages
 	avatarCache      map[string]*ebiten.Image
 
-	// Scaling (computed from Layout, read-only for systems)
-	scaleX, scaleY float64
-	offsetX        float64
-	width, height  int
+	width, height int
+
+	// Base transform: world → screen (centered on TMX camera point)
+	baseScale float64 // uniform scale factor
+	baseOffX  float64 // X offset to center camera point on screen
+	baseOffY  float64 // Y offset to center camera point on screen
 }
 
 func NewGameScene() *GameScene {
@@ -62,26 +58,17 @@ func (s *GameScene) Init(ctx context.Context) {
 	s.BaseScene = scene.NewBaseScene(ctx, nil)
 	s.input = systems.NewInputSystem(s.RTree)
 
-	// Create the singleton game state entity with GameData component
+	// Create game state + cursor entities
 	gameEntity := &c.Entity{
 		State:    &c.State{Current: c.StateLoading},
 		GameData: &c.GameData{HoldingPiece: -1, AssetsDir: FindFingerprintAssetsDir()},
 	}
+	_ = s.Registry.Add(c.GroupGameState, 0, gameEntity)
 
-	if err := s.Registry.Add(c.GroupGameState, 0, gameEntity); err != nil {
-		slog.Error("create game state entity", "error", err)
-	}
+	cursorEntity := &c.Entity{Cursor: &c.Cursor{WorldMaxX: 4000, WorldMaxY: 2176}}
+	_ = s.Registry.Add(c.GroupCursor, 0, cursorEntity)
 
-	// Create cursor entity with full-screen bounds (updated when TMX loads)
-	cursorEntity := &c.Entity{Cursor: &c.Cursor{
-		RoomMaxX: 3840, // generous default, refined after TMX load
-		RoomMaxY: 2160,
-	}}
-	if err := s.Registry.Add(c.GroupCursor, 0, cursorEntity); err != nil {
-		slog.Error("create cursor entity", "error", err)
-	}
-
-	// Register ECS systems in execution order
+	// Register ECS systems
 	dragDrop := fsystems.NewDragDropSystem(s)
 	render := fsystems.NewRenderSystem(s, dragDrop)
 
@@ -92,8 +79,6 @@ func (s *GameScene) Init(ctx context.Context) {
 	s.Systems.Add("dragdrop", dragDrop)
 	s.Systems.Add("camera", fsystems.NewCameraSystem(s))
 	s.Systems.Add("render", render)
-
-	slog.Info("ECS systems registered", "count", len(s.Systems.Get()))
 }
 
 func (s *GameScene) Load() error {
@@ -121,14 +106,60 @@ func (s *GameScene) Unload() error {
 	return nil
 }
 
-// Update delegates to BaseScene which iterates all systems in order.
 func (s *GameScene) Update() error {
 	return s.BaseScene.Update()
 }
 
-// Draw delegates to BaseScene which iterates all systems' Draw methods.
+// Draw: systems draw to World in map coords, then we composite to screen
+// with base transform (scale+center) and camera zoom.
 func (s *GameScene) Draw(screen *ebiten.Image) {
-	s.BaseScene.Draw(screen)
+	sysList := s.Systems.Get()
+
+	if s.World == nil {
+		// No world yet (loading) — systems draw to screen directly
+		for _, sys := range sysList {
+			sys.Draw(s.Ctx, screen)
+		}
+
+		for _, sys := range sysList {
+			if w, ok := sys.(core.SystemWindow); ok {
+				w.ScreenDraw(s.Ctx, screen)
+			}
+		}
+
+		return
+	}
+
+	// Systems draw to World (map coordinates)
+	s.World.Clear()
+
+	for _, sys := range sysList {
+		sys.Draw(s.Ctx, s.World)
+	}
+
+	// Composite World to screen: base transform + camera zoom
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Scale(s.baseScale, s.baseScale)
+	op.GeoM.Translate(s.baseOffX, s.baseOffY)
+
+	// Camera zoom on top: zoom around screen center
+	if s.Camera.ZoomFactor != 0 {
+		zoomScale := math.Pow(1.01, s.Camera.ZoomFactor)
+		cx := float64(s.width) / 2
+		cy := float64(s.height) / 2
+		op.GeoM.Translate(-cx, -cy)
+		op.GeoM.Scale(zoomScale, zoomScale)
+		op.GeoM.Translate(cx, cy)
+	}
+
+	screen.DrawImage(s.World, op)
+
+	// ScreenDraw overlays (cursor) — screen space, no transform
+	for _, sys := range sysList {
+		if w, ok := sys.(core.SystemWindow); ok {
+			w.ScreenDraw(s.Ctx, screen)
+		}
+	}
 }
 
 func (s *GameScene) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -145,267 +176,344 @@ func (s *GameScene) Layout(outsideWidth, outsideHeight int) (int, int) {
 	if w != s.width || h != s.height {
 		s.width = w
 		s.height = h
-
-		if s.tmap != nil {
-			mapW := float64(s.tmap.MapPixelWidth())
-			mapH := float64(s.tmap.MapPixelHeight())
-			uniformScale := float64(h) / mapH
-			s.scaleX = uniformScale
-			s.scaleY = uniformScale
-			s.offsetX = (float64(w) - mapW*uniformScale) / 2
-		}
+		s.updateBaseTransform()
 	}
 
 	return w, h
 }
 
-// --- SceneAccessor implementation ---
-// Systems access scene data through these methods.
-// GameData component is the canonical source for mutable game state.
+// updateBaseTransform computes the base scale and offset.
+// Centers on the TMX "camera" point if present, otherwise map center.
+func (s *GameScene) updateBaseTransform() {
+	if s.tmap == nil || s.height == 0 {
+		return
+	}
 
-func (s *GameScene) gameData() *c.GameData {
+	mapH := float64(s.tmap.MapPixelHeight())
+	s.baseScale = float64(s.height) / mapH
+
+	// Find camera center from TMX (or default to map center)
+	camX := float64(s.tmap.MapPixelWidth()) / 2
+	camY := mapH / 2
+
+	mainOG := s.tmap.FindObjectGroup("main")
+	if mainOG != nil {
+		if camObj := tilemap.FindObject(mainOG, "camera"); camObj != nil {
+			camX = camObj.X
+			camY = camObj.Y
+		}
+	}
+
+	// Offset so that TMX camera point maps to screen center
+	s.baseOffX = float64(s.width)/2 - camX*s.baseScale
+	s.baseOffY = float64(s.height)/2 - camY*s.baseScale
+}
+
+// SetupWorld creates World offscreen image and computes base transform + cursor room.
+func (s *GameScene) SetupWorld() {
+	if s.tmap == nil {
+		return
+	}
+
+	s.World = ebiten.NewImage(s.tmap.MapPixelWidth(), s.tmap.MapPixelHeight())
+	s.updateBaseTransform()
+
+	// Update cursor room bounds in screen space
+	mainOG := s.tmap.FindObjectGroup("main")
+	if mainOG == nil {
+		return
+	}
+
+	room := tilemap.FindObject(mainOG, "cursor-room")
+	if room == nil {
+		return
+	}
+
+	cur := fsystems.GetCursor(s.Registry)
+	if cur != nil {
+		// Store in world (map) coords — CursorSystem clamps in world space
+		cur.WorldMinX = room.X
+		cur.WorldMinY = room.Y
+		cur.WorldMaxX = room.X + room.Width
+		cur.WorldMaxY = room.Y + room.Height
+	}
+}
+
+// ScreenToWorld converts screen coordinates to world (map) coordinates.
+func (s *GameScene) ScreenToWorld(screenX, screenY float64) (float64, float64) {
+	// Undo camera zoom
+	if s.Camera.ZoomFactor != 0 {
+		zoomScale := math.Pow(1.01, s.Camera.ZoomFactor)
+		cx := float64(s.width) / 2
+		cy := float64(s.height) / 2
+		screenX = (screenX-cx)/zoomScale + cx
+		screenY = (screenY-cy)/zoomScale + cy
+	}
+
+	// Undo base transform
+	return (screenX - s.baseOffX) / s.baseScale, (screenY - s.baseOffY) / s.baseScale
+}
+
+func (s *GameScene) GetBaseZoom() float64 { return 0 }
+func (s *GameScene) ResetCameraZoom()     { s.Camera.ZoomFactor = 0 }
+
+// --- SceneAccessor implementation ---
+
+func (s *GameScene) gameData() *c.GameData                                { return fsystems.GetGameData(s.Registry) }
+func (s *GameScene) GetRegistry() *registry.Registry[string, uint64, any] { return s.Registry }
+func (s *GameScene) GetCamera() *core.Camera                              { return s.Camera }
+func (s *GameScene) GetInputSystem() *systems.InputSystem                 { return s.input }
+func (s *GameScene) GetTileMap() *tilemap.Map                             { return s.tmap }
+func (s *GameScene) SetTileMap(m *tilemap.Map)                            { s.tmap = m }
+func (s *GameScene) GetScreenSize() (int, int)                            { return s.width, s.height }
+func (s *GameScene) SetCursorPos(_, _ int)                                {}
+
+// scaleBox converts TMX object from world to screen coords for RTree.
+func (s *GameScene) scaleBox(obj *tiled.Object) shapes.Spatial { //nolint:ireturn
+	return shapes.NewBox(
+		shapes.NewPoint(obj.X*s.baseScale+s.baseOffX, obj.Y*s.baseScale+s.baseOffY),
+		obj.Width*s.baseScale, obj.Height*s.baseScale,
+	)
+}
+
+func (s *GameScene) setECSState(state c.GameState) {
 	val, err := s.Registry.Get(c.GroupGameState, 0)
 	if err != nil {
-		return nil
+		return
 	}
 
-	if entity, ok := val.(*c.Entity); ok && entity.GameData != nil {
-		return entity.GameData
-	}
-
-	return nil
-}
-
-func (s *GameScene) GetRegistry() *registry.Registry[string, uint64, any] {
-	return s.Registry
-}
-
-func (s *GameScene) GetRTree() *rtree.RTree {
-	return s.RTree
-}
-
-func (s *GameScene) GetCamera() *core.Camera {
-	return s.Camera
-}
-
-func (s *GameScene) GetInputSystem() *systems.InputSystem {
-	return s.input
-}
-
-func (s *GameScene) GetTileMap() *tilemap.Map {
-	return s.tmap
-}
-
-func (s *GameScene) SetTileMap(m *tilemap.Map) {
-	s.tmap = m
-}
-
-func (s *GameScene) getDB() *domain.FingerprintDB {
-	if gd := s.gameData(); gd != nil {
-		return gd.DB
-	}
-
-	return nil
-}
-
-func (s *GameScene) setDB(db *domain.FingerprintDB) {
-	if gd := s.gameData(); gd != nil {
-		gd.DB = db
+	if entity, ok := val.(*c.Entity); ok && entity.State != nil {
+		entity.State.Current = state
 	}
 }
 
-func (s *GameScene) getCases() []*domain.CaseConfig {
-	if gd := s.gameData(); gd != nil {
-		return gd.Cases
+// --- Zone registration ---
+
+func (s *GameScene) RegisterEnabledZones() {
+	s.input.ClearZones()
+
+	og := s.tmap.FindObjectGroup("enabled")
+	if og == nil {
+		return
 	}
 
-	return nil
-}
+	for _, obj := range og.Objects {
+		scaled := s.scaleBox(obj)
 
-func (s *GameScene) setCases(cases []*domain.CaseConfig) {
-	if gd := s.gameData(); gd != nil {
-		gd.Cases = cases
-	}
-}
-
-func (s *GameScene) getSelectedCase() int {
-	if gd := s.gameData(); gd != nil {
-		return gd.SelectedCase
-	}
-
-	return 0
-}
-
-func (s *GameScene) setSelectedCase(i int) {
-	if gd := s.gameData(); gd != nil {
-		gd.SelectedCase = i
-	}
-}
-
-func (s *GameScene) getSelectedPuzzle() int {
-	if gd := s.gameData(); gd != nil {
-		return gd.SelectedPuzzle
-	}
-
-	return 0
-}
-
-func (s *GameScene) setSelectedPuzzle(i int) {
-	if gd := s.gameData(); gd != nil {
-		gd.SelectedPuzzle = i
+		switch obj.Name {
+		case "button-run-fingerprint":
+			s.input.AddZone(&systems.Zone{
+				Spatial: scaled,
+				OnClick: func() {
+					s.setECSState(c.StateApplicationLayout)
+					s.RegisterAppLayoutZones()
+				},
+			})
+		case "button-quit-os":
+			s.input.AddZone(&systems.Zone{
+				Spatial: shapes.NewBox(
+					shapes.NewPoint(obj.X*s.baseScale+s.baseOffX, obj.Y*s.baseScale+s.baseOffY),
+					200*s.baseScale, 50*s.baseScale,
+				),
+				OnClick: func() {
+					ebiten.SetCursorMode(ebiten.CursorModeVisible)
+					os.Exit(0)
+				},
+			})
+		}
 	}
 }
 
-func (s *GameScene) getPuzzleSeed() uint64 {
-	if gd := s.gameData(); gd != nil {
-		return gd.PuzzleSeed
+func (s *GameScene) RegisterAppLayoutZones() {
+	s.input.ClearZones()
+
+	og := s.tmap.FindObjectGroup("application-layout")
+	if og == nil {
+		return
 	}
 
-	return 0
-}
+	for _, obj := range og.Objects {
+		scaled := s.scaleBox(obj)
 
-func (s *GameScene) setPuzzleSeed(seed uint64) {
-	if gd := s.gameData(); gd != nil {
-		gd.PuzzleSeed = seed
-	}
-}
+		switch obj.Name {
+		case "exit":
+			s.input.AddZone(&systems.Zone{Spatial: scaled, OnClick: func() {
+				s.setECSState(c.StateEnabled)
+				s.RegisterEnabledZones()
+			}})
+		case "play-puzzle":
+			s.input.AddZone(&systems.Zone{Spatial: scaled, OnClick: func() {
+				s.EnsureCurrentPuzzleImages()
+				s.InitTrayPositions()
+				s.setECSState(c.StateApplicationNet)
 
-func (s *GameScene) getAssetsDir() string {
-	if gd := s.gameData(); gd != nil {
-		return gd.AssetsDir
-	}
+				if gd := s.gameData(); gd != nil {
+					gd.HoldingPiece = -1
+					gd.Dragging = false
+				}
 
-	return ""
-}
+				s.RegisterPuzzleZones()
+			}})
+		case "regenerate-puzzles":
+			s.input.AddZone(&systems.Zone{Spatial: scaled, OnClick: func() { s.regenerateCases() }})
+		case "list-of-cases":
+			objCopy := obj
+			s.input.AddZone(&systems.Zone{Spatial: scaled, OnClick: func() {
+				gd := s.gameData()
+				cur := fsystems.GetCursor(s.Registry)
 
-func (s *GameScene) GetScaleX() float64  { return s.scaleX }
-func (s *GameScene) GetScaleY() float64  { return s.scaleY }
-func (s *GameScene) GetOffsetX() float64 { return s.offsetX }
+				if gd == nil || cur == nil {
+					return
+				}
 
-func (s *GameScene) SetScale(scaleX, scaleY, offsetX float64) {
-	s.scaleX = scaleX
-	s.scaleY = scaleY
-	s.offsetX = offsetX
-}
+				_, wy := s.ScreenToWorld(float64(cur.X), float64(cur.Y))
+				idx := int((wy-objCopy.Y)/90) + gd.CasesScroll
 
-func (s *GameScene) GetScreenSize() (int, int) { return s.width, s.height }
+				if idx >= 0 && idx < len(gd.Cases) {
+					gd.SelectedCase = idx
+					gd.SelectedPuzzle = firstUnsolvedPuzzle(gd.Cases[idx])
+					gd.NamesScroll = 0
+					gd.DescScroll = 0
+				}
+			}})
+		case "fingerprints-user-names":
+			objCopy := obj
+			s.input.AddZone(&systems.Zone{Spatial: scaled, OnClick: func() {
+				gd := s.gameData()
+				cur := fsystems.GetCursor(s.Registry)
 
-func (s *GameScene) SetCursorPos(x, y int) {
-	// Written by CursorSystem, cursor entity is the source of truth
-}
+				if gd == nil || cur == nil {
+					return
+				}
 
-func (s *GameScene) GetCursorPos() (int, int) {
-	val, err := s.Registry.Get(c.GroupCursor, 0)
-	if err != nil {
-		return 0, 0
-	}
+				_, wy := s.ScreenToWorld(float64(cur.X), float64(cur.Y))
+				idx := int((wy-objCopy.Y)/100) + gd.NamesScroll
 
-	if entity, ok := val.(*c.Entity); ok && entity.Cursor != nil {
-		return entity.Cursor.X, entity.Cursor.Y
-	}
-
-	return 0, 0
-}
-
-func (s *GameScene) GetCasesScroll() int {
-	if gd := s.gameData(); gd != nil {
-		return gd.CasesScroll
-	}
-
-	return 0
-}
-
-func (s *GameScene) SetCasesScroll(v int) {
-	if gd := s.gameData(); gd != nil {
-		gd.CasesScroll = v
-	}
-}
-
-func (s *GameScene) GetNamesScroll() int {
-	if gd := s.gameData(); gd != nil {
-		return gd.NamesScroll
-	}
-
-	return 0
-}
-
-func (s *GameScene) SetNamesScroll(v int) {
-	if gd := s.gameData(); gd != nil {
-		gd.NamesScroll = v
+				if gd.SelectedCase >= 0 && gd.SelectedCase < len(gd.Cases) {
+					cs := gd.Cases[gd.SelectedCase]
+					if idx >= 0 && idx < len(cs.Puzzles) {
+						gd.SelectedPuzzle = idx
+						gd.DescScroll = 0
+					}
+				}
+			}})
+		}
 	}
 }
 
-func (s *GameScene) GetDescScroll() int {
-	if gd := s.gameData(); gd != nil {
-		return gd.DescScroll
+func (s *GameScene) RegisterPuzzleZones() {
+	s.input.ClearZones()
+
+	og := s.tmap.FindObjectGroup("application-net-layout")
+	if og == nil {
+		return
 	}
 
-	return 0
-}
+	for _, obj := range og.Objects {
+		scaled := s.scaleBox(obj)
 
-func (s *GameScene) SetDescScroll(v int) {
-	if gd := s.gameData(); gd != nil {
-		gd.DescScroll = v
-	}
-}
-
-func (s *GameScene) GetHoldingPiece() int {
-	if gd := s.gameData(); gd != nil {
-		return gd.HoldingPiece
-	}
-
-	return -1
-}
-
-func (s *GameScene) SetHoldingPiece(v int) {
-	if gd := s.gameData(); gd != nil {
-		gd.HoldingPiece = v
-	}
-}
-
-func (s *GameScene) GetDragging() bool {
-	if gd := s.gameData(); gd != nil {
-		return gd.Dragging
-	}
-
-	return false
-}
-
-func (s *GameScene) SetDragging(v bool) {
-	if gd := s.gameData(); gd != nil {
-		gd.Dragging = v
+		switch obj.Name {
+		case "back":
+			s.input.AddZone(&systems.Zone{Spatial: scaled, OnClick: func() {
+				s.setECSState(c.StateApplicationLayout)
+				s.RegisterAppLayoutZones()
+			}})
+		case "exit":
+			s.input.AddZone(&systems.Zone{Spatial: scaled, OnClick: func() {
+				s.setECSState(c.StateEnabled)
+				s.RegisterEnabledZones()
+			}})
+		case "button-send-puzzle":
+			s.input.AddZone(&systems.Zone{Spatial: scaled, OnClick: func() { s.submitPuzzle() }})
+		}
 	}
 }
 
-func (s *GameScene) GetShowResult() int {
-	if gd := s.gameData(); gd != nil {
-		return gd.ShowResult
-	}
+// --- Puzzle logic ---
 
-	return 0
+func (s *GameScene) currentPuzzle() *domain.PuzzleConfig {
+	return fsystems.CurrentPuzzle(s.gameData())
 }
 
-func (s *GameScene) SetShowResult(v int) {
-	if gd := s.gameData(); gd != nil {
-		gd.ShowResult = v
-	}
-}
+func (s *GameScene) submitPuzzle() {
+	p := s.currentPuzzle()
+	gd := s.gameData()
 
-func (s *GameScene) GetResultTick() int {
-	if gd := s.gameData(); gd != nil {
-		return gd.ResultTick
+	if p == nil || gd == nil {
+		return
 	}
 
-	return 0
-}
+	var found *domain.FingerprintRecord
 
-func (s *GameScene) SetResultTick(v int) {
-	if gd := s.gameData(); gd != nil {
-		gd.ResultTick = v
+	if p.HideColor {
+		hashNum := domain.ComputeHash(s.buildPieceGrid(p))
+
+		for _, letter := range []string{"G", "R", "Y", "B"} {
+			if rec := gd.DB.LookupByHash(fmt.Sprintf("%s%d", letter, hashNum)); rec != nil {
+				found = rec
+				p.HideColor = false
+
+				break
+			}
+		}
+	} else {
+		pieces := s.buildPieceGrid(p)
+		hash := fmt.Sprintf("%s%d", domain.ColorLetter(p.TargetRecord.Color), domain.ComputeHash(pieces))
+		found = gd.DB.LookupByHash(hash)
 	}
+
+	if found != nil {
+		p.Solved = true
+		p.Failed = false
+		gd.ShowResult = 1
+	} else {
+		p.Failed = true
+		gd.ShowResult = 2
+	}
+
+	gd.ResultTick = 180
+	s.SaveGameState()
 }
 
-// --- Game state persistence ---
+func (s *GameScene) buildPieceGrid(p *domain.PuzzleConfig) []domain.PieceRecord {
+	pieces := make([]domain.PieceRecord, 100)
+	copy(pieces, p.TargetRecord.Pieces)
+
+	for _, idx := range p.MissingIndices {
+		pieces[idx] = domain.PieceRecord{X: idx % 10, Y: idx / 10}
+	}
+
+	for _, tp := range p.TrayPieces {
+		if tp.IsPlaced {
+			gIdx := tp.PlacedY*10 + tp.PlacedX
+			if gIdx >= 0 && gIdx < 100 {
+				pieces[gIdx] = domain.PieceRecord{X: tp.PlacedX, Y: tp.PlacedY, Value: tp.Value}
+			}
+		}
+	}
+
+	return pieces
+}
+
+func (s *GameScene) regenerateCases() {
+	gd := s.gameData()
+	if gd == nil || gd.DB == nil {
+		return
+	}
+
+	gd.PuzzleSeed ^= 0xFACE
+	gd.Cases = domain.GenerateCases(gd.DB, gd.PuzzleSeed)
+	gd.SelectedCase = 0
+	gd.SelectedPuzzle = 0
+	gd.HoldingPiece = -1
+	gd.NamesScroll = 0
+	gd.DescScroll = 0
+
+	_ = domain.SavePuzzles(gd.Cases, gd.PuzzleSeed, domain.DefaultPuzzlesPath())
+	s.RegisterAppLayoutZones()
+}
+
+// --- Persistence ---
 
 func (s *GameScene) LoadGameState() {
 	gd := s.gameData()
@@ -423,40 +531,32 @@ func (s *GameScene) LoadGameState() {
 			continue
 		}
 
-		caseConfig := gd.Cases[cs.CaseIndex]
-
 		for pi, ps := range cs.Puzzles {
-			if pi >= len(caseConfig.Puzzles) {
+			if pi >= len(gd.Cases[cs.CaseIndex].Puzzles) {
 				break
 			}
 
-			p := caseConfig.Puzzles[pi]
+			p := gd.Cases[cs.CaseIndex].Puzzles[pi]
 			p.Solved = ps.Solved
 			p.Failed = ps.Failed
 
 			for _, pp := range ps.PlacedPieces {
-				if pp.TrayIndex < 0 || pp.TrayIndex >= len(p.TrayPieces) {
-					continue
+				if pp.TrayIndex >= 0 && pp.TrayIndex < len(p.TrayPieces) {
+					tp := &p.TrayPieces[pp.TrayIndex]
+					tp.IsPlaced = pp.GridX >= 0 && pp.GridY >= 0
+					tp.PlacedX = pp.GridX
+					tp.PlacedY = pp.GridY
+					tp.Rotation = pp.Rotation
+					tp.TrayX = pp.TrayX
+					tp.TrayY = pp.TrayY
 				}
-
-				tp := &p.TrayPieces[pp.TrayIndex]
-				tp.IsPlaced = pp.GridX >= 0 && pp.GridY >= 0
-				tp.PlacedX = pp.GridX
-				tp.PlacedY = pp.GridY
-				tp.Rotation = pp.Rotation
-				tp.TrayX = pp.TrayX
-				tp.TrayY = pp.TrayY
 			}
 		}
-
-		caseConfig.ID = cs.CaseIndex + 1
 	}
 
 	if gd.SelectedCase >= 0 && gd.SelectedCase < len(gd.Cases) {
 		gd.SelectedPuzzle = firstUnsolvedPuzzle(gd.Cases[gd.SelectedCase])
 	}
-
-	slog.Info("game state loaded")
 }
 
 func (s *GameScene) SaveGameState() {
@@ -467,384 +567,51 @@ func (s *GameScene) SaveGameState() {
 
 	save := &domain.GameSave{}
 
-	for i, caseConfig := range gd.Cases {
-		cs := domain.CaseSave{
-			CaseIndex:    i,
-			ActivePuzzle: firstUnsolvedPuzzle(caseConfig),
-		}
+	for i, cs := range gd.Cases {
+		caseSave := domain.CaseSave{CaseIndex: i, ActivePuzzle: firstUnsolvedPuzzle(cs)}
 
-		for _, p := range caseConfig.Puzzles {
+		for _, p := range cs.Puzzles {
 			ps := domain.PuzzleSave{Solved: p.Solved, Failed: p.Failed}
 
 			for j, tp := range p.TrayPieces {
 				if tp.IsPlaced || tp.TrayX != 0 || tp.TrayY != 0 || tp.Rotation != 0 {
 					ps.PlacedPieces = append(ps.PlacedPieces, domain.PlacedSave{
-						TrayIndex: j,
-						GridX:     tp.PlacedX,
-						GridY:     tp.PlacedY,
-						Rotation:  tp.Rotation,
-						TrayX:     tp.TrayX,
-						TrayY:     tp.TrayY,
+						TrayIndex: j, GridX: tp.PlacedX, GridY: tp.PlacedY,
+						Rotation: tp.Rotation, TrayX: tp.TrayX, TrayY: tp.TrayY,
 					})
 				}
 			}
 
-			cs.Puzzles = append(cs.Puzzles, ps)
+			caseSave.Puzzles = append(caseSave.Puzzles, ps)
 		}
 
-		save.Cases = append(save.Cases, cs)
+		save.Cases = append(save.Cases, caseSave)
 	}
 
-	if err := domain.SaveGame(save, domain.DefaultSavePath()); err != nil {
-		slog.Warn("save game", "error", err)
-	}
+	_ = domain.SaveGame(save, domain.DefaultSavePath())
 }
 
-// --- Zone registration (called by StateSystem on transitions) ---
-
-func (s *GameScene) RegisterEnabledZones() {
-	s.input.ClearZones()
-	co := s.coords()
-
-	og := s.tmap.FindObjectGroup("enabled")
-	if og == nil {
-		return
-	}
-
-	for _, obj := range og.Objects {
-		scaledSpatial := s.scaleBox(obj)
-
-		switch obj.Name {
-		case "button-run-fingerprint":
-			s.input.AddZone(&systems.Zone{
-				Spatial: scaledSpatial,
-				OnClick: func() {
-					slog.Info("opening fingerprint app")
-					s.setECSState(c.StateApplicationLayout)
-					s.RegisterAppLayoutZones()
-				},
-			})
-		case "button-quit-os":
-			qx, qy := co.MapToScreenX(obj.X), co.MapToScreenY(obj.Y)
-			qw, qh := co.MapToScreenSize(200), co.MapToScreenSize(50)
-
-			s.input.AddZone(&systems.Zone{
-				Spatial: shapes.NewBox(shapes.NewPoint(qx, qy), qw, qh),
-				OnClick: func() {
-					ebiten.SetCursorMode(ebiten.CursorModeVisible)
-					os.Exit(0)
-				},
-			})
-		}
-	}
-}
-
-func (s *GameScene) RegisterAppLayoutZones() {
-	s.input.ClearZones()
-	co := s.coords()
-
-	og := s.tmap.FindObjectGroup("application-layout")
-	if og == nil {
-		return
-	}
-
-	for _, obj := range og.Objects {
-		scaledSpatial := s.scaleBox(obj)
-
-		switch obj.Name {
-		case "exit":
-			s.input.AddZone(&systems.Zone{
-				Spatial: scaledSpatial,
-				OnClick: func() {
-					s.setECSState(c.StateEnabled)
-					s.RegisterEnabledZones()
-				},
-			})
-		case "play-puzzle":
-			s.input.AddZone(&systems.Zone{
-				Spatial: scaledSpatial,
-				OnClick: func() {
-					s.EnsureCurrentPuzzleImages()
-					s.InitTrayPositions()
-					s.setECSState(c.StateApplicationNet)
-
-					if gd := s.gameData(); gd != nil {
-						gd.HoldingPiece = -1
-						gd.Dragging = false
-					}
-
-					s.RegisterPuzzleZones()
-				},
-			})
-		case "regenerate-puzzles":
-			s.input.AddZone(&systems.Zone{
-				Spatial: scaledSpatial,
-				OnClick: func() {
-					s.regenerateCases()
-				},
-			})
-		case "list-of-cases":
-			objCopy := obj
-
-			s.input.AddZone(&systems.Zone{
-				Spatial: scaledSpatial,
-				OnClick: func() {
-					gd := s.gameData()
-					if gd == nil {
-						return
-					}
-
-					cx, _ := s.GetCursorPos()
-					_ = cx
-					_, cy := s.GetCursorPos()
-					relY := float64(cy) - co.MapToScreenY(objCopy.Y)
-					rowH := co.MapToScreenSize(45)
-					idx := int(relY/rowH) + gd.CasesScroll
-
-					if idx >= 0 && idx < len(gd.Cases) {
-						gd.SelectedCase = idx
-						gd.SelectedPuzzle = firstUnsolvedPuzzle(gd.Cases[idx])
-						gd.NamesScroll = 0
-						gd.DescScroll = 0
-					}
-				},
-			})
-		case "fingerprints-user-names":
-			objCopy := obj
-
-			s.input.AddZone(&systems.Zone{
-				Spatial: scaledSpatial,
-				OnClick: func() {
-					gd := s.gameData()
-					if gd == nil {
-						return
-					}
-
-					_, cy := s.GetCursorPos()
-					relY := float64(cy) - co.MapToScreenY(objCopy.Y)
-					rowH := co.MapToScreenSize(50)
-					idx := int(relY/rowH) + gd.NamesScroll
-
-					if gd.SelectedCase >= 0 && gd.SelectedCase < len(gd.Cases) {
-						cs := gd.Cases[gd.SelectedCase]
-						if idx >= 0 && idx < len(cs.Puzzles) {
-							gd.SelectedPuzzle = idx
-							gd.DescScroll = 0
-						}
-					}
-				},
-			})
-		}
-	}
-}
-
-func (s *GameScene) RegisterPuzzleZones() {
-	s.input.ClearZones()
-
-	og := s.tmap.FindObjectGroup("application-net-layout")
-	if og == nil {
-		return
-	}
-
-	puzzle := s.currentPuzzle()
-	if puzzle == nil {
-		return
-	}
-
-	for _, obj := range og.Objects {
-		scaledSpatial := s.scaleBox(obj)
-
-		switch obj.Name {
-		case "back":
-			s.input.AddZone(&systems.Zone{
-				Spatial: scaledSpatial,
-				OnClick: func() {
-					s.setECSState(c.StateApplicationLayout)
-					s.RegisterAppLayoutZones()
-				},
-			})
-		case "exit":
-			s.input.AddZone(&systems.Zone{
-				Spatial: scaledSpatial,
-				OnClick: func() {
-					s.setECSState(c.StateEnabled)
-					s.RegisterEnabledZones()
-				},
-			})
-		case "button-send-puzzle":
-			s.input.AddZone(&systems.Zone{
-				Spatial: scaledSpatial,
-				OnClick: func() {
-					s.submitPuzzle()
-				},
-			})
-		}
-	}
-}
-
-// --- Puzzle logic ---
-
-func (s *GameScene) currentPuzzle() *domain.PuzzleConfig {
-	gd := s.gameData()
-	if gd == nil || gd.Cases == nil {
-		return nil
-	}
-
-	if gd.SelectedCase < 0 || gd.SelectedCase >= len(gd.Cases) {
-		return nil
-	}
-
-	cs := gd.Cases[gd.SelectedCase]
-	if gd.SelectedPuzzle < 0 || gd.SelectedPuzzle >= len(cs.Puzzles) {
-		return nil
-	}
-
-	return cs.Puzzles[gd.SelectedPuzzle]
-}
-
-func (s *GameScene) submitPuzzle() {
-	p := s.currentPuzzle()
-	if p == nil {
-		return
-	}
-
-	gd := s.gameData()
-	if gd == nil {
-		return
-	}
-
-	var found *domain.FingerprintRecord
-
-	if p.HideColor {
-		hashNum := s.computeCurrentHashNum(p)
-
-		for _, letter := range []string{"G", "R", "Y", "B"} {
-			candidate := fmt.Sprintf("%s%d", letter, hashNum)
-			if rec := gd.DB.LookupByHash(candidate); rec != nil {
-				found = rec
-				p.HideColor = false
-
-				slog.Info("SUBMIT: color revealed!", "color", rec.Color)
-
-				break
-			}
-		}
-	} else {
-		currentHash := s.computeCurrentHash(p)
-		found = gd.DB.LookupByHash(currentHash)
-	}
-
-	if found != nil {
-		slog.Info("SUBMIT: person found!", "name", found.PersonName)
-
-		p.Solved = true
-		p.Failed = false
-		gd.ShowResult = 1
-	} else {
-		slog.Info("SUBMIT: no match")
-
-		p.Failed = true
-		gd.ShowResult = 2
-	}
-
-	gd.ResultTick = 180
-	s.SaveGameState()
-}
-
-func (s *GameScene) computeCurrentHash(p *domain.PuzzleConfig) string {
-	pieces := s.buildPieceGrid(p)
-	colorLetter := domain.ColorLetter(p.TargetRecord.Color)
-
-	if p.HideColor {
-		colorLetter = "?"
-	}
-
-	return fmt.Sprintf("%s%d", colorLetter, domain.ComputeHash(pieces))
-}
-
-func (s *GameScene) computeCurrentHashNum(p *domain.PuzzleConfig) uint64 {
-	return domain.ComputeHash(s.buildPieceGrid(p))
-}
-
-func (s *GameScene) buildPieceGrid(p *domain.PuzzleConfig) []domain.PieceRecord {
-	pieces := make([]domain.PieceRecord, 100)
-
-	for i, piece := range p.TargetRecord.Pieces {
-		pieces[i] = piece
-	}
-
-	for _, idx := range p.MissingIndices {
-		pieces[idx] = domain.PieceRecord{X: idx % 10, Y: idx / 10, Value: 0}
-	}
-
-	for _, tp := range p.TrayPieces {
-		if !tp.IsPlaced {
-			continue
-		}
-
-		gIdx := tp.PlacedY*10 + tp.PlacedX
-		if gIdx >= 0 && gIdx < 100 {
-			pieces[gIdx] = domain.PieceRecord{X: tp.PlacedX, Y: tp.PlacedY, Value: tp.Value}
-		}
-	}
-
-	return pieces
-}
-
-func (s *GameScene) regenerateCases() {
-	gd := s.gameData()
-	if gd == nil || gd.DB == nil {
-		return
-	}
-
-	gd.PuzzleSeed = gd.PuzzleSeed ^ 0xFACE
-	gd.Cases = domain.GenerateCases(gd.DB, gd.PuzzleSeed)
-	gd.SelectedCase = 0
-	gd.SelectedPuzzle = 0
-	gd.HoldingPiece = -1
-	gd.NamesScroll = 0
-	gd.DescScroll = 0
-
-	if err := domain.SavePuzzles(gd.Cases, gd.PuzzleSeed, domain.DefaultPuzzlesPath()); err != nil {
-		slog.Warn("save puzzles", "error", err)
-	}
-
-	s.RegisterAppLayoutZones()
-	slog.Info("puzzles regenerated", "seed", gd.PuzzleSeed)
-}
-
-// --- Image access (lazy-loaded) ---
+// --- Image access ---
 
 func (s *GameScene) EnsureCurrentPuzzleImages() {
 	p := s.currentPuzzle()
-	if p == nil {
-		return
-	}
+	gd := s.gameData()
 
-	assetsDir := s.getAssetsDir()
-	if assetsDir == "" {
+	if p == nil || gd == nil || gd.AssetsDir == "" {
 		return
 	}
 
 	rec := p.TargetRecord
 
 	if _, ok := s.targetImages[rec.ID]; !ok {
-		imgs, err := LoadFingerprintImages(assetsDir, rec)
-		if err != nil {
-			slog.Warn("load target", "id", rec.ID, "error", err)
-		} else {
-			s.targetImages[rec.ID] = imgs
-		}
+		imgs, _ := LoadFingerprintImages(gd.AssetsDir, rec)
+		s.targetImages[rec.ID] = imgs
 	}
 
 	if p.HideColor {
 		if _, ok := s.targetGreyImages[rec.ID]; !ok {
-			greyImgs, err := LoadGreyFingerprintImages(assetsDir, rec.Variant, rec.Rotation, rec.Mirrored)
-			if err != nil {
-				slog.Warn("load grey target", "id", rec.ID, "error", err)
-			} else {
-				s.targetGreyImages[rec.ID] = greyImgs
-			}
+			imgs, _ := LoadGreyFingerprintImages(gd.AssetsDir, rec.Variant, rec.Rotation, rec.Mirrored)
+			s.targetGreyImages[rec.ID] = imgs
 		}
 	}
 }
@@ -864,7 +631,7 @@ func (s *GameScene) InitTrayPositions() {
 
 	for _, obj := range og.Objects {
 		if obj.Name == "pieces" {
-			rects = append(rects, struct{ x, y, w, h float64 }{x: obj.X, y: obj.Y, w: obj.Width, h: obj.Height})
+			rects = append(rects, struct{ x, y, w, h float64 }{obj.X, obj.Y, obj.Width, obj.Height})
 		}
 	}
 
@@ -876,12 +643,7 @@ func (s *GameScene) InitTrayPositions() {
 
 	for _, obj := range og.Objects {
 		if obj.Name == "puzzle" {
-			side := obj.Width
-			if obj.Height < side {
-				side = obj.Height
-			}
-
-			cellMap = side / 10
+			cellMap = math.Min(obj.Width, obj.Height) / 10
 
 			break
 		}
@@ -907,20 +669,10 @@ func (s *GameScene) InitTrayPositions() {
 	}
 }
 
-func (s *GameScene) GetTargetImages(recordID int) *ebiten.Image {
-	s.ensureTargetImages(recordID)
-
-	if imgs, ok := s.targetImages[recordID]; ok && imgs != nil {
-		return imgs.Full
-	}
-
-	return nil
-}
-
 func (s *GameScene) GetTargetPieceImage(recordID, pieceIdx int) *ebiten.Image {
-	s.ensureTargetImages(recordID)
+	s.ensureTargetLoaded(recordID)
 
-	if imgs, ok := s.targetImages[recordID]; ok && imgs != nil && pieceIdx >= 0 && pieceIdx < 100 {
+	if imgs := s.targetImages[recordID]; imgs != nil && pieceIdx >= 0 && pieceIdx < 100 {
 		return imgs.Pieces[pieceIdx]
 	}
 
@@ -928,9 +680,9 @@ func (s *GameScene) GetTargetPieceImage(recordID, pieceIdx int) *ebiten.Image {
 }
 
 func (s *GameScene) GetGreyPieceImage(recordID, pieceIdx int) *ebiten.Image {
-	s.ensureGreyImages(recordID)
+	s.ensureGreyLoaded(recordID)
 
-	if imgs, ok := s.targetGreyImages[recordID]; ok && imgs != nil && pieceIdx >= 0 && pieceIdx < 100 {
+	if imgs := s.targetGreyImages[recordID]; imgs != nil && pieceIdx >= 0 && pieceIdx < 100 {
 		return imgs.Pieces[pieceIdx]
 	}
 
@@ -941,20 +693,15 @@ func (s *GameScene) GetDecoyPieceImage(clr string, variant, rotation int, mirror
 	key := fmt.Sprintf("%s.%d.r%d.m%v", clr, variant, rotation, mirrored)
 
 	if _, ok := s.allImages[key]; !ok {
-		assetsDir := s.getAssetsDir()
-		if assetsDir == "" {
+		gd := s.gameData()
+		if gd == nil || gd.AssetsDir == "" {
 			return nil
 		}
 
-		rec := &domain.FingerprintRecord{Color: clr, Variant: variant, Rotation: rotation, Mirrored: mirrored}
-
-		imgs, err := LoadFingerprintImages(assetsDir, rec)
-		if err != nil {
-			slog.Warn("lazy load decoy", "key", key, "error", err)
-			s.allImages[key] = nil
-		} else {
-			s.allImages[key] = imgs
-		}
+		imgs, _ := LoadFingerprintImages(gd.AssetsDir, &domain.FingerprintRecord{
+			Color: clr, Variant: variant, Rotation: rotation, Mirrored: mirrored,
+		})
+		s.allImages[key] = imgs
 	}
 
 	if imgs := s.allImages[key]; imgs != nil && pieceIdx >= 0 && pieceIdx < 100 {
@@ -969,16 +716,13 @@ func (s *GameScene) GetAvatarImage(filename string) *ebiten.Image {
 		return img
 	}
 
-	assetsDir := s.getAssetsDir()
-	if assetsDir == "" {
+	gd := s.gameData()
+	if gd == nil || gd.AssetsDir == "" {
 		return nil
 	}
 
-	path := filepath.Join(assetsDir, "avatars", filename)
-
-	img, err := loadStdImage(path)
+	img, err := loadStdImage(filepath.Join(gd.AssetsDir, "avatars", filename))
 	if err != nil {
-		slog.Warn("load avatar", "file", filename, "error", err)
 		s.avatarCache[filename] = nil
 
 		return nil
@@ -990,63 +734,48 @@ func (s *GameScene) GetAvatarImage(filename string) *ebiten.Image {
 	return eImg
 }
 
-// --- Internal helpers ---
-
-func (s *GameScene) ensureTargetImages(recordID int) {
-	if _, ok := s.targetImages[recordID]; ok {
+func (s *GameScene) ensureTargetLoaded(id int) {
+	if _, ok := s.targetImages[id]; ok {
 		return
 	}
 
-	assetsDir := s.getAssetsDir()
-	db := s.getDB()
-
-	if assetsDir == "" || db == nil {
+	gd := s.gameData()
+	if gd == nil || gd.AssetsDir == "" || gd.DB == nil {
 		return
 	}
 
-	for i := range db.Records {
-		rec := &db.Records[i]
-		if rec.ID == recordID {
-			imgs, err := LoadFingerprintImages(assetsDir, rec)
-			if err != nil {
-				slog.Warn("load target", "id", recordID, "error", err)
-				s.targetImages[recordID] = nil
-			} else {
-				s.targetImages[recordID] = imgs
-			}
+	for i := range gd.DB.Records {
+		if gd.DB.Records[i].ID == id {
+			imgs, _ := LoadFingerprintImages(gd.AssetsDir, &gd.DB.Records[i])
+			s.targetImages[id] = imgs
 
 			return
 		}
 	}
 }
 
-func (s *GameScene) ensureGreyImages(recordID int) {
-	if _, ok := s.targetGreyImages[recordID]; ok {
+func (s *GameScene) ensureGreyLoaded(id int) {
+	if _, ok := s.targetGreyImages[id]; ok {
 		return
 	}
 
-	assetsDir := s.getAssetsDir()
-	db := s.getDB()
-
-	if assetsDir == "" || db == nil {
+	gd := s.gameData()
+	if gd == nil || gd.AssetsDir == "" || gd.DB == nil {
 		return
 	}
 
-	for i := range db.Records {
-		rec := &db.Records[i]
-		if rec.ID == recordID {
-			greyImgs, err := LoadGreyFingerprintImages(assetsDir, rec.Variant, rec.Rotation, rec.Mirrored)
-			if err != nil {
-				slog.Warn("load grey", "id", recordID, "error", err)
-				s.targetGreyImages[recordID] = nil
-			} else {
-				s.targetGreyImages[recordID] = greyImgs
-			}
+	for i := range gd.DB.Records {
+		if gd.DB.Records[i].ID == id {
+			rec := &gd.DB.Records[i]
+			imgs, _ := LoadGreyFingerprintImages(gd.AssetsDir, rec.Variant, rec.Rotation, rec.Mirrored)
+			s.targetGreyImages[id] = imgs
 
 			return
 		}
 	}
 }
+
+// --- Helpers ---
 
 func firstUnsolvedPuzzle(cs *domain.CaseConfig) int {
 	for i, p := range cs.Puzzles {
@@ -1058,37 +787,13 @@ func firstUnsolvedPuzzle(cs *domain.CaseConfig) int {
 	return 0
 }
 
-func (s *GameScene) scaleBox(obj *tiled.Object) shapes.Spatial { //nolint:ireturn // spatial for RTree
-	sx, sy, sw, sh := s.coords().MapRect(obj.X, obj.Y, obj.Width, obj.Height)
-
-	return shapes.NewBox(shapes.NewPoint(sx, sy), sw, sh)
-}
-
-func (s *GameScene) coords() fsystems.Coords {
-	return fsystems.Coords{Scale: s.scaleX, OffsetX: s.offsetX}
-}
-
-func (s *GameScene) setECSState(state c.GameState) {
-	val, err := s.Registry.Get(c.GroupGameState, 0)
-	if err != nil {
-		return
-	}
-
-	if entity, ok := val.(*c.Entity); ok && entity.State != nil {
-		entity.State.Current = state
-	}
-}
-
-// FindTMXPath locates the fingerprint.tmx file.
 func FindTMXPath() string {
-	candidates := []string{
+	for _, p := range []string{
 		"assets/external/fingerprint/fingerprint.tmx",
 		"../assets/external/fingerprint/fingerprint.tmx",
 		"../../assets/external/fingerprint/fingerprint.tmx",
-	}
-
-	for _, p := range candidates {
-		if info, err := statFile(p); err == nil && info != nil {
+	} {
+		if _, err := os.Stat(p); err == nil {
 			return p
 		}
 	}
@@ -1096,16 +801,13 @@ func FindTMXPath() string {
 	return ""
 }
 
-// FindFingerprintAssetsDir finds the fingerprints directory.
 func FindFingerprintAssetsDir() string {
-	candidates := []string{
+	for _, p := range []string{
 		"assets/external/fingerprint",
 		"../assets/external/fingerprint",
 		"../../assets/external/fingerprint",
-	}
-
-	for _, p := range candidates {
-		if info, err := statFile(filepath.Join(p, "fingerprints")); err == nil && info != nil {
+	} {
+		if _, err := os.Stat(filepath.Join(p, "fingerprints")); err == nil {
 			return p
 		}
 	}

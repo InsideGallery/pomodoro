@@ -1,18 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="125" height="68" tilewidth="32" tileheight="32" infinite="0" nextlayerid="17" nextobjectid="36">
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="125" height="68" tilewidth="32" tileheight="32" infinite="0" nextlayerid="17" nextobjectid="37">
  <tileset firstgid="1" source="fingerprinting-icon.tsx"/>
  <tileset firstgid="2" source="avatars.tsx"/>
  <tileset firstgid="8" source="buttons.tsx"/>
- <objectgroup id="16" name="main" locked="1">
+ <objectgroup id="16" name="main">
   <object id="27" name="cursor-room" type="cursor-room" x="1248.48" y="318.182" width="1527.27" height="1303.03"/>
+  <object id="36" name="camera" type="camera" x="2000" y="1088">
+   <point/>
+  </object>
  </objectgroup>
- <imagelayer id="4" name="disabled">
+ <imagelayer id="4" name="disabled" visible="0">
   <image source="background/background-disabled.png" width="4000" height="2176"/>
  </imagelayer>
- <imagelayer id="2" name="enabled">
+ <imagelayer id="2" name="enabled" visible="0">
   <image source="background/background-enabled.png" width="4000" height="2176"/>
  </imagelayer>
- <layer id="1" name="enabled" width="125" height="68">
+ <layer id="1" name="enabled" width="125" height="68" visible="0">
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -92,7 +95,7 @@
    <polygon points="0,0 359,-2 359,55 149,58 101.333,45 69.3333,36 41.6667,24.3333 9,11.3333"/>
   </object>
  </objectgroup>
- <imagelayer id="8" name="application-layout" locked="1">
+ <imagelayer id="8" name="application-layout" visible="0" locked="1">
   <image source="background/fingerprint-select.png" width="4000" height="2176"/>
  </imagelayer>
  <objectgroup id="9" name="application-layout" visible="0">

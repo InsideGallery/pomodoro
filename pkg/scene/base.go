@@ -23,6 +23,7 @@ type BaseScene struct {
 	Bus       *event.Bus
 	Camera    *core.Camera
 	Resources *resources.Manager
+	World     *ebiten.Image // offscreen World — systems draw here in world coords
 }
 
 // NewBaseScene creates a BaseScene with all ECS infrastructure initialized.
@@ -49,15 +50,29 @@ func (b *BaseScene) Update() error {
 	return nil
 }
 
-// Draw iterates all systems, calling Draw(ctx, screen),
-// then calls ScreenDraw() on SystemWindow systems for UI overlays.
+// Draw: systems draw to World (world coords), then World composited to screen
+// via Camera.WorldMatrix(). ScreenDraw overlays go directly to screen.
+// If World is nil, draws directly to screen (no camera transform).
 func (b *BaseScene) Draw(screen *ebiten.Image) {
 	systems := b.Systems.Get()
 
-	for _, sys := range systems {
-		sys.Draw(b.Ctx, screen)
+	if b.World != nil {
+		b.World.Clear()
+
+		for _, sys := range systems {
+			sys.Draw(b.Ctx, b.World)
+		}
+
+		screen.DrawImage(b.World, &ebiten.DrawImageOptions{
+			GeoM: b.Camera.WorldMatrix(),
+		})
+	} else {
+		for _, sys := range systems {
+			sys.Draw(b.Ctx, screen)
+		}
 	}
 
+	// UI overlays in screen space (cursor, debug)
 	for _, sys := range systems {
 		if w, ok := sys.(core.SystemWindow); ok {
 			w.ScreenDraw(b.Ctx, screen)

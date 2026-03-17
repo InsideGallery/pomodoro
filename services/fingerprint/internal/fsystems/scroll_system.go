@@ -9,8 +9,7 @@ import (
 	c "github.com/InsideGallery/pomodoro/services/fingerprint/internal/components"
 )
 
-// ScrollSystem handles mouse wheel scrolling for scrollable areas.
-// Reads/writes GameData directly from Registry.
+// ScrollSystem handles mouse wheel scrolling. Converts cursor to world coords.
 type ScrollSystem struct {
 	scene SceneAccessor
 }
@@ -47,32 +46,27 @@ func (s *ScrollSystem) Update(_ context.Context) error {
 		return nil
 	}
 
-	co := CoordsFromScene(s.scene)
+	// Convert screen cursor to world coords
 	cur := GetCursor(reg)
-
 	if cur == nil {
 		return nil
 	}
 
-	fcx, fcy := float64(cur.X), float64(cur.Y)
+	wx, worldY := s.scene.ScreenToWorld(float64(cur.X), float64(cur.Y))
 
-	// Check cases list area
+	// Check cases list
 	if obj := tilemap.FindObject(og, "list-of-cases"); obj != nil {
-		sx, sy, sw, sh := co.MapRect(obj.X, obj.Y, obj.Width, obj.Height)
-
-		if fcx >= sx && fcx <= sx+sw && fcy >= sy && fcy <= sy+sh {
+		if wx >= obj.X && wx <= obj.X+obj.Width && worldY >= obj.Y && worldY <= obj.Y+obj.Height {
 			gd.CasesScroll += scrollDelta(wy)
-			clampScroll(&gd.CasesScroll, len(gd.Cases), sh, co.MapToScreenSize(45))
+			clampScroll(&gd.CasesScroll, len(gd.Cases), obj.Height, 90)
 
 			return nil
 		}
 	}
 
-	// Check description area
+	// Check description
 	if obj := tilemap.FindObject(og, "description"); obj != nil {
-		sx, sy, sw, sh := co.MapRect(obj.X, obj.Y, obj.Width, obj.Height)
-
-		if fcx >= sx && fcx <= sx+sw && fcy >= sy && fcy <= sy+sh {
+		if wx >= obj.X && wx <= obj.X+obj.Width && worldY >= obj.Y && worldY <= obj.Y+obj.Height {
 			gd.DescScroll += scrollDelta(wy)
 
 			if gd.DescScroll < 0 {
@@ -83,13 +77,12 @@ func (s *ScrollSystem) Update(_ context.Context) error {
 		}
 	}
 
-	// Default: scroll names list
+	// Default: scroll names
 	gd.NamesScroll += scrollDelta(wy)
 
 	if gd.SelectedCase >= 0 && gd.SelectedCase < len(gd.Cases) {
 		if obj := tilemap.FindObject(og, "fingerprints-user-names"); obj != nil {
-			sh := co.MapToScreenSize(obj.Height)
-			clampScroll(&gd.NamesScroll, len(gd.Cases[gd.SelectedCase].Puzzles), sh, co.MapToScreenSize(50))
+			clampScroll(&gd.NamesScroll, len(gd.Cases[gd.SelectedCase].Puzzles), obj.Height, 100)
 		}
 	}
 

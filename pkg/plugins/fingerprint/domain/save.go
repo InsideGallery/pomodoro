@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/InsideGallery/pomodoro/pkg/platform"
 )
 
 // GameSave persists the game state across restarts.
@@ -67,10 +69,5 @@ func LoadGame(path string) (*GameSave, error) {
 
 // DefaultSavePath returns the default path for save.json.
 func DefaultSavePath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "save.json"
-	}
-
-	return filepath.Join(home, ".config", "pomodoro", "fingerprint", "save.json")
+	return filepath.Join(platform.GetDataDir(), "fingerprint", "save.json")
 }

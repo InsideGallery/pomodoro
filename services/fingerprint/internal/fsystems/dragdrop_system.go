@@ -13,7 +13,7 @@ import (
 )
 
 // DragDropSystem handles picking up, rotating, and placing puzzle pieces.
-// Stateless — all state read/written via GameData component in Registry.
+// All coordinates in world (map) space. Screen cursor converted via Camera.
 type DragDropSystem struct {
 	scene SceneAccessor
 }
@@ -40,47 +40,48 @@ func (s *DragDropSystem) Update(_ context.Context) error {
 		return nil
 	}
 
+	// Convert screen cursor to world coordinates
 	cur := GetCursor(reg)
 	if cur == nil {
 		return nil
 	}
 
-	cx, cy := float64(cur.X), float64(cur.Y)
+	wx, wy := s.scene.ScreenToWorld(float64(cur.X), float64(cur.Y))
 
 	// Mouse wheel: rotate held piece
-	_, wy := ebiten.Wheel()
-	if wy != 0 && gd.HoldingPiece >= 0 && gd.HoldingPiece < len(puzzle.TrayPieces) {
-		if wy > 0 {
+	_, wheelY := ebiten.Wheel()
+	if wheelY != 0 && gd.HoldingPiece >= 0 && gd.HoldingPiece < len(puzzle.TrayPieces) {
+		if wheelY > 0 {
 			puzzle.TrayPieces[gd.HoldingPiece].Rotation = (puzzle.TrayPieces[gd.HoldingPiece].Rotation + 1) % domain.RotationSteps
 		} else {
 			puzzle.TrayPieces[gd.HoldingPiece].Rotation = (puzzle.TrayPieces[gd.HoldingPiece].Rotation + domain.RotationSteps - 1) % domain.RotationSteps
 		}
 	}
 
-	// Mouse pressed → try pickup (skip if over a button zone)
+	// Press → pickup (skip if over button zone)
 	input := s.scene.GetInputSystem()
 	overButton := input != nil && input.HasHoveredZone()
 
 	if !overButton && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && gd.HoldingPiece < 0 {
-		s.tryPickup(gd, puzzle, cx, cy)
+		s.tryPickup(gd, puzzle, wx, wy)
 	}
 
-	// Touch pressed → try pickup
 	if !overButton && gd.HoldingPiece < 0 {
 		for _, id := range inpututil.AppendJustPressedTouchIDs(nil) {
 			tx, ty := ebiten.TouchPosition(id)
-			s.tryPickup(gd, puzzle, float64(tx), float64(ty))
+			twx, twy := s.scene.ScreenToWorld(float64(tx), float64(ty))
+			s.tryPickup(gd, puzzle, twx, twy)
 
 			break
 		}
 	}
 
-	// Released → try place
+	// Release → place
 	mouseRel := gd.Dragging && gd.HoldingPiece >= 0 && inpututil.IsMouseButtonJustReleased(ebiten.MouseButtonLeft)
 	touchRel := gd.Dragging && gd.HoldingPiece >= 0 && len(inpututil.AppendJustReleasedTouchIDs(nil)) > 0
 
 	if mouseRel || touchRel {
-		s.tryPlace(gd, puzzle, cx, cy)
+		s.tryPlace(gd, puzzle, wx, wy)
 	}
 
 	return nil
@@ -88,7 +89,6 @@ func (s *DragDropSystem) Update(_ context.Context) error {
 
 func (s *DragDropSystem) Draw(_ context.Context, _ *ebiten.Image) {}
 
-// HoldingPiece returns the currently held piece index (-1 if none).
 func (s *DragDropSystem) HoldingPiece() int {
 	gd := GetGameData(s.scene.GetRegistry())
 	if gd == nil {
@@ -98,30 +98,23 @@ func (s *DragDropSystem) HoldingPiece() int {
 	return gd.HoldingPiece
 }
 
-// IsDragging returns true if a piece is being dragged.
 func (s *DragDropSystem) IsDragging() bool {
 	gd := GetGameData(s.scene.GetRegistry())
-	if gd == nil {
-		return false
-	}
 
-	return gd.Dragging
+	return gd != nil && gd.Dragging
 }
 
-func (s *DragDropSystem) tryPickup(gd *c.GameData, puzzle *domain.PuzzleConfig, cx, cy float64) {
-	co := CoordsFromScene(s.scene)
-	cellSz := s.gridCellScreenSize()
+func (s *DragDropSystem) tryPickup(gd *c.GameData, puzzle *domain.PuzzleConfig, wx, wy float64) {
+	cellSz := s.gridCellMapSize()
 
+	// Check tray pieces (world coords)
 	for i := range puzzle.TrayPieces {
 		tp := &puzzle.TrayPieces[i]
 		if tp.IsPlaced {
 			continue
 		}
 
-		tx := co.MapToScreenX(tp.TrayX)
-		ty := co.MapToScreenY(tp.TrayY)
-
-		if cx >= tx && cx <= tx+cellSz && cy >= ty && cy <= ty+cellSz {
+		if wx >= tp.TrayX && wx <= tp.TrayX+cellSz && wy >= tp.TrayY && wy <= tp.TrayY+cellSz {
 			gd.HoldingPiece = i
 			gd.Dragging = true
 
@@ -130,7 +123,7 @@ func (s *DragDropSystem) tryPickup(gd *c.GameData, puzzle *domain.PuzzleConfig, 
 	}
 
 	// Check placed pieces on grid
-	gpx, gpy, gcw, ok := s.puzzleGridScreen()
+	gpx, gpy, gcw, ok := s.puzzleGridWorld()
 	if !ok {
 		return
 	}
@@ -144,7 +137,7 @@ func (s *DragDropSystem) tryPickup(gd *c.GameData, puzzle *domain.PuzzleConfig, 
 		gx := gpx + float64(tp.PlacedX)*gcw
 		gy := gpy + float64(tp.PlacedY)*gcw
 
-		if cx >= gx && cx <= gx+gcw && cy >= gy && cy <= gy+gcw {
+		if wx >= gx && wx <= gx+gcw && wy >= gy && wy <= gy+gcw {
 			tp.IsPlaced = false
 			tp.PlacedX = -1
 			tp.PlacedY = -1
@@ -158,11 +151,11 @@ func (s *DragDropSystem) tryPickup(gd *c.GameData, puzzle *domain.PuzzleConfig, 
 	}
 }
 
-func (s *DragDropSystem) tryPlace(gd *c.GameData, puzzle *domain.PuzzleConfig, cx, cy float64) {
+func (s *DragDropSystem) tryPlace(gd *c.GameData, puzzle *domain.PuzzleConfig, wx, wy float64) {
 	tp := &puzzle.TrayPieces[gd.HoldingPiece]
 	placed := false
 
-	gpx, gpy, gcw, gridOk := s.puzzleGridScreen()
+	gpx, gpy, gcw, gridOk := s.puzzleGridWorld()
 
 	if gridOk {
 		missingSet := make(map[int]bool)
@@ -170,8 +163,8 @@ func (s *DragDropSystem) tryPlace(gd *c.GameData, puzzle *domain.PuzzleConfig, c
 			missingSet[idx] = true
 		}
 
-		col := int((cx - gpx) / gcw)
-		row := int((cy - gpy) / gcw)
+		col := int((wx - gpx) / gcw)
+		row := int((wy - gpy) / gcw)
 
 		if col >= 0 && col < 10 && row >= 0 && row < 10 {
 			gIdx := row*10 + col
@@ -191,8 +184,6 @@ func (s *DragDropSystem) tryPlace(gd *c.GameData, puzzle *domain.PuzzleConfig, c
 					tp.PlacedX = col
 					tp.PlacedY = row
 					placed = true
-
-					slog.Info("placed piece", "tray", gd.HoldingPiece, "x", col, "y", row)
 					s.scene.SaveGameState()
 				}
 			}
@@ -200,44 +191,40 @@ func (s *DragDropSystem) tryPlace(gd *c.GameData, puzzle *domain.PuzzleConfig, c
 	}
 
 	if !placed {
-		co := CoordsFromScene(s.scene)
-		tp.TrayX = co.ScreenToMapX(cx)
-		tp.TrayY = co.ScreenToMapY(cy)
+		// Drop at world position
+		tp.TrayX = wx
+		tp.TrayY = wy
 	}
 
 	gd.HoldingPiece = -1
 	gd.Dragging = false
 }
 
-func (s *DragDropSystem) gridCellScreenSize() float64 {
+func (s *DragDropSystem) gridCellMapSize() float64 {
 	tmap := s.scene.GetTileMap()
 	if tmap == nil {
-		return 40
+		return 68
 	}
-
-	co := CoordsFromScene(s.scene)
 
 	og := tmap.FindObjectGroup("application-net-layout")
 	if og == nil {
-		return 40
+		return 68
 	}
 
 	for _, obj := range og.Objects {
 		if obj.Name == "puzzle" {
-			return math.Min(co.MapToScreenSize(obj.Width), co.MapToScreenSize(obj.Height)) / 10
+			return math.Min(obj.Width, obj.Height) / 10
 		}
 	}
 
-	return 40
+	return 68
 }
 
-func (s *DragDropSystem) puzzleGridScreen() (px, py, cellW float64, ok bool) {
+func (s *DragDropSystem) puzzleGridWorld() (px, py, cellW float64, ok bool) {
 	tmap := s.scene.GetTileMap()
 	if tmap == nil {
 		return 0, 0, 0, false
 	}
-
-	co := CoordsFromScene(s.scene)
 
 	og := tmap.FindObjectGroup("application-net-layout")
 	if og == nil {
@@ -246,13 +233,10 @@ func (s *DragDropSystem) puzzleGridScreen() (px, py, cellW float64, ok bool) {
 
 	for _, obj := range og.Objects {
 		if obj.Name == "puzzle" {
-			px = co.MapToScreenX(obj.X)
-			py = co.MapToScreenY(obj.Y)
-			pw := co.MapToScreenSize(obj.Width)
-			ph := co.MapToScreenSize(obj.Height)
+			pw, ph := obj.Width, obj.Height
 			side := math.Min(pw, ph)
-			px += (pw - side) / 2
-			py += (ph - side) / 2
+			px = obj.X + (pw-side)/2
+			py = obj.Y + (ph-side)/2
 
 			return px, py, side / 10, true
 		}

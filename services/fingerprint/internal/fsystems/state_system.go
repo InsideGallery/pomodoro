@@ -157,16 +157,8 @@ func (s *StateSystem) updateLoading(reg RegType, state *c.State) {
 		}()
 
 	case 1:
-		tmap := s.scene.GetTileMap()
-		if tmap != nil {
-			w, h := s.scene.GetScreenSize()
-			mapW := float64(tmap.MapPixelWidth())
-			mapH := float64(tmap.MapPixelHeight())
-			scale := float64(h) / mapH
-			offsetX := (float64(w) - mapW*scale) / 2
-			s.scene.SetScale(scale, scale, offsetX)
-			s.updateCursorRoom(reg, tmap)
-		}
+		// TMX loaded — setup World image + Camera
+		s.scene.SetupWorld()
 
 		gd.LoadStatus = "Loading fingerprint database..."
 		gd.LoadProgress = 0.6
@@ -240,37 +232,6 @@ func (s *StateSystem) enterEnabled(_ RegType) {
 
 func (s *StateSystem) enterAppLayout(reg RegType) {
 	s.scene.RegisterAppLayoutZones()
-}
-
-func (s *StateSystem) updateCursorRoom(reg RegType, tmap *tilemap.Map) {
-	val, err := reg.Get(c.GroupCursor, 0)
-	if err != nil {
-		return
-	}
-
-	entity, ok := val.(*c.Entity)
-	if !ok || entity.Cursor == nil {
-		return
-	}
-
-	scaleX := s.scene.GetScaleX()
-	scaleY := s.scene.GetScaleY()
-
-	mainOG := tmap.FindObjectGroup("main")
-	if mainOG == nil {
-		return
-	}
-
-	room := tilemap.FindObject(mainOG, "cursor-room")
-	if room == nil {
-		return
-	}
-
-	ox := s.scene.GetOffsetX()
-	entity.Cursor.RoomMinX = int(room.X*scaleX + ox)
-	entity.Cursor.RoomMinY = int(room.Y * scaleY)
-	entity.Cursor.RoomMaxX = int((room.X+room.Width)*scaleX + ox)
-	entity.Cursor.RoomMaxY = int((room.Y + room.Height) * scaleY)
 }
 
 // RegType is a convenience alias.
