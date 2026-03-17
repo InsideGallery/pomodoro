@@ -7,7 +7,7 @@ PLUGIN_SRC := plugins
 
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: all build build-fingerprint test clean appimage icon install plugins lint coverage
+.PHONY: all build build-fingerprint build-android-aar build-android-apk test clean appimage icon install plugins lint coverage
 
 all: build
 
@@ -18,6 +18,17 @@ build:
 ## Build fingerprint game
 build-fingerprint:
 	go build -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/fingerprint ./services/fingerprint/cmd/fingerprint/
+
+## Build Android AAR (requires Android NDK)
+build-android-aar:
+	ebitenmobile bind -target android \
+		-javapkg com.insidegallery.fingerprint \
+		-o services/fingerprint/mobile/android/app/libs/fingerprint.aar \
+		./services/fingerprint/mobile/
+
+## Build Android APK (requires Android SDK + gradle)
+build-android-apk: build-android-aar
+	cd services/fingerprint/mobile/android && ./gradlew assembleDebug
 
 ## Build all products
 build-all: build build-fingerprint

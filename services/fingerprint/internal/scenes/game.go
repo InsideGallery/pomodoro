@@ -267,6 +267,7 @@ func (s *GameScene) GetTileMap() *tilemap.Map                             { retu
 func (s *GameScene) SetTileMap(m *tilemap.Map)                            { s.tmap = m }
 func (s *GameScene) GetScreenSize() (int, int)                            { return s.width, s.height }
 func (s *GameScene) SetCursorPos(_, _ int)                                {}
+func (s *GameScene) RequestQuit()                                         { QuitGame() }
 
 // scaleBox converts TMX object from world to screen coords for RTree.
 func (s *GameScene) scaleBox(obj *tiled.Object) shapes.Spatial { //nolint:ireturn
@@ -291,6 +292,10 @@ func (s *GameScene) setECSState(state c.GameState) {
 
 func (s *GameScene) RegisterEnabledZones() {
 	s.input.ClearZones()
+
+	if s.tmap == nil {
+		return
+	}
 
 	og := s.tmap.FindObjectGroup("enabled")
 	if og == nil {
@@ -317,7 +322,7 @@ func (s *GameScene) RegisterEnabledZones() {
 				),
 				OnClick: func() {
 					ebiten.SetCursorMode(ebiten.CursorModeVisible)
-					os.Exit(0)
+					QuitGame()
 				},
 			})
 		}
@@ -326,6 +331,10 @@ func (s *GameScene) RegisterEnabledZones() {
 
 func (s *GameScene) RegisterAppLayoutZones() {
 	s.input.ClearZones()
+
+	if s.tmap == nil {
+		return
+	}
 
 	og := s.tmap.FindObjectGroup("application-layout")
 	if og == nil {
@@ -403,6 +412,10 @@ func (s *GameScene) RegisterAppLayoutZones() {
 
 func (s *GameScene) RegisterPuzzleZones() {
 	s.input.ClearZones()
+
+	if s.tmap == nil {
+		return
+	}
 
 	og := s.tmap.FindObjectGroup("application-net-layout")
 	if og == nil {
@@ -787,8 +800,10 @@ func firstUnsolvedPuzzle(cs *domain.CaseConfig) int {
 	return 0
 }
 
+// FindTMXPath returns the TMX path as a real filesystem path.
 func FindTMXPath() string {
 	for _, p := range []string{
+		"external/fingerprint/fingerprint.tmx",
 		"assets/external/fingerprint/fingerprint.tmx",
 		"../assets/external/fingerprint/fingerprint.tmx",
 		"../../assets/external/fingerprint/fingerprint.tmx",
@@ -801,8 +816,10 @@ func FindTMXPath() string {
 	return ""
 }
 
+// FindFingerprintAssetsDir returns the assets directory as a real filesystem path.
 func FindFingerprintAssetsDir() string {
 	for _, p := range []string{
+		"external/fingerprint",
 		"assets/external/fingerprint",
 		"../assets/external/fingerprint",
 		"../../assets/external/fingerprint",

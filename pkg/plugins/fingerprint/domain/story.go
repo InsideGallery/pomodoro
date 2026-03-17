@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
-	"os"
-	"path/filepath"
+
+	"github.com/InsideGallery/pomodoro/pkg/platform"
 )
 
 // StoriesFile is the top-level JSON structure for stories.json.
@@ -25,11 +25,9 @@ type CaseStory struct {
 // Stories holds all loaded stories. Populated by LoadStories.
 var Stories *StoriesFile //nolint:gochecknoglobals // loaded once
 
-// LoadStories reads stories.json from the assets directory.
-func LoadStories(assetsDir string) error {
-	path := filepath.Join(assetsDir, "stories.json")
-
-	data, err := os.ReadFile(path)
+// LoadStories reads stories.json via platform asset loader.
+func LoadStories(_ string) error {
+	data, err := platform.ReadAsset("external/fingerprint/stories.json")
 	if err != nil {
 		return fmt.Errorf("read stories: %w", err)
 	}

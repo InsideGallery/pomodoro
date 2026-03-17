@@ -48,7 +48,7 @@ func (s *StateSystem) Update(_ context.Context) error {
 	case c.StateEnabled:
 		if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
 			ebiten.SetCursorMode(ebiten.CursorModeVisible)
-			os.Exit(0)
+			s.scene.RequestQuit()
 		}
 
 	case c.StateApplicationLayout:
@@ -238,14 +238,16 @@ func (s *StateSystem) enterAppLayout(reg RegType) {
 type RegType = *registry.Registry[string, uint64, any]
 
 // findTMXPath locates the fingerprint.tmx file.
+// tilemap.Load uses tiled.LoadFile (raw os.Open), so we must return a real
+// filesystem path. platform.AssetExists resolves via assets/ prefix but
+// returns the un-prefixed name, which is not a valid filesystem path.
 func findTMXPath() string {
-	candidates := []string{
+	for _, p := range []string{
+		"external/fingerprint/fingerprint.tmx",
 		"assets/external/fingerprint/fingerprint.tmx",
 		"../assets/external/fingerprint/fingerprint.tmx",
 		"../../assets/external/fingerprint/fingerprint.tmx",
-	}
-
-	for _, p := range candidates {
+	} {
 		if _, err := os.Stat(p); err == nil {
 			return p
 		}

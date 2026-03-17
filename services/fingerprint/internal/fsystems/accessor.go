@@ -25,6 +25,9 @@ type SceneAccessor interface {
 	SetupWorld() // creates World image + configures Camera after TMX loads
 	SetCursorPos(x, y int)
 
+	// App lifecycle
+	RequestQuit()
+
 	// Camera
 	GetBaseZoom() float64
 	ResetCameraZoom()

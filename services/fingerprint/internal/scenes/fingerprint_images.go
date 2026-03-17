@@ -12,6 +12,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 
+	"github.com/InsideGallery/pomodoro/pkg/platform"
 	"github.com/InsideGallery/pomodoro/pkg/plugins/fingerprint/domain"
 )
 
@@ -156,15 +157,25 @@ func scaleImage(src *image.RGBA, dstW, dstH int) *image.RGBA {
 }
 
 func loadStdImage(path string) (image.Image, error) {
-	f, err := os.Open(path)
+	// Try platform asset loader first (works on both desktop and mobile)
+	f, err := platform.OpenAsset(path)
 	if err != nil {
-		return nil, err
+		// Fallback to direct filesystem (for paths like /home/.../avatars/x.jpg)
+		f2, err2 := os.Open(path)
+		if err2 != nil {
+			return nil, err2
+		}
+		defer f2.Close()
+
+		img, _, decErr := image.Decode(f2)
+
+		return img, decErr
 	}
 	defer f.Close()
 
-	img, _, err := image.Decode(f)
+	img, _, decErr := image.Decode(f)
 
-	return img, err
+	return img, decErr
 }
 
 func rotateImage(src *image.RGBA, degrees int) *image.RGBA {
