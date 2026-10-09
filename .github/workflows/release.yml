@@ -53,7 +53,7 @@ jobs:
               apt-get update &&
               apt-get install -y libx11-dev libgl1-mesa-dev libxcursor-dev libxrandr-dev \
                 libxinerama-dev libxi-dev libasound2-dev libayatana-appindicator3-dev libxxf86vm-dev &&
-              go build -buildvcs=false -ldflags "-s -w -X main.version=$VERSION" -o build/pomodoro ./cmd/pomodoro/ &&
+              go build -buildvcs=false -ldflags "-s -w -X main.version=$VERSION" -o build/pomodoro ./services/pomodoro/cmd/pomodoro/ &&
               tar czf "build/pomodoro-${VERSION}-linux-arm64.tar.gz" -C build pomodoro
             '
       - uses: actions/upload-artifact@v4
@@ -75,7 +75,7 @@ jobs:
         shell: bash
         run: |
           VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
-          go build -ldflags "-s -w -H windowsgui -X main.version=$VERSION" -o "build/pomodoro-${VERSION}-windows-amd64.exe" ./cmd/pomodoro/
+          go build -ldflags "-s -w -H windowsgui -X main.version=$VERSION" -o "build/pomodoro-${VERSION}-windows-amd64.exe" ./services/pomodoro/cmd/pomodoro/
       - uses: actions/upload-artifact@v4
         with:
           name: pomodoro-windows-amd64
@@ -99,7 +99,7 @@ jobs:
           CGO_ENABLED: "0"
         run: |
           VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
-          go build -ldflags "-s -w -H windowsgui -X main.version=$VERSION" -o "build/pomodoro-${VERSION}-windows-arm64.exe" ./cmd/pomodoro/
+          go build -ldflags "-s -w -H windowsgui -X main.version=$VERSION" -o "build/pomodoro-${VERSION}-windows-arm64.exe" ./services/pomodoro/cmd/pomodoro/
       - uses: actions/upload-artifact@v4
         with:
           name: pomodoro-windows-arm64
@@ -118,7 +118,7 @@ jobs:
       - name: Build
         run: |
           VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
-          CGO_ENABLED=1 go build -ldflags "-s -w -X main.version=$VERSION" -o build/pomodoro ./cmd/pomodoro/
+          CGO_ENABLED=1 go build -ldflags "-s -w -X main.version=$VERSION" -o build/pomodoro ./services/pomodoro/cmd/pomodoro/
           tar czf "build/pomodoro-${VERSION}-darwin-arm64.tar.gz" -C build pomodoro
       - uses: actions/upload-artifact@v4
         with:
@@ -141,7 +141,7 @@ jobs:
           CGO_ENABLED: "1"
         run: |
           VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
-          go build -ldflags "-s -w -X main.version=$VERSION" -o build/pomodoro ./cmd/pomodoro/
+          go build -ldflags "-s -w -X main.version=$VERSION" -o build/pomodoro ./services/pomodoro/cmd/pomodoro/
           tar czf "build/pomodoro-${VERSION}-darwin-amd64.tar.gz" -C build pomodoro
       - uses: actions/upload-artifact@v4
         with:
