@@ -30,12 +30,8 @@ func (s *TickSystem) Update(_ context.Context) error {
 		s.publishStarted(curState, now)
 	}
 
-	if s.Audio != nil && curState.IsRunning() {
-		if curState != prevState {
-			s.Audio.PlayTick()
-		}
-
-		s.Audio.UpdateTick()
+	if s.Audio != nil {
+		s.Audio.SyncLoop(s.Tmr.State())
 	}
 
 	if curState.IsRunning() {
@@ -54,26 +50,15 @@ func (s *TickSystem) OnStartPause() {
 	case timer.StateIdle:
 		s.Tmr.Start(now)
 		s.publishStarted(s.Tmr.State(), now)
-
-		if s.Audio != nil {
-			s.Audio.PlayTick()
-		}
 	case timer.StatePaused:
 		s.Tmr.Resume(now)
 		s.Bus.Publish(event.Event{Type: event.Resumed, Time: now, Data: s.Tmr.State().String()})
-
-		if s.Audio != nil {
-			s.Audio.PlayTick()
-		}
 	default:
 		s.Tmr.Pause(now)
 		s.Bus.Publish(event.Event{Type: event.Paused, Time: now, Data: "Paused"})
-
-		if s.Audio != nil {
-			s.Audio.StopTick()
-		}
 	}
 
+	s.syncAudio()
 	s.SaveState()
 }
 
@@ -81,10 +66,7 @@ func (s *TickSystem) OnReset() {
 	s.Tmr.Reset()
 	s.Bus.Publish(event.Event{Type: event.Reset, Time: time.Now(), Data: "Idle"})
 
-	if s.Audio != nil {
-		s.Audio.StopTick()
-	}
-
+	s.syncAudio()
 	s.SaveState()
 }
 
@@ -94,15 +76,16 @@ func (s *TickSystem) OnSkip() {
 
 	if s.Tmr.State().IsRunning() {
 		s.publishStarted(s.Tmr.State(), now)
-
-		if s.Audio != nil {
-			s.Audio.PlayTick()
-		}
-	} else if s.Audio != nil {
-		s.Audio.StopTick()
 	}
 
+	s.syncAudio()
 	s.SaveState()
+}
+
+func (s *TickSystem) syncAudio() {
+	if s.Audio != nil {
+		s.Audio.SyncLoop(s.Tmr.State())
+	}
 }
 
 func (s *TickSystem) publishStarted(st timer.State, now time.Time) {

@@ -3,42 +3,43 @@ package audio
 import (
 	"bytes"
 	"io"
+	"log/slog"
 	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2/audio"
 	"github.com/hajimehoshi/ebiten/v2/audio/mp3"
 
 	"github.com/InsideGallery/pomodoro/assets"
+	"github.com/InsideGallery/pomodoro/services/pomodoro/internal/timer"
 )
 
 const sampleRate = 48000
 
+// Settings is the audio part of the user configuration.
+type Settings struct {
+	LoopVolume, AlarmVolume float64
+	LoopEnabled, Muted      bool
+	BreakMelody             string
+}
+
+// Manager plays one streamed loop and the decoded alarm.
 type Manager struct {
 	mu       sync.Mutex
 	ctx      *audio.Context
-	tick     *audio.Player
 	alarm    *audio.Player
-	tickBuf  []byte
 	alarmBuf []byte
+	loop     *audio.Player
+	loopFile string
 
-	tickVolume  float64
+	loopVolume  float64
 	alarmVolume float64
-	tickEnabled bool
-	tickStopped bool
+	loopEnabled bool
+	muted       bool
+	breakMelody string
 }
 
 func NewManager() (*Manager, error) {
 	ctx := audio.NewContext(sampleRate)
-
-	tickStream, err := mp3.DecodeF32(bytes.NewReader(assets.TickSound))
-	if err != nil {
-		return nil, err
-	}
-
-	tickBuf, err := io.ReadAll(tickStream)
-	if err != nil {
-		return nil, err
-	}
 
 	alarmStream, err := mp3.DecodeF32(bytes.NewReader(assets.AlarmSound))
 	if err != nil {
@@ -52,65 +53,110 @@ func NewManager() (*Manager, error) {
 
 	return &Manager{
 		ctx:         ctx,
-		tickBuf:     tickBuf,
 		alarmBuf:    alarmBuf,
-		tickVolume:  0.5,
+		loopVolume:  0.5,
 		alarmVolume: 0.8,
-		tickEnabled: true,
+		loopEnabled: true,
+		breakMelody: "tick.mp3",
 	}, nil
 }
 
-func (m *Manager) PlayTick() {
+// Apply stores the settings and applies them to the live players.
+func (m *Manager) Apply(s Settings) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if !m.tickEnabled || m.tickVolume == 0 {
-		return
+	m.loopVolume = clamp(s.LoopVolume, 0, 1)
+	m.alarmVolume = clamp(s.AlarmVolume, 0, 1)
+	m.loopEnabled = s.LoopEnabled
+	m.muted = s.Muted
+	m.breakMelody = s.BreakMelody
+
+	if m.loop != nil {
+		m.loop.SetVolume(m.loopVolume)
 	}
 
-	m.tickStopped = false
+	if m.alarm != nil {
+		m.alarm.SetVolume(m.alarmVolume)
 
-	if m.tick == nil {
-		m.tick = m.ctx.NewPlayerF32FromBytes(m.tickBuf)
-		m.tick.SetVolume(m.tickVolume)
-	}
-
-	if !m.tick.IsPlaying() {
-		m.tick.SetPosition(0) //nolint:errcheck
-		m.tick.Play()
+		if m.muted && m.alarm.IsPlaying() {
+			m.alarm.Pause()
+		}
 	}
 }
 
-func (m *Manager) StopTick() {
+// SyncLoop makes the playing loop match the timer state.
+func (m *Manager) SyncLoop(st timer.State) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.tickStopped = true
+	want := loopFor(st, m.muted, m.loopEnabled, m.breakMelody)
+	if want == "" {
+		m.closeLoop()
 
-	if m.tick != nil {
-		m.tick.Pause()
-		m.tick.SetPosition(0) //nolint:errcheck
-	}
-}
-
-func (m *Manager) UpdateTick() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.tick == nil || !m.tickEnabled || m.tickStopped {
 		return
 	}
 
-	// Loop: restart when finished
-	if !m.tick.IsPlaying() && m.tickVolume > 0 {
-		m.tick.SetPosition(0) //nolint:errcheck
-		m.tick.Play()
+	if want != m.loopFile || m.loop == nil {
+		m.closeLoop()
+		m.startLoop(want)
+
+		return
 	}
+
+	if !m.loop.IsPlaying() {
+		m.loop.Play()
+	}
+}
+
+func (m *Manager) closeLoop() {
+	if m.loop != nil {
+		m.loop.Pause()
+		m.loop.Close() //nolint:errcheck
+	}
+
+	m.loop = nil
+	m.loopFile = ""
+}
+
+func (m *Manager) startLoop(want string) {
+	data, err := assets.Sounds.ReadFile("sounds/" + want)
+	if err != nil {
+		slog.Warn("audio loop", "file", want, "error", err)
+
+		return
+	}
+
+	stream, err := mp3.DecodeF32(bytes.NewReader(data))
+	if err != nil {
+		slog.Warn("audio loop", "file", want, "error", err)
+
+		return
+	}
+
+	looped := audio.NewInfiniteLoopF32(stream, stream.Length())
+
+	p, err := m.ctx.NewPlayerF32(looped)
+	if err != nil {
+		slog.Warn("audio loop", "file", want, "error", err)
+
+		return
+	}
+
+	p.SetVolume(m.loopVolume)
+	p.Play()
+
+	m.loop = p
+	m.loopFile = want
 }
 
 func (m *Manager) PlayAlarm() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	if m.muted {
+		return
+	}
 
 	if m.alarm == nil {
 		m.alarm = m.ctx.NewPlayerF32FromBytes(m.alarmBuf)
@@ -119,57 +165,6 @@ func (m *Manager) PlayAlarm() {
 	m.alarm.SetVolume(m.alarmVolume)
 	m.alarm.SetPosition(0) //nolint:errcheck
 	m.alarm.Play()
-}
-
-func (m *Manager) SetTickVolume(v float64) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.tickVolume = clamp(v, 0, 1)
-	if m.tick != nil {
-		m.tick.SetVolume(m.tickVolume)
-	}
-}
-
-func (m *Manager) SetAlarmVolume(v float64) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.alarmVolume = clamp(v, 0, 1)
-	if m.alarm != nil {
-		m.alarm.SetVolume(m.alarmVolume)
-	}
-}
-
-func (m *Manager) SetTickEnabled(enabled bool) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.tickEnabled = enabled
-	if !enabled && m.tick != nil && m.tick.IsPlaying() {
-		m.tick.Pause()
-	}
-}
-
-func (m *Manager) TickVolume() float64 {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	return m.tickVolume
-}
-
-func (m *Manager) AlarmVolume() float64 {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	return m.alarmVolume
-}
-
-func (m *Manager) TickEnabled() bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	return m.tickEnabled
 }
 
 func clamp(v, lo, hi float64) float64 {

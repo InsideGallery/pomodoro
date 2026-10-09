@@ -82,7 +82,7 @@ func NewScene(
 
 	tmr.OnComplete = func(completed timer.State) {
 		if s.audio != nil {
-			s.audio.StopTick()
+			s.audio.SyncLoop(s.tmr.State())
 			s.audio.PlayAlarm()
 		}
 
@@ -445,18 +445,24 @@ func (s *Scene) initAudio() {
 	s.audio = am
 	s.tick.Audio = am
 
-	cfg := config.Load()
-	am.SetTickVolume(cfg.TickVolume)
-	am.SetAlarmVolume(cfg.AlarmVolume)
-	am.SetTickEnabled(cfg.TickEnabled)
+	am.Apply(audioSettings(config.Load()))
 
 	s.bus.Subscribe(event.ConfigChanged, func(e event.Event) {
 		if c, ok := e.Data.(config.Config); ok {
-			am.SetTickVolume(c.TickVolume)
-			am.SetAlarmVolume(c.AlarmVolume)
-			am.SetTickEnabled(c.TickEnabled)
+			am.Apply(audioSettings(c))
+			am.SyncLoop(s.tmr.State())
 		}
 	})
+}
+
+func audioSettings(c config.Config) audio.Settings {
+	return audio.Settings{
+		LoopVolume:  c.TickVolume,
+		AlarmVolume: c.AlarmVolume,
+		LoopEnabled: c.TickEnabled,
+		Muted:       c.Muted,
+		BreakMelody: c.BreakMelody,
+	}
 }
 
 func (s *Scene) saveState() {
