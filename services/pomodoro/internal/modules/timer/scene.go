@@ -41,6 +41,8 @@ type Scene struct {
 	onClose       func()
 	onMini        func()
 
+	muted bool
+
 	width, height int
 	entityIDSeq   uint64
 }
@@ -72,6 +74,7 @@ func NewScene(
 		onMini:        onMini,
 		width:         WindowWidth,
 		height:        WindowHeight,
+		muted:         cfg.Muted,
 	}
 
 	s.tick = &tsystems.TickSystem{
@@ -92,6 +95,8 @@ func NewScene(
 
 	bus.Subscribe(event.ConfigChanged, func(e event.Event) {
 		if c, ok := e.Data.(config.Config); ok {
+			s.muted = c.Muted
+
 			tmr.SetConfig(timer.Config{
 				FocusDuration:     c.FocusDuration(),
 				BreakDuration:     c.BreakDuration(),
@@ -103,6 +108,22 @@ func NewScene(
 	})
 
 	return s
+}
+
+// Muted reports whether all sound is muted.
+func (s *Scene) Muted() bool { return s.muted }
+
+// ToggleMute flips the saved mute setting and tells the audio handler.
+func (s *Scene) ToggleMute() {
+	cfg := config.Load()
+	cfg.Muted = !cfg.Muted
+
+	if err := config.Save(cfg); err != nil {
+		slog.Warn("save config", "error", err)
+	}
+
+	s.muted = cfg.Muted
+	s.bus.Publish(event.Event{Type: event.ConfigChanged, Data: cfg})
 }
 
 func (s *Scene) Name() string { return SceneName }
@@ -233,6 +254,10 @@ func (s *Scene) createEntities() {
 		color.RGBA{}, ui.ColorBgTertiary,
 		ui.ColorTextSecond, "", nil, ui.DrawSettingsIcon,
 		func() { s.onSwitchScene("settings") })
+
+	s.addButton("button", w-pad-iconS*4-ui.S(24), ui.S(10), iconS, iconS,
+		color.RGBA{}, ui.ColorBgTertiary,
+		ui.ColorTextSecond, "", nil, s.drawMuteIcon, s.ToggleMute)
 
 	// --- Control buttons ---
 	btnW := ui.S(96)
@@ -488,4 +513,15 @@ func (s *Scene) saveState() {
 
 func box(x, y, w, h float64) shapes.Spatial { //nolint:ireturn // returns spatial for RTree
 	return shapes.NewBox(shapes.NewPoint(x, y), w, h)
+}
+
+// drawMuteIcon draws the speaker icon, crossed out while muted.
+func (s *Scene) drawMuteIcon(dst *ebiten.Image, cx, cy, size float32, clr color.Color) {
+	if s.muted {
+		ui.DrawMutedIcon(dst, cx, cy, size, clr)
+
+		return
+	}
+
+	ui.DrawSpeakerIcon(dst, cx, cy, size, clr)
 }
