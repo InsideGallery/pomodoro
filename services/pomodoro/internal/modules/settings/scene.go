@@ -17,6 +17,7 @@ import (
 	"github.com/InsideGallery/pomodoro/pkg/scene"
 	"github.com/InsideGallery/pomodoro/pkg/systems"
 	"github.com/InsideGallery/pomodoro/pkg/ui"
+	"github.com/InsideGallery/pomodoro/services/pomodoro/internal/audio"
 	ssystems "github.com/InsideGallery/pomodoro/services/pomodoro/internal/modules/settings/systems"
 )
 
@@ -270,7 +271,7 @@ func (s *Scene) createEntities() {
 	s.addSection("SOUND", ui.ColorAccentSuccess, y)
 	y += ui.S(24)
 
-	s.addSlider("Tick Volume", sliderX, y, sliderW, sliderH, 0, 1, s.cfg.TickVolume,
+	s.addSlider("Loop Volume", sliderX, y, sliderW, sliderH, 0, 1, s.cfg.TickVolume,
 		nil,
 		func(v float64) {
 			s.cfg.TickVolume = v
@@ -288,9 +289,15 @@ func (s *Scene) createEntities() {
 		})
 	y += sliderGap
 
-	s.addToggle("Tick Sound", toggleX, y, toggleW, toggleH, s.cfg.TickEnabled,
+	s.addToggle("Loop Sound", toggleX, y, toggleW, toggleH, s.cfg.TickEnabled,
 		ui.ColorAccentSuccess, ui.ColorToggleOff,
 		func(v bool) { s.cfg.TickEnabled = v; s.save(); s.publishConfig() })
+	y += toggleRowH
+
+	selW := ui.S(140)
+	selX := toggleX + toggleW - selW
+
+	s.addSelector("Break Melody", selX, y, selW, toggleH)
 	y += toggleRowH
 
 	s.addToggle("Auto-Start Next", toggleX, y, toggleW, toggleH, s.cfg.AutoStart,
@@ -351,10 +358,7 @@ func (s *Scene) createEntities() {
 		HoverColor: ui.ColorBorder,
 		TextColor:  ui.ColorAccentDanger,
 		OnClick: func() {
-			def := config.Default()
-			def.Theme = s.cfg.Theme
-			def.Transparency = s.cfg.Transparency
-			s.cfg = def
+			s.cfg = resetConfig(s.cfg)
 			s.save()
 			s.publishConfig()
 			s.pendingReinit = true
@@ -373,6 +377,16 @@ func (s *Scene) createEntities() {
 	y += ui.S(48)
 
 	s.scroll.ContentH = y
+}
+
+// resetConfig returns the defaults, keeping the appearance and mute settings of cur.
+func resetConfig(cur config.Config) config.Config {
+	def := config.Default()
+	def.Theme = cur.Theme
+	def.Transparency = cur.Transparency
+	def.Muted = cur.Muted
+
+	return def
 }
 
 func (s *Scene) addSection(text string, clr color.RGBA, y float32) {
@@ -453,6 +467,38 @@ func (s *Scene) addToggle(label string, x, y, w, h float32, value bool,
 				tg.OnChange(tg.Value)
 			}
 		},
+	})
+}
+
+func (s *Scene) addSelector(label string, x, y, w, h float32) {
+	sel := &ssystems.SelectorEntity{
+		Label: label, X: x, Y: y, W: w, H: h,
+		Value: audio.MelodyFor(s.cfg.BreakMelody).Label,
+	}
+
+	if err := s.Registry.Add("selector", s.nextID(), sel); err != nil {
+		return
+	}
+
+	arrow := ui.S(28)
+	step := func(delta int) func() {
+		return func() {
+			m := audio.NextMelody(s.cfg.BreakMelody, delta)
+			s.cfg.BreakMelody = m.File
+			sel.Value = m.Label
+
+			s.save()
+			s.publishConfig()
+		}
+	}
+
+	s.input.AddZone(&systems.Zone{
+		Spatial: shapes.NewBox(shapes.NewPoint(float64(x), float64(y)-4), float64(arrow), float64(h)+8),
+		OnClick: step(-1),
+	})
+	s.input.AddZone(&systems.Zone{
+		Spatial: shapes.NewBox(shapes.NewPoint(float64(x+w-arrow), float64(y)-4), float64(arrow), float64(h)+8),
+		OnClick: step(1),
 	})
 }
 

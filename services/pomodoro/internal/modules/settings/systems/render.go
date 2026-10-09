@@ -93,6 +93,16 @@ func (s *RenderSystem) Draw(_ context.Context, screen *ebiten.Image) {
 		s.drawToggle(clip, toggle, dy, faceLabel)
 	}
 
+	// Selectors
+	for it := range s.Reg.Iterator("selector") {
+		sel, ok := it.(*SelectorEntity)
+		if !ok {
+			continue
+		}
+
+		s.drawSelector(clip, sel, dy, faceLabel, float64(pad))
+	}
+
 	// Scrollable buttons (Reset Defaults)
 	for btn := range s.Reg.Iterator("button") {
 		b, ok := btn.(*SettingsButton)
@@ -230,4 +240,22 @@ func (s *RenderSystem) drawToggle(clip *ebiten.Image, tg *ToggleEntity, dy float
 	knobY := y + h/2
 
 	ui.DrawCircle(clip, knobX, knobY, knobR, ui.ColorTextPrimary)
+}
+
+func (s *RenderSystem) drawSelector(clip *ebiten.Image, sel *SelectorEntity, dy float32,
+	face *textv2.GoTextFace, pad float64,
+) {
+	y := float64(sel.Y + dy)
+	_, th := textv2.Measure(sel.Label, face, 0)
+	ly := y + (float64(sel.H)-th)/2
+
+	ui.DrawText(clip, sel.Label, face, pad+ui.Sf(16), ly, ui.ColorTextSecond)
+
+	right, _ := textv2.Measure("›", face, 0)
+	vw, _ := textv2.Measure(sel.Value, face, 0)
+	x, w := float64(sel.X), float64(sel.W)
+
+	ui.DrawText(clip, "‹", face, x, ly, ui.ColorTextPrimary)
+	ui.DrawText(clip, "›", face, x+w-right, ly, ui.ColorTextPrimary)
+	ui.DrawText(clip, sel.Value, face, x+w/2-vw/2, ly, ui.ColorTextPrimary)
 }

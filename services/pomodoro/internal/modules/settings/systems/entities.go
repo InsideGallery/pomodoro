@@ -32,6 +32,13 @@ type ToggleEntity struct {
 	X, Y, W, H float32
 }
 
+// SelectorEntity is a left/right stepper that shows the current value.
+type SelectorEntity struct {
+	Label      string
+	Value      string
+	X, Y, W, H float32
+}
+
 // SectionLabel is a section title in the settings.
 type SectionLabel struct {
 	Text  string
