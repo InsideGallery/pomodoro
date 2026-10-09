@@ -11,5 +11,8 @@ func ShowWindow(title string) {}
 // SetAlwaysOnTop is a no-op on Android.
 func SetAlwaysOnTop(title string, enable bool) {}
 
+// SetSkipTaskbar is a no-op on Android.
+func SetSkipTaskbar(title string, enable bool) {}
+
 // RaiseWindow is a no-op on Android.
 func RaiseWindow(title string) {}

@@ -103,12 +103,15 @@ func (s *Scene) Init(ctx context.Context) {
 func (s *Scene) Load() error {
 	ebiten.SetWindowSize(Width, Height)
 	platform.SetAlwaysOnTop(Title, true)
+	// The tray icon already stands for the app, so the small window stays off the taskbar.
+	platform.SetSkipTaskbar(Title, true)
 
 	return nil
 }
 
 func (s *Scene) Unload() error {
 	platform.SetAlwaysOnTop(Title, false)
+	platform.SetSkipTaskbar(Title, false)
 
 	return nil
 }

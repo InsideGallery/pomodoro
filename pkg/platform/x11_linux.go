@@ -62,6 +62,32 @@ static void x11_set_above(unsigned long wid, int enable) {
     XCloseDisplay(dpy);
 }
 
+static void x11_set_skip_taskbar(unsigned long wid, int enable) {
+    Display *dpy = XOpenDisplay(NULL);
+    if (!dpy) return;
+
+    Window win = (Window)wid;
+    Atom wmState = XInternAtom(dpy, "_NET_WM_STATE", False);
+    Atom skipTaskbar = XInternAtom(dpy, "_NET_WM_STATE_SKIP_TASKBAR", False);
+    Atom skipPager = XInternAtom(dpy, "_NET_WM_STATE_SKIP_PAGER", False);
+
+    XEvent ev;
+    memset(&ev, 0, sizeof(ev));
+    ev.xclient.type = ClientMessage;
+    ev.xclient.window = win;
+    ev.xclient.message_type = wmState;
+    ev.xclient.format = 32;
+    ev.xclient.data.l[0] = enable ? 1 : 0; // _NET_WM_STATE_ADD or _REMOVE
+    ev.xclient.data.l[1] = (long)skipTaskbar;
+    ev.xclient.data.l[2] = (long)skipPager;
+    ev.xclient.data.l[3] = 1;
+    XSendEvent(dpy, DefaultRootWindow(dpy), False,
+        SubstructureRedirectMask | SubstructureNotifyMask, &ev);
+
+    XFlush(dpy);
+    XCloseDisplay(dpy);
+}
+
 static void x11_show(unsigned long wid) {
     Display *dpy = XOpenDisplay(NULL);
     if (!dpy) return;
@@ -183,6 +209,25 @@ func SetAlwaysOnTop(title string, enable bool) {
 	}
 
 	C.x11_set_above(C.ulong(wid), flag)
+}
+
+// SetSkipTaskbar hides the window from the taskbar and pager, or shows it there again.
+func SetSkipTaskbar(title string, enable bool) {
+	wid := savedWID
+	if wid == 0 {
+		wid = FindWindowID(title)
+	}
+
+	if wid == 0 {
+		return
+	}
+
+	flag := C.int(0)
+	if enable {
+		flag = 1
+	}
+
+	C.x11_set_skip_taskbar(C.ulong(wid), flag)
 }
 
 // RaiseWindow brings the window to the front and gives it focus.
