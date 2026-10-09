@@ -46,7 +46,7 @@ There are two kinds of plugin:
 At startup, `pkg/app` scans `~/.config/pomodoro/plugins/` for `*.so` files. It opens each file
 and looks up an exported `Plugin` symbol. It then registers every scene that the plugin returns.
 
-Every plugin implements `pluggable.Module` (`pkg/pluggable/module.go`):
+Every plugin implements `pluggable.Module` (`pkg/pluggable/contract.go`):
 
 ```go
 type Module interface {
