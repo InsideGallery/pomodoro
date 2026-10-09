@@ -5,7 +5,7 @@
       "name": "MOTEL",
       "intro": "A man was found dead in room 14 of a roadside motel. The room was locked from inside.",
       "evidence": ["on the door handle","on the bedside table","on the TV remote","on the bathroom mirror","on the window latch","on the phone receiver","on the lamp switch","on a beer bottle","on the room key","on the curtain rod","on the nightstand drawer","on the mini fridge","on the air vent cover","on the closet door","on a cigarette lighter","on the shower faucet","on the thermostat","on the deadbolt lock","on the ice bucket","on a newspaper"],
-      "solved": ["{name}'s prints confirm they entered room 14 that night.","{name} touched the evidence — placing them at the scene.","{name}'s fingerprints were a direct match. They were here."]
+      "solved": ["{name}'s prints confirm they entered room 14 that night.","{name} touched the evidence - placing them at the scene.","{name}'s fingerprints were a direct match. They were here."]
     },
     {
       "name": "CAR WASH",

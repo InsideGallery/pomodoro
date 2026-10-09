@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 
@@ -127,6 +128,64 @@ func FindObject(og *tiled.ObjectGroup, name string) *tiled.Object {
 	}
 
 	return nil
+}
+
+// ObjectBounds returns the bounding box (x, y, w, h) of a Tiled object.
+// For rectangles it uses Width/Height directly. For polygons it computes
+// the axis-aligned bounding box from all polygon points.
+func ObjectBounds(obj *tiled.Object) (x, y, w, h float64) {
+	if obj.Polygons != nil {
+		minX, minY := math.MaxFloat64, math.MaxFloat64
+		maxX, maxY := -math.MaxFloat64, -math.MaxFloat64
+
+		for _, l := range obj.Polygons {
+			for _, p := range *l.Points {
+				px, py := obj.X+p.X, obj.Y+p.Y
+				minX = math.Min(minX, px)
+				minY = math.Min(minY, py)
+				maxX = math.Max(maxX, px)
+				maxY = math.Max(maxY, py)
+			}
+		}
+
+		return minX, minY, maxX - minX, maxY - minY
+	}
+
+	return obj.X, obj.Y, obj.Width, obj.Height
+}
+
+// ObjectPolygonPoints returns the absolute world-space polygon points.
+// Returns nil if the object has no polygon.
+func ObjectPolygonPoints(obj *tiled.Object) [][2]float64 {
+	if obj.Polygons == nil {
+		return nil
+	}
+
+	var pts [][2]float64
+
+	for _, l := range obj.Polygons {
+		for _, p := range *l.Points {
+			pts = append(pts, [2]float64{obj.X + p.X, obj.Y + p.Y})
+		}
+	}
+
+	return pts
+}
+
+// PolygonCentroid returns the centroid of a polygon defined by its points.
+func PolygonCentroid(pts [][2]float64) (cx, cy float64) {
+	if len(pts) == 0 {
+		return 0, 0
+	}
+
+	for _, p := range pts {
+		cx += p[0]
+		cy += p[1]
+	}
+
+	n := float64(len(pts))
+
+	return cx / n, cy / n
 }
 
 // ObjectToSpatial converts a Tiled object to a shapes.Spatial for RTree.

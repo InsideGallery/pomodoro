@@ -23,14 +23,13 @@ const (
 )
 
 // largeCrop is the crop size for non-90° angles to ensure full coverage after rotation.
-// For 45° rotation of a square s, inscribed square = s/sqrt(2).
-// We need: inscribed >= puzzleSize, so s >= puzzleSize*sqrt(2) ≈ 976.
 const largeCrop = 980
 
 // FingerprintImages holds the cut pieces for a fingerprint.
 type FingerprintImages struct {
 	Pieces [100]*ebiten.Image // 10×10 grid of 69×69 images
 	Full   *ebiten.Image      // full 690×690 image
+	Blank  map[int]bool       // indices of blank (transparent) pieces
 }
 
 // LoadFingerprintImages loads, scales, rotates, mirrors, and cuts a fingerprint.
@@ -45,23 +44,8 @@ func LoadFingerprintImages(assetsDir string, rec *domain.FingerprintRecord) (*Fi
 	}
 
 	final := prepareFingerprint(srcImg, rec.Rotation, rec.Mirrored)
-	fullImg := ebiten.NewImageFromImage(final)
 
-	// Cut into 10×10 grid
-	fi := &FingerprintImages{Full: fullImg}
-
-	for y := range 10 {
-		for x := range 10 {
-			idx := y*10 + x
-			rect := image.Rect(x*cellSize, y*cellSize, (x+1)*cellSize, (y+1)*cellSize)
-			piece := image.NewRGBA(image.Rect(0, 0, cellSize, cellSize))
-
-			draw.Draw(piece, piece.Bounds(), final, rect.Min, draw.Src)
-			fi.Pieces[idx] = ebiten.NewImageFromImage(piece)
-		}
-	}
-
-	return fi, nil
+	return cutPieces(final), nil
 }
 
 // LoadGreyFingerprintImages loads the grey version of a fingerprint.
@@ -75,8 +59,15 @@ func LoadGreyFingerprintImages(assetsDir string, variant int, rotation int, mirr
 	}
 
 	final := prepareFingerprint(srcImg, rotation, mirrored)
-	fullImg := ebiten.NewImageFromImage(final)
-	fi := &FingerprintImages{Full: fullImg}
+
+	return cutPieces(final), nil
+}
+
+// cutPieces slices a 690×690 image into 10×10 grid and detects blank pieces.
+// Blank detection uses the raw alpha channel. Then transparent pixels are
+// filled with black so every piece is visible in the UI.
+func cutPieces(final *image.RGBA) *FingerprintImages {
+	fi := &FingerprintImages{Blank: make(map[int]bool)}
 
 	for y := range 10 {
 		for x := range 10 {
@@ -85,11 +76,76 @@ func LoadGreyFingerprintImages(assetsDir string, variant int, rotation int, mirr
 			piece := image.NewRGBA(image.Rect(0, 0, cellSize, cellSize))
 
 			draw.Draw(piece, piece.Bounds(), final, rect.Min, draw.Src)
+
+			// Detect blank BEFORE filling transparent pixels
+			if isBlankRGBA(piece) {
+				fi.Blank[idx] = true
+			}
+
+			// Fill transparent pixels with black so the piece is visible
+			fillBlack(piece)
+
 			fi.Pieces[idx] = ebiten.NewImageFromImage(piece)
 		}
 	}
 
-	return fi, nil
+	// Also fill the full image for display
+	fillBlack(final)
+	fi.Full = ebiten.NewImageFromImage(final)
+
+	return fi
+}
+
+// fillBlack replaces transparent pixels with opaque black.
+func fillBlack(img *image.RGBA) {
+	b := img.Bounds()
+
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			off := (y-b.Min.Y)*img.Stride + (x-b.Min.X)*4
+			a := img.Pix[off+3]
+
+			if a < 255 { //nolint:mnd
+				if a == 0 {
+					img.Pix[off] = 0
+					img.Pix[off+1] = 0
+					img.Pix[off+2] = 0
+					img.Pix[off+3] = 255
+				} else {
+					// Composite over black
+					alpha := float64(a) / 255
+					img.Pix[off] = uint8(float64(img.Pix[off]) * alpha)
+					img.Pix[off+1] = uint8(float64(img.Pix[off+1]) * alpha)
+					img.Pix[off+2] = uint8(float64(img.Pix[off+2]) * alpha)
+					img.Pix[off+3] = 255
+				}
+			}
+		}
+	}
+}
+
+// isBlankRGBA checks the raw RGBA image for transparency (< 10% opaque pixels).
+func isBlankRGBA(img *image.RGBA) bool {
+	b := img.Bounds()
+	w, h := b.Dx(), b.Dy()
+	total := w * h
+
+	if total == 0 {
+		return true
+	}
+
+	opaque := 0
+
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			off := (y-b.Min.Y)*img.Stride + (x-b.Min.X)*4
+			if img.Pix[off+3] > 20 { //nolint:mnd
+				opaque++
+			}
+		}
+	}
+
+	return opaque < total/10 //nolint:mnd
 }
 
 // cropCentered crops a centered cropW×cropH rectangle from the image.
@@ -138,6 +194,7 @@ func prepareFingerprint(srcImg image.Image, degrees int, mirrored bool) *image.R
 	// Crop center puzzleSize×puzzleSize from the (possibly larger) result
 	return cropCentered(result, puzzleSize, puzzleSize)
 }
+
 
 // scaleImage resizes src to dstW×dstH using nearest-neighbor.
 func scaleImage(src *image.RGBA, dstW, dstH int) *image.RGBA {

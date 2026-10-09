@@ -359,6 +359,36 @@ func DrawCloseIcon(dst *ebiten.Image, cx, cy, size float32, clr color.Color) {
 	})
 }
 
+// DrawFilledPolygon draws a filled polygon from a list of (x,y) pairs.
+func DrawFilledPolygon(dst *ebiten.Image, points [][2]float32, clr color.Color) {
+	if len(points) < 3 {
+		return
+	}
+
+	var p vector.Path
+	p.MoveTo(points[0][0], points[0][1])
+
+	for _, pt := range points[1:] {
+		p.LineTo(pt[0], pt[1])
+	}
+
+	p.Close()
+
+	vs, is := p.AppendVerticesAndIndicesForFilling(nil, nil)
+
+	r, g, b, a := colorToFloat32(clr)
+	for i := range vs {
+		vs[i].ColorR = r
+		vs[i].ColorG = g
+		vs[i].ColorB = b
+		vs[i].ColorA = a
+	}
+
+	dst.DrawTriangles(vs, is, whitePixel(), &ebiten.DrawTrianglesOptions{
+		AntiAlias: true,
+	})
+}
+
 func roundedRectPath(p *vector.Path, x, y, w, h, r float32) {
 	if r > w/2 {
 		r = w / 2

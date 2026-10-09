@@ -197,12 +197,26 @@ func (s *RenderSystem) drawEnabledButtons(world *ebiten.Image) {
 	}
 
 	if quitObj := tilemap.FindObject(og, "button-quit-os"); quitObj != nil {
-		// Draw at map coordinates directly
-		ui.DrawRoundedRect(world, float32(quitObj.X), float32(quitObj.Y), 200, 50, 4,
-			color.RGBA{R: 0xCC, G: 0x33, B: 0x33, A: 0xCC})
-		ui.DrawTextCentered(world, "QUIT", ui.Face(true, 22),
-			quitObj.X+100, quitObj.Y+10,
-			color.RGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xFF})
+		faceQuit := ui.Face(true, 22)
+		btnClr := color.RGBA{R: 0xCC, G: 0x33, B: 0x33, A: 0xCC}
+		white := color.RGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xFF}
+
+		if pts := tilemap.ObjectPolygonPoints(quitObj); len(pts) >= 3 {
+			f32pts := make([][2]float32, len(pts))
+			for i, p := range pts {
+				f32pts[i] = [2]float32{float32(p[0]), float32(p[1])}
+			}
+
+			ui.DrawFilledPolygon(world, f32pts, btnClr)
+
+			cx, cy := tilemap.PolygonCentroid(pts)
+			ui.DrawTextCentered(world, "QUIT", faceQuit, cx, cy-faceQuit.Size/2, white)
+		} else {
+			ui.DrawRoundedRect(world, float32(quitObj.X), float32(quitObj.Y),
+				float32(quitObj.Width), float32(quitObj.Height), 4, btnClr)
+			ui.DrawTextCentered(world, "QUIT", faceQuit,
+				quitObj.X+quitObj.Width/2, quitObj.Y+(quitObj.Height-faceQuit.Size)/2, white)
+		}
 	}
 }
 
@@ -327,20 +341,8 @@ func (s *RenderSystem) drawAppContent(world *ebiten.Image, reg RegType) { //noli
 
 	// Description
 	if descObj := tilemap.FindObject(og, "description"); descObj != nil {
-		puzzle := CurrentPuzzle(gd)
-		if puzzle != nil {
-			var descText string
-
-			switch {
-			case puzzle.Solved:
-				descText = domain.SolvedDescription(gd.SelectedCase, gd.SelectedPuzzle, puzzle.TargetRecord.PersonName)
-			case puzzle.Failed:
-				descText = domain.NoMatchDescription(gd.SelectedCase, gd.SelectedPuzzle)
-			default:
-				descText = domain.UnsolvedDescription(gd.SelectedCase, gd.SelectedPuzzle)
-			}
-
-			drawWrappedText(world, descText, descObj.X+8, descObj.Y+8,
+		if puzzle := CurrentPuzzle(gd); puzzle != nil {
+			drawWrappedText(world, puzzleDescription(gd, puzzle), descObj.X+8, descObj.Y+8,
 				descObj.Width-16, descObj.Height-16, gd.DescScroll, textClr)
 		}
 	}
@@ -386,7 +388,8 @@ func (s *RenderSystem) drawPuzzleContent(world *ebiten.Image, _ RegType) { //nol
 	// Hash
 	if hashObj := tilemap.FindObject(og, "hash"); hashObj != nil {
 		hashText := s.computeCurrentHash(puzzle)
-		ui.DrawText(world, hashText, faceHash, hashObj.X+8, hashObj.Y+8,
+		ui.DrawTextCentered(world, hashText, faceHash,
+			hashObj.X+hashObj.Width/2, hashObj.Y+(hashObj.Height-faceHash.Size)/2,
 			color.RGBA{R: 0x4D, G: 0x4B, B: 0x4B, A: 0xFF})
 	}
 

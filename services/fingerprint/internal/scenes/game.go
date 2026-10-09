@@ -269,8 +269,18 @@ func (s *GameScene) GetScreenSize() (int, int)                            { retu
 func (s *GameScene) SetCursorPos(_, _ int)                                {}
 func (s *GameScene) RequestQuit()                                         { QuitGame() }
 
-// scaleBox converts TMX object from world to screen coords for RTree.
-func (s *GameScene) scaleBox(obj *tiled.Object) shapes.Spatial { //nolint:ireturn
+// scaleObject converts a TMX object from world to screen coords for RTree.
+// Handles both rectangle and polygon objects.
+func (s *GameScene) scaleObject(obj *tiled.Object) shapes.Spatial { //nolint:ireturn
+	if pts := tilemap.ObjectPolygonPoints(obj); len(pts) >= 3 {
+		scaled := make([]shapes.Point, len(pts))
+		for i, p := range pts {
+			scaled[i] = shapes.NewPoint(p[0]*s.baseScale+s.baseOffX, p[1]*s.baseScale+s.baseOffY)
+		}
+
+		return shapes.NewPolyhedron(scaled...)
+	}
+
 	return shapes.NewBox(
 		shapes.NewPoint(obj.X*s.baseScale+s.baseOffX, obj.Y*s.baseScale+s.baseOffY),
 		obj.Width*s.baseScale, obj.Height*s.baseScale,
@@ -303,7 +313,7 @@ func (s *GameScene) RegisterEnabledZones() {
 	}
 
 	for _, obj := range og.Objects {
-		scaled := s.scaleBox(obj)
+		scaled := s.scaleObject(obj)
 
 		switch obj.Name {
 		case "button-run-fingerprint":
@@ -316,10 +326,7 @@ func (s *GameScene) RegisterEnabledZones() {
 			})
 		case "button-quit-os":
 			s.input.AddZone(&systems.Zone{
-				Spatial: shapes.NewBox(
-					shapes.NewPoint(obj.X*s.baseScale+s.baseOffX, obj.Y*s.baseScale+s.baseOffY),
-					200*s.baseScale, 50*s.baseScale,
-				),
+				Spatial: scaled,
 				OnClick: func() {
 					ebiten.SetCursorMode(ebiten.CursorModeVisible)
 					QuitGame()
@@ -342,7 +349,7 @@ func (s *GameScene) RegisterAppLayoutZones() {
 	}
 
 	for _, obj := range og.Objects {
-		scaled := s.scaleBox(obj)
+		scaled := s.scaleObject(obj)
 
 		switch obj.Name {
 		case "exit":
@@ -423,7 +430,7 @@ func (s *GameScene) RegisterPuzzleZones() {
 	}
 
 	for _, obj := range og.Objects {
-		scaled := s.scaleBox(obj)
+		scaled := s.scaleObject(obj)
 
 		switch obj.Name {
 		case "back":
@@ -492,6 +499,8 @@ func (s *GameScene) buildPieceGrid(p *domain.PuzzleConfig) []domain.PieceRecord 
 	pieces := make([]domain.PieceRecord, 100)
 	copy(pieces, p.TargetRecord.Pieces)
 
+	blank := s.getBlankPieces(p.TargetRecord.ID)
+
 	for _, idx := range p.MissingIndices {
 		pieces[idx] = domain.PieceRecord{X: idx % 10, Y: idx / 10}
 	}
@@ -500,12 +509,33 @@ func (s *GameScene) buildPieceGrid(p *domain.PuzzleConfig) []domain.PieceRecord 
 		if tp.IsPlaced {
 			gIdx := tp.PlacedY*10 + tp.PlacedX
 			if gIdx >= 0 && gIdx < 100 {
-				pieces[gIdx] = domain.PieceRecord{X: tp.PlacedX, Y: tp.PlacedY, Value: tp.Value}
+				if blank[gIdx] {
+					// Blank position: use original target value (wildcard auto-correct)
+					pieces[gIdx] = p.TargetRecord.Pieces[gIdx]
+				} else {
+					pieces[gIdx] = domain.PieceRecord{X: tp.PlacedX, Y: tp.PlacedY, Value: tp.Value}
+				}
 			}
 		}
 	}
 
 	return pieces
+}
+
+// getBlankPieces returns the set of blank piece indices for a record.
+func (s *GameScene) getBlankPieces(recordID int) map[int]bool {
+	if imgs := s.targetImages[recordID]; imgs != nil {
+		return imgs.Blank
+	}
+
+	return nil
+}
+
+// IsBlankPiece returns true if the piece at the given index is blank for the current puzzle.
+func (s *GameScene) IsBlankPiece(recordID, idx int) bool {
+	blank := s.getBlankPieces(recordID)
+
+	return blank != nil && blank[idx]
 }
 
 func (s *GameScene) regenerateCases() {

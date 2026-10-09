@@ -53,4 +53,7 @@ type SceneAccessor interface {
 	GetGreyPieceImage(recordID, pieceIdx int) *ebiten.Image
 	GetDecoyPieceImage(color string, variant, rotation int, mirrored bool, pieceIdx int) *ebiten.Image
 	GetAvatarImage(filename string) *ebiten.Image
+
+	// Blank piece detection (wildcard support)
+	IsBlankPiece(recordID, pieceIdx int) bool
 }

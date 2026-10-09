@@ -180,11 +180,17 @@ func (s *DragDropSystem) tryPlace(gd *c.GameData, puzzle *domain.PuzzleConfig, w
 				}
 
 				if !occupied {
-					tp.IsPlaced = true
-					tp.PlacedX = col
-					tp.PlacedY = row
-					placed = true
-					s.scene.SaveGameState()
+					// Allow placement if: normal matching OR blank-on-blank wildcard
+					targetBlank := s.scene.IsBlankPiece(puzzle.TargetRecord.ID, gIdx)
+					pieceBlank := s.isTrayPieceBlank(puzzle, gd.HoldingPiece)
+
+					if !targetBlank || pieceBlank {
+						tp.IsPlaced = true
+						tp.PlacedX = col
+						tp.PlacedY = row
+						placed = true
+						s.scene.SaveGameState()
+					}
 				}
 			}
 		}
@@ -243,4 +249,17 @@ func (s *DragDropSystem) puzzleGridWorld() (px, py, cellW float64, ok bool) {
 	}
 
 	return 0, 0, 0, false
+}
+
+// isTrayPieceBlank checks if a tray piece's image is blank (transparent).
+func (s *DragDropSystem) isTrayPieceBlank(puzzle *domain.PuzzleConfig, trayIdx int) bool {
+	tp := &puzzle.TrayPieces[trayIdx]
+
+	if tp.IsDecoy {
+		return s.scene.IsBlankPiece(0, tp.DecoyPieceIdx) // decoy rendered with target rotation
+	}
+
+	gIdx := tp.OriginalY*10 + tp.OriginalX
+
+	return s.scene.IsBlankPiece(puzzle.TargetRecord.ID, gIdx)
 }

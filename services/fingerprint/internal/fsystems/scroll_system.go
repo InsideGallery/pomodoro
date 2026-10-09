@@ -5,7 +5,9 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 
+	"github.com/InsideGallery/pomodoro/pkg/plugins/fingerprint/domain"
 	"github.com/InsideGallery/pomodoro/pkg/tilemap"
+	"github.com/InsideGallery/pomodoro/pkg/ui"
 	c "github.com/InsideGallery/pomodoro/services/fingerprint/internal/components"
 )
 
@@ -73,6 +75,23 @@ func (s *ScrollSystem) Update(_ context.Context) error {
 				gd.DescScroll = 0
 			}
 
+			if puzzle := CurrentPuzzle(gd); puzzle != nil {
+				descText := puzzleDescription(gd, puzzle)
+				face := ui.Face(false, 18)
+				lineH := face.Size * 1.5
+				lines := wrapText(descText, face, obj.Width-16)
+				visibleLines := int((obj.Height - 16) / lineH)
+				maxScroll := len(lines) - visibleLines
+
+				if maxScroll < 0 {
+					maxScroll = 0
+				}
+
+				if gd.DescScroll > maxScroll {
+					gd.DescScroll = maxScroll
+				}
+			}
+
 			return nil
 		}
 	}
@@ -97,6 +116,17 @@ func scrollDelta(wy float64) int {
 	}
 
 	return 1
+}
+
+func puzzleDescription(gd *c.GameData, puzzle *domain.PuzzleConfig) string {
+	switch {
+	case puzzle.Solved:
+		return domain.SolvedDescription(gd.SelectedCase, gd.SelectedPuzzle, puzzle.TargetRecord.PersonName)
+	case puzzle.Failed:
+		return domain.NoMatchDescription(gd.SelectedCase, gd.SelectedPuzzle)
+	default:
+		return domain.UnsolvedDescription(gd.SelectedCase, gd.SelectedPuzzle)
+	}
 }
 
 func clampScroll(scroll *int, totalItems int, areaH, rowH float64) {

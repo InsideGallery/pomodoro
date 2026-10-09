@@ -41,11 +41,19 @@ type Zone struct {
 	Priority int
 }
 
+// taggedSpatial wraps a shapes.Spatial so it can be compared by pointer identity.
+// shapes.Polyhedron contains slices and panics on == comparison.
+type taggedSpatial struct {
+	shapes.Spatial
+	zone *Zone
+}
+
 // InputSystem handles mouse interaction via RTree spatial queries.
 // Supports click (press+release), drag, and hover detection.
 type InputSystem struct {
 	tree  *rtree.RTree
 	zones []*Zone
+	tags  []*taggedSpatial
 
 	// Drag state
 	dragging    bool
@@ -66,17 +74,20 @@ func NewInputSystem(tree *rtree.RTree) *InputSystem {
 
 // AddZone registers an interactive zone in the spatial index.
 func (s *InputSystem) AddZone(z *Zone) {
+	tag := &taggedSpatial{Spatial: z.Spatial, zone: z}
 	s.zones = append(s.zones, z)
-	s.tree.Insert(z.Spatial)
+	s.tags = append(s.tags, tag)
+	s.tree.Insert(tag)
 }
 
 // ClearZones removes all registered zones from the spatial index.
 func (s *InputSystem) ClearZones() {
-	for _, z := range s.zones {
-		s.tree.Delete(z.Spatial)
+	for _, tag := range s.tags {
+		s.tree.Delete(tag)
 	}
 
 	s.zones = nil
+	s.tags = nil
 	s.dragging = false
 	s.dragZone = nil
 	s.pressedZone = nil
@@ -182,11 +193,10 @@ func (s *InputSystem) findZoneAt(mx, my int) *Zone {
 	var best *Zone
 
 	for _, hit := range hits {
-		for _, z := range s.zones {
-			if z.Spatial == hit {
-				if best == nil || z.Priority < best.Priority {
-					best = z
-				}
+		if tag, ok := hit.(*taggedSpatial); ok {
+			z := tag.zone
+			if best == nil || z.Priority < best.Priority {
+				best = z
 			}
 		}
 	}

@@ -2,6 +2,7 @@ package fsystems
 
 import (
 	"context"
+	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -27,9 +28,23 @@ func (s *CursorSystem) Update(_ context.Context) error {
 	cur.X = rawX
 	cur.Y = rawY
 
+	// InputSystem zones are in base-transform screen coords (no camera zoom).
+	// Undo camera zoom from raw cursor so clicks match zone positions.
+	inputX, inputY := rawX, rawY
+	cam := s.scene.GetCamera()
+
+	if cam != nil && cam.ZoomFactor != 0 {
+		sw, sh := s.scene.GetScreenSize()
+		cx := float64(sw) / 2
+		cy := float64(sh) / 2
+		zoomScale := math.Pow(1.01, cam.ZoomFactor)
+		inputX = int((float64(rawX)-cx)/zoomScale + cx)
+		inputY = int((float64(rawY)-cy)/zoomScale + cy)
+	}
+
 	input := s.scene.GetInputSystem()
 	if input != nil {
-		input.CursorOverride = &[2]int{cur.X, cur.Y}
+		input.CursorOverride = &[2]int{inputX, inputY}
 	}
 
 	s.scene.SetCursorPos(cur.X, cur.Y)

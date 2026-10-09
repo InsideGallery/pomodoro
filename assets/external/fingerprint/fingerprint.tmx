@@ -3,7 +3,7 @@
  <tileset firstgid="1" source="fingerprinting-icon.tsx"/>
  <tileset firstgid="2" source="avatars.tsx"/>
  <tileset firstgid="8" source="buttons.tsx"/>
- <objectgroup id="16" name="main">
+ <objectgroup id="16" name="main" visible="0">
   <object id="27" name="cursor-room" type="cursor-room" x="1248.48" y="318.182" width="1527.27" height="1303.03"/>
   <object id="36" name="camera" type="camera" x="2000" y="1088">
    <point/>
@@ -12,7 +12,7 @@
  <imagelayer id="4" name="disabled" visible="0">
   <image source="background/background-disabled.png" width="4000" height="2176"/>
  </imagelayer>
- <imagelayer id="2" name="enabled" visible="0">
+ <imagelayer id="2" name="enabled">
   <image source="background/background-enabled.png" width="4000" height="2176"/>
  </imagelayer>
  <layer id="1" name="enabled" width="125" height="68" visible="0">
@@ -179,15 +179,15 @@
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 </data>
  </layer>
- <imagelayer id="7" name="application-net-layout" visible="0">
+ <imagelayer id="7" name="application-net-layout">
   <image source="background/fingerprint-ui-net.png" width="4000" height="2176"/>
  </imagelayer>
- <objectgroup id="11" name="application-net-layout" visible="0">
+ <objectgroup id="11" name="application-net-layout">
   <object id="13" name="exit" type="button-exit" x="2546" y="357.333" width="142" height="46.6667"/>
   <object id="14" name="pieces" type="fingeprint-pieces" x="2393.94" y="566.667" width="263.636" height="939.394"/>
   <object id="15" name="puzzle" type="fingerprint-puzzle" x="1692" y="562" width="680" height="684"/>
   <object id="16" name="back" type="back-to-cases" x="1364" y="357" width="141" height="47"/>
-  <object id="18" name="hash" type="fingerprint-hash" x="1533.33" y="357.576" width="606.061" height="45.4545"/>
+  <object id="18" name="hash" type="fingerprint-hash" x="1536" y="361.576" width="595.394" height="37.4545"/>
   <object id="29" name="drag-and-drop-zone" type="drag-and-drop-zone" x="1380" y="440" width="1288" height="1088"/>
   <object id="31" name="pieces" type="fingeprint-pieces" x="1401.52" y="566.667" width="269.697" height="930.303"/>
   <object id="35" name="button-send-puzzle" type="button-send-puzzle" x="1790.91" y="1315.15" width="518.182" height="93.9394"/>

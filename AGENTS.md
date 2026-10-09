@@ -21,16 +21,40 @@ services/
 
   fingerprint/                      — Fingerprint Lab forensic puzzle game
     cmd/fingerprint/                — Entry point (fullscreen, opaque, custom cursor)
+    internal/
+      scenes/                       — GameScene (TMX-driven, state machine)
+        game.go                     — Scene, zone registration, puzzle logic, persistence
+        fingerprint_images.go       — Image pipeline (crop, rotate, mirror, cut 10x10)
+        quit_desktop.go             — Desktop quit handler
+        quit_mobile.go              — Mobile quit handler
+      fsystems/                     — ECS systems
+        accessor.go                 — SceneAccessor interface
+        state_system.go             — State machine, loading, transitions
+        cursor_system.go            — Virtual cursor (delta-based)
+        scroll_system.go            — Mouse wheel scrolling with clamping
+        dragdrop_system.go          — Piece pickup, rotation, placement
+        camera_system.go            — Zoom controls
+        render_system.go            — All drawing (layers, UI, puzzle grid)
+        text_helpers.go             — Text wrapping utilities
+        helpers.go                  — Registry access helpers
+      components/                   — Pure data components
+        entity.go                   — Entity container
+        groups.go                   — Group constants
+        state.go                    — Game states enum
+        game_data.go                — Game data (DB, cases, selections, loading)
+        cursor.go                   — Cursor position + bounds
+      entities/                     — Assemblage factories
 
 pkg/                                — Shared framework (importable by all products + plugins)
   app/                              — Generic Ebiten game shell (Config + SetupFunc)
   scene/                            — Scene, BaseScene, SceneManager
   event/                            — Event Bus, Event types (Data any)
   core/                             — System, SystemWindow, Systems, Camera
-  systems/                          — InputSystem (RTree + scroll + drag), DebugSystem
+  systems/                          — InputSystem (RTree + zones), DebugSystem
   config/                           — Config persistence (JSON)
-  ui/                               — Drawing primitives (draw.go, theme.go, text.go)
-  platform/                         — Window management (X11/macOS/Windows)
+  ui/                               — Drawing primitives (rounded rect, polygon, text, icons)
+  tilemap/                          — TMX loader (go-tiled), ObjectBounds, PolygonCentroid
+  platform/                         — Window management (X11/macOS/Windows), AssetFS
   pluggable/                        — Plugin contract (Module, Loader, SceneSwitcher)
   resources/                        — Resource manager (async loading, cache, progress)
   ecs/                              — Shared entity component types
@@ -38,13 +62,29 @@ pkg/                                — Shared framework (importable by all prod
     minigame/                       — Button Hunt break game
     lockscreen/                     — Long break lock screen
     metrics/                        — Usage statistics
-    fingerprint/                    — Fingerprint puzzle (domain, scenes, tile cutter)
-      domain/                       — Pure game logic (tile, fingerprint, person, case, puzzle gen)
+    fingerprint/                    — Fingerprint puzzle domain logic
+      domain/                       — Pure game logic (tile, db, cases, save, story)
+        tile.go                     — Tile uint32 encoding, 8-rotation system
+        db.go                       — 256 fingerprint records, CRC64 hashing
+        cases.go                    — 50 cases x 20 puzzles, decoy generation
+        save.go                     — Game save/load (placed pieces, solved/failed)
+        story.go                    — Story system, character-avatar mapping
+        puzzle_gen.go               — Legacy puzzle generator
+        domain_test.go              — 25+ tests
+
+assets/external/fingerprint/        — Game assets
+  fingerprint.tmx                   — TMX map (4000x2176, all UI positions)
+  stories.json                      — 50 case narratives
+  avatars/                          — Character portraits
+  fingerprints/                     — {color}.{variant}.png, grey.{variant}.png
+  background/                       — Large background PNGs
 ```
 
 ## Architecture
 
 ### ECS + Scene + Plugin
+
+See `ecs.md` for full ECS rules and patterns.
 
 - Every UI element = entity in Registry with typed components
 - Systems process entities (InputSystem, RenderSystem, ScrollSystem)
@@ -76,34 +116,38 @@ app.New(app.Config{
 
 **Fingerprint Lab** (services/fingerprint/):
 - Fullscreen, opaque, decorated
-- No tray
-- Custom cursor
-- Loading → Desktop (CRT monitor + boot animation) → App → Puzzle
-- Shared resources across scenes via SetResources()
+- No tray, custom cursor
+- TMX-driven single scene with state machine
+- Loading → Desktop → App → Puzzle
+- State: Loading → Disabled → Enabled → ApplicationLayout → ApplicationNet
+
+### Fingerprint Game Design
+
+**TMX-driven**: `fingerprint.tmx` is source of truth for all layout.
+Single scene with state machine. See `fingerprint.md` memory file for complete details.
+
+**Domain** (pkg/plugins/fingerprint/domain/, 25+ tests):
+- Tile uint32 from (x,y), CRC64 hash, color letter prefix
+- Person DB with 256 records (4 colors x 4 variants x 8 rotations x 2 mirror)
+- 50 cases with 20 puzzles each, difficulty scaling (3-12 missing pieces)
+- Decoy pieces from other fingerprint variants (deterministic RNG)
+
+**System execution order**: State → Cursor → Input → Scroll → DragDrop → Camera → Render
 
 ### Input Strategy
 
-- RTree InputSystem: settings (static zones + scroll offset)
-- RTree InputSystem: minigame (priority by radius)
-- RTree InputSystem: fingerprint puzzle (candidate zones)
-- Widget self-detection: timer (ring drag = angular math)
-- Rule: RTree for static zones, self-detection for runtime geometry
+- RTree InputSystem with zones: settings, minigame, fingerprint puzzle
+- Virtual cursor (delta-based) for fingerprint game
+- CursorOverride for custom cursor position
+- All zone registration via TMX object groups
 
-### Fingerprint Lab Game Design
+### Tilemap
 
-**TMX-driven**: `fingerprint.tmx` is the source of truth for all layout.
-Single scene with state machine (disabled → enabled → app → puzzle).
-See `Fingerprint.md` for complete implementation guide.
-
-**Domain** (pkg/plugins/fingerprint/domain/, 16 tests):
-- Tile uint32 from (x,y), CRC64 hash, color letter prefix
-- Person DB with 100 pre-generated records (db.json)
-- Case: 3 hardcoded, difficulty scaling (4-16 missing pieces)
-- Decoy pieces from other fingerprint variants
-
-**pkg/tilemap/** — shared TMX loader (reused from detective patterns)
-
-**7 implementation steps** — see Fingerprint.md
+`pkg/tilemap/` — shared TMX loader with:
+- FindObjectGroup, FindImageLayer, FindTileLayer
+- ObjectBounds (rect + polygon), ObjectPolygonPoints, PolygonCentroid
+- ObjectToSpatial (polygon/polyline/box → shapes.Spatial)
+- DrawImageLayer, DrawTileLayer
 
 ## Build Commands
 
@@ -122,4 +166,4 @@ make test / lint / coverage
 - Products share pkg/, keep internal/ independent
 - Test coverage >= 70% on logic code
 - Never ignore errors — use log/slog
-- KISS = efficient by design, simple to maintain
+- KISS = efficient by design, simple to maintain, smart architecture
