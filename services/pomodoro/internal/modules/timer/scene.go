@@ -107,6 +107,13 @@ func NewScene(
 
 func (s *Scene) Name() string { return SceneName }
 
+// Advance runs the timer tick once; the app calls it every frame from OnTick.
+func (s *Scene) Advance() {
+	if err := s.tick.Update(context.Background()); err != nil {
+		slog.Warn("advance timer", "error", err)
+	}
+}
+
 func (s *Scene) OnStartPause() func() { return s.tick.OnStartPause }
 
 func (s *Scene) TimerRemaining() time.Duration { return s.tmr.Remaining(time.Now()) }
@@ -127,7 +134,6 @@ func (s *Scene) Init(ctx context.Context) {
 		OnReset:      s.tick.OnReset,
 		OnSettings:   func() { s.onSwitchScene("settings") },
 	})
-	s.Systems.Add("tick", s.tick)
 	s.Systems.Add("render", &tsystems.RenderSystem{
 		Reg: s.Registry,
 		Tmr: s.tmr,

@@ -38,7 +38,7 @@ func main() {
 		Transparent:    true,
 		DragEnabled:    true,
 		HandleWinClose: func() { platform.HideWindow("Pomodoro") },
-		OnTick:         processTray,
+		OnTick:         onTick,
 		Setup:          setupPomodoro,
 	})
 
@@ -59,12 +59,27 @@ func main() {
 	}
 }
 
+var timerScene *timerscene.Scene
+
+func onTick() error {
+	if err := processTray(); err != nil {
+		return err
+	}
+
+	if timerScene != nil {
+		timerScene.Advance()
+	}
+
+	return nil
+}
+
 func setupPomodoro(ctx context.Context, bus *event.Bus, manager *scene.Manager, switchScene func(string)) string {
 	// Core scenes
 	ts := timerscene.NewScene(bus, switchScene,
 		func() { platform.HideWindow("Pomodoro") }, // X button → hide to tray
 		func() { switchScene("mini") },
 	)
+	timerScene = ts
 
 	mn := mini.NewScene(ts, func() {
 		switchScene("timer")
