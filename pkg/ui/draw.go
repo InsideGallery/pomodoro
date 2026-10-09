@@ -359,6 +359,82 @@ func DrawCloseIcon(dst *ebiten.Image, cx, cy, size float32, clr color.Color) {
 	})
 }
 
+// drawSpeakerBase draws the speaker body and cone on the left half of the box.
+func drawSpeakerBase(dst *ebiten.Image, cx, cy, size float32, clr color.Color) {
+	left := cx - size/2
+	bodyW := size * 0.18
+	bodyH := size * 0.3
+
+	DrawFilledPolygon(dst, [][2]float32{
+		{left, cy - bodyH/2},
+		{left + bodyW, cy - bodyH/2},
+		{left + bodyW, cy + bodyH/2},
+		{left, cy + bodyH/2},
+	}, clr)
+
+	coneW := size * 0.26
+	coneH := size * 0.7
+	DrawFilledPolygon(dst, [][2]float32{
+		{left + bodyW, cy - bodyH/2},
+		{left + bodyW + coneW, cy - coneH/2},
+		{left + bodyW + coneW, cy + coneH/2},
+		{left + bodyW, cy + bodyH/2},
+	}, clr)
+}
+
+// strokePath strokes the path with the given width and colour.
+func strokePath(dst *ebiten.Image, p *vector.Path, width float32, clr color.Color) {
+	so := &vector.StrokeOptions{
+		Width:    width,
+		LineJoin: vector.LineJoinRound,
+		LineCap:  vector.LineCapRound,
+	}
+	vs, is := p.AppendVerticesAndIndicesForStroke(nil, nil, so)
+
+	r, g, b, a := colorToFloat32(clr)
+	for i := range vs {
+		vs[i].ColorR = r
+		vs[i].ColorG = g
+		vs[i].ColorB = b
+		vs[i].ColorA = a
+	}
+
+	dst.DrawTriangles(vs, is, whitePixel(), &ebiten.DrawTrianglesOptions{AntiAlias: true})
+}
+
+// DrawSpeakerIcon draws a speaker with sound waves.
+func DrawSpeakerIcon(dst *ebiten.Image, cx, cy, size float32, clr color.Color) {
+	drawSpeakerBase(dst, cx, cy, size, clr)
+
+	x := cx + size*0.12
+
+	var p vector.Path
+	p.MoveTo(x, cy-size*0.14)
+	p.LineTo(x+size*0.1, cy)
+	p.LineTo(x, cy+size*0.14)
+	p.MoveTo(x+size*0.12, cy-size*0.3)
+	p.LineTo(x+size*0.27, cy)
+	p.LineTo(x+size*0.12, cy+size*0.3)
+
+	strokePath(dst, &p, size*0.1, clr)
+}
+
+// DrawMutedIcon draws a speaker crossed out with an X.
+func DrawMutedIcon(dst *ebiten.Image, cx, cy, size float32, clr color.Color) {
+	drawSpeakerBase(dst, cx, cy, size, clr)
+
+	x := cx + size*0.3
+	d := size * 0.16
+
+	var p vector.Path
+	p.MoveTo(x-d, cy-d)
+	p.LineTo(x+d, cy+d)
+	p.MoveTo(x+d, cy-d)
+	p.LineTo(x-d, cy+d)
+
+	strokePath(dst, &p, size*0.1, clr)
+}
+
 // DrawFilledPolygon draws a filled polygon from a list of (x,y) pairs.
 func DrawFilledPolygon(dst *ebiten.Image, points [][2]float32, clr color.Color) {
 	if len(points) < 3 {
