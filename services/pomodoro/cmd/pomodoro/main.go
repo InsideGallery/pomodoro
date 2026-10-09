@@ -59,7 +59,10 @@ func main() {
 	}
 }
 
-var timerScene *timerscene.Scene
+var (
+	timerScene   *timerscene.Scene
+	sceneManager *scene.Manager
+)
 
 func onTick() error {
 	if err := processTray(); err != nil {
@@ -80,6 +83,7 @@ func setupPomodoro(ctx context.Context, bus *event.Bus, manager *scene.Manager, 
 		func() { switchScene("mini") },
 	)
 	timerScene = ts
+	sceneManager = manager
 
 	mn := mini.NewScene(ts, func() {
 		switchScene("timer")
@@ -129,6 +133,11 @@ func processTray() error {
 		case tray.ActionShow:
 			platform.ShowWindow("Pomodoro")
 			platform.RaiseWindow("Pomodoro")
+
+			// ShowWindow puts the window back on the taskbar; the mini window stays off it.
+			if sceneManager != nil && sceneManager.Scene() != nil && sceneManager.Scene().Name() == mini.SceneName {
+				platform.SetSkipTaskbar("Pomodoro", true)
+			}
 		case tray.ActionQuit:
 			tray.Quit()
 			os.Exit(0)
