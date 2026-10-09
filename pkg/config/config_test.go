@@ -41,6 +41,14 @@ func TestDefault(t *testing.T) {
 	if cfg.Theme != "dark" {
 		t.Fatalf("expected dark, got %s", cfg.Theme)
 	}
+
+	if cfg.Muted {
+		t.Fatal("expected Muted false")
+	}
+
+	if cfg.BreakMelody != "tick.mp3" {
+		t.Fatalf("expected tick.mp3, got %s", cfg.BreakMelody)
+	}
 }
 
 func TestDurations(t *testing.T) {
@@ -242,5 +250,59 @@ func TestSaveStateCreatesDirectory(t *testing.T) {
 	p, _ := statePath()
 	if _, err := os.Stat(p); os.IsNotExist(err) {
 		t.Fatal("state file was not created")
+	}
+}
+
+func TestLoadConfigWithoutMuteAndMelody(t *testing.T) {
+	home := setupTestHome(t)
+
+	dir := filepath.Join(home, ".config", "pomodoro")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	data := `{"focus_minutes":30,"tick_volume":0.3,"alarm_volume":0.6,"tick_enabled":true}`
+	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(data), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := Load()
+
+	if cfg.Muted {
+		t.Fatal("expected Muted false")
+	}
+
+	if cfg.BreakMelody != "tick.mp3" {
+		t.Fatalf("expected tick.mp3, got %s", cfg.BreakMelody)
+	}
+
+	if cfg.TickVolume != 0.3 {
+		t.Fatalf("expected 0.3, got %f", cfg.TickVolume)
+	}
+
+	if cfg.AlarmVolume != 0.6 {
+		t.Fatalf("expected 0.6, got %f", cfg.AlarmVolume)
+	}
+}
+
+func TestSaveLoadMuteAndMelody(t *testing.T) {
+	setupTestHome(t)
+
+	cfg := Default()
+	cfg.Muted = true
+	cfg.BreakMelody = "piano.mp3"
+
+	if err := Save(cfg); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	loaded := Load()
+
+	if !loaded.Muted {
+		t.Fatal("expected Muted true")
+	}
+
+	if loaded.BreakMelody != "piano.mp3" {
+		t.Fatalf("expected piano.mp3, got %s", loaded.BreakMelody)
 	}
 }

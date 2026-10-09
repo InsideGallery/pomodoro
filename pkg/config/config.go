@@ -16,6 +16,8 @@ type Config struct {
 	TickVolume       float64         `json:"tick_volume"`
 	AlarmVolume      float64         `json:"alarm_volume"`
 	TickEnabled      bool            `json:"tick_enabled"`
+	Muted            bool            `json:"muted"`
+	BreakMelody      string          `json:"break_melody"`
 	Theme            string          `json:"theme"`
 	Transparency     float64         `json:"transparency"`
 	Plugins          map[string]bool `json:"plugins"` // plugin_key → enabled
@@ -59,6 +61,8 @@ func Default() Config {
 		TickVolume:       0.5,
 		AlarmVolume:      0.8,
 		TickEnabled:      true,
+		Muted:            false,
+		BreakMelody:      "tick.mp3",
 		Theme:            "dark",
 		Transparency:     0.10,
 	}
