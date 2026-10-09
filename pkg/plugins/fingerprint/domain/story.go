@@ -45,7 +45,12 @@ func LoadStories(_ string) error {
 // GetCaseStory returns the story for a case index.
 func GetCaseStory(caseIdx int) *CaseStory {
 	if Stories == nil || caseIdx < 0 || caseIdx >= len(Stories.Cases) {
-		return &CaseStory{Name: "UNKNOWN", Intro: "A crime was committed.", Evidence: []string{"at the scene"}, Solved: []string{"{name} was involved."}}
+		return &CaseStory{
+			Name:     "UNKNOWN",
+			Intro:    "A crime was committed.",
+			Evidence: []string{"at the scene"},
+			Solved:   []string{"{name} was involved."},
+		}
 	}
 
 	return &Stories.Cases[caseIdx]
@@ -81,6 +86,7 @@ func SolvedDescription(caseIdx, puzzleIdx int, personName string) string {
 
 		// Replace {name} placeholder
 		result := ""
+
 		for i := 0; i < len(tmpl); {
 			if i+6 <= len(tmpl) && tmpl[i:i+6] == "{name}" {
 				result += personName

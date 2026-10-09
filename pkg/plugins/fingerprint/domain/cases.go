@@ -346,7 +346,9 @@ func LoadPuzzles(path string, db *FingerprintDB) ([]*CaseConfig, uint64, error) 
 	return cases, save.Seed, nil
 }
 
-func reconstructPuzzle(db *FingerprintDB, rng *rand.Rand, seed uint64, target *FingerprintRecord, ps PuzzleSaved) *PuzzleConfig {
+func reconstructPuzzle(
+	db *FingerprintDB, rng *rand.Rand, seed uint64, target *FingerprintRecord, ps PuzzleSaved,
+) *PuzzleConfig {
 	decoys := pickDecoys(db, seed, target, ps.PiecesToSolve)
 
 	var tray []TrayPiece

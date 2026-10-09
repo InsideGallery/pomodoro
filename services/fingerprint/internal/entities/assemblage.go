@@ -136,7 +136,7 @@ func CreateAppLayoutEntities(reg RegType, cases []*domain.CaseConfig, selectedCa
 }
 
 // CreatePuzzleEntities creates entities for the puzzle workspace state.
-func CreatePuzzleEntities(reg RegType, puzzle *domain.PuzzleConfig, tmap *tilemap.Map, scaleX, scaleY float64) {
+func CreatePuzzleEntities(reg RegType, puzzle *domain.PuzzleConfig, tmap *tilemap.Map, _, _ float64) {
 	CleanStateGroups(reg)
 
 	// Puzzle grid entity

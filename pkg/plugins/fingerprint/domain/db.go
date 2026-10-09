@@ -113,6 +113,7 @@ func GenerateDB(seed uint64) *FingerprintDB {
 					id++
 
 					pieces := make([]PieceRecord, 100)
+
 					for y := range 10 {
 						for x := range 10 {
 							idx := y*10 + x

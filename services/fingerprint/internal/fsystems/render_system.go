@@ -262,6 +262,7 @@ func (s *RenderSystem) drawAppContent(world *ebiten.Image, reg RegType) { //noli
 			ui.DrawRoundedRect(world, float32(x+2), float32(ry+2), float32(w-4), float32(rowH-4), 4, btnClr)
 
 			solved := 0
+
 			for _, p := range gd.Cases[i].Puzzles {
 				if p.Solved || p.Failed {
 					solved++
@@ -276,7 +277,8 @@ func (s *RenderSystem) drawAppContent(world *ebiten.Image, reg RegType) { //noli
 	}
 
 	// Scrollable puzzle list
-	if namesObj := tilemap.FindObject(og, "fingerprints-user-names"); namesObj != nil && gd.SelectedCase >= 0 && gd.SelectedCase < len(gd.Cases) {
+	namesObj := tilemap.FindObject(og, "fingerprints-user-names")
+	if namesObj != nil && gd.SelectedCase >= 0 && gd.SelectedCase < len(gd.Cases) {
 		x, y, w, h := namesObj.X, namesObj.Y, namesObj.Width, namesObj.Height
 		rowH := 100.0
 		cs := gd.Cases[gd.SelectedCase]
@@ -305,6 +307,7 @@ func (s *RenderSystem) drawAppContent(world *ebiten.Image, reg RegType) { //noli
 			}
 
 			label := fmt.Sprintf("%d. %s", i+1, name)
+
 			ui.DrawRoundedRect(world, float32(x+2), float32(ry+2), float32(w-4), float32(rowH-4), 4, btnClr)
 			ui.DrawText(world, label, faceList, x+12, ry+16, txtClr)
 		}
@@ -394,7 +397,7 @@ func (s *RenderSystem) drawPuzzleContent(world *ebiten.Image, _ RegType) { //nol
 	}
 
 	// Puzzle grid
-	if puzzleObj := tilemap.FindObject(og, "puzzle"); puzzleObj != nil {
+	if puzzleObj := tilemap.FindObject(og, puzzleObjectName); puzzleObj != nil {
 		px, py := puzzleObj.X, puzzleObj.Y
 		pw, ph := puzzleObj.Width, puzzleObj.Height
 		side := math.Min(pw, ph)
@@ -450,6 +453,7 @@ func (s *RenderSystem) drawPuzzleContent(world *ebiten.Image, _ RegType) { //nol
 
 		// Placed + empty slots
 		placedAt := make(map[int]int)
+
 		for ti, tp := range puzzle.TrayPieces {
 			if tp.IsPlaced {
 				placedAt[tp.PlacedY*10+tp.PlacedX] = ti
@@ -603,7 +607,7 @@ func (s *RenderSystem) gridCellMapSize() float64 {
 	}
 
 	for _, obj := range og.Objects {
-		if obj.Name == "puzzle" {
+		if obj.Name == puzzleObjectName {
 			return math.Min(obj.Width, obj.Height) / 10
 		}
 	}
@@ -715,6 +719,7 @@ func drawWrappedText(dst *ebiten.Image, text string, x, y, maxW, maxH float64, s
 		}
 
 		ui.DrawText(dst, line, face, x, ty, clr)
+
 		drawn++
 	}
 }

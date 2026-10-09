@@ -3,6 +3,7 @@ package metrics //nolint:revive // metrics is our domain name, not runtime/metri
 import (
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func newTestStore(t *testing.T) *Store {
@@ -122,7 +123,7 @@ func TestWeeklyFilters(t *testing.T) {
 
 	s.Days = []DailyMetrics{
 		{Date: "2020-01-01", FocusStarted: 100}, // old data
-		{Date: "2026-03-16", FocusStarted: 5},   // today
+		{Date: time.Now().Format("2006-01-02"), FocusStarted: 5},
 	}
 
 	weekly := s.Weekly()
@@ -134,10 +135,13 @@ func TestWeeklyFilters(t *testing.T) {
 func TestMonthlyFilters(t *testing.T) {
 	s := newTestStore(t)
 
+	now := time.Now()
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+
 	s.Days = []DailyMetrics{
-		{Date: "2026-02-15", FocusStarted: 100}, // last month
-		{Date: "2026-03-01", FocusStarted: 3},
-		{Date: "2026-03-16", FocusStarted: 7},
+		{Date: monthStart.AddDate(0, 0, -1).Format("2006-01-02"), FocusStarted: 100}, // last month
+		{Date: monthStart.Format("2006-01-02"), FocusStarted: 3},
+		{Date: now.Format("2006-01-02"), FocusStarted: 7},
 	}
 
 	monthly := s.Monthly()

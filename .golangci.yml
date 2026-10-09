@@ -121,6 +121,9 @@ linters:
       - linters:
           - staticcheck
         text: "SA1019.*AppendVerticesAndIndicesFor"
+      - linters:
+          - staticcheck
+        text: "SA1019.*DrawTrianglesOptions\\).AntiAlias"
     paths:
       - third_party$
       - builtin$

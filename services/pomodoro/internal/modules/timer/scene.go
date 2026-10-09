@@ -396,7 +396,7 @@ func (s *Scene) createEntities() {
 
 			for i := range total {
 				idx := i
-				cx := dotStartX + float64(i)*(float64(dotR*2+dotGap))
+				cx := dotStartX + float64(i)*float64(dotR*2+dotGap)
 				hitR := float64(dotR + ui.S(8))
 
 				s.input.AddZone(&systems.Zone{

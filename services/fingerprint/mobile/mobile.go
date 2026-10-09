@@ -1,5 +1,8 @@
 // Package mobile provides the Android entry point for Fingerprint Lab.
-// Build: ebitenmobile bind -target android -javapkg com.insidegallery.fingerprint -o fingerprint.aar ./services/fingerprint/mobile/
+// Build:
+//
+//	ebitenmobile bind -target android -javapkg com.insidegallery.fingerprint \
+//	  -o fingerprint.aar ./services/fingerprint/mobile/
 package mobile
 
 import (

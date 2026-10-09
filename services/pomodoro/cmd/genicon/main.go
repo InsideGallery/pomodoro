@@ -62,7 +62,7 @@ func main() {
 		path = os.Args[1]
 	}
 
-	f, err := os.Create(path)
+	f, err := os.Create(path) //nolint:gosec // dev tool: the developer chooses the output path
 	if err != nil {
 		panic(err)
 	}

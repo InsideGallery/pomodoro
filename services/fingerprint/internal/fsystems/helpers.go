@@ -5,6 +5,9 @@ import (
 	c "github.com/InsideGallery/pomodoro/services/fingerprint/internal/components"
 )
 
+// puzzleObjectName is the TMX object that marks the puzzle workspace.
+const puzzleObjectName = "puzzle"
+
 // GetGameData reads the singleton GameData component from Registry.
 func GetGameData(reg RegType) *c.GameData {
 	val, err := reg.Get(c.GroupGameState, 0)

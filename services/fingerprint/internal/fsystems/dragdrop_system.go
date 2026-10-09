@@ -52,9 +52,11 @@ func (s *DragDropSystem) Update(_ context.Context) error {
 	_, wheelY := ebiten.Wheel()
 	if wheelY != 0 && gd.HoldingPiece >= 0 && gd.HoldingPiece < len(puzzle.TrayPieces) {
 		if wheelY > 0 {
-			puzzle.TrayPieces[gd.HoldingPiece].Rotation = (puzzle.TrayPieces[gd.HoldingPiece].Rotation + 1) % domain.RotationSteps
+			piece := &puzzle.TrayPieces[gd.HoldingPiece]
+			piece.Rotation = (piece.Rotation + 1) % domain.RotationSteps
 		} else {
-			puzzle.TrayPieces[gd.HoldingPiece].Rotation = (puzzle.TrayPieces[gd.HoldingPiece].Rotation + domain.RotationSteps - 1) % domain.RotationSteps
+			piece := &puzzle.TrayPieces[gd.HoldingPiece]
+			piece.Rotation = (piece.Rotation + domain.RotationSteps - 1) % domain.RotationSteps
 		}
 	}
 
@@ -171,6 +173,7 @@ func (s *DragDropSystem) tryPlace(gd *c.GameData, puzzle *domain.PuzzleConfig, w
 
 			if missingSet[gIdx] {
 				occupied := false
+
 				for _, other := range puzzle.TrayPieces {
 					if other.IsPlaced && other.PlacedX == col && other.PlacedY == row {
 						occupied = true
@@ -189,6 +192,7 @@ func (s *DragDropSystem) tryPlace(gd *c.GameData, puzzle *domain.PuzzleConfig, w
 						tp.PlacedX = col
 						tp.PlacedY = row
 						placed = true
+
 						s.scene.SaveGameState()
 					}
 				}
@@ -218,7 +222,7 @@ func (s *DragDropSystem) gridCellMapSize() float64 {
 	}
 
 	for _, obj := range og.Objects {
-		if obj.Name == "puzzle" {
+		if obj.Name == puzzleObjectName {
 			return math.Min(obj.Width, obj.Height) / 10
 		}
 	}
@@ -238,7 +242,7 @@ func (s *DragDropSystem) puzzleGridWorld() (px, py, cellW float64, ok bool) {
 	}
 
 	for _, obj := range og.Objects {
-		if obj.Name == "puzzle" {
+		if obj.Name == puzzleObjectName {
 			pw, ph := obj.Width, obj.Height
 			side := math.Min(pw, ph)
 			px = obj.X + (pw-side)/2

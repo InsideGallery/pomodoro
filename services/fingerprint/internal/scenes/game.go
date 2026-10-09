@@ -374,6 +374,7 @@ func (s *GameScene) RegisterAppLayoutZones() {
 			s.input.AddZone(&systems.Zone{Spatial: scaled, OnClick: func() { s.regenerateCases() }})
 		case "list-of-cases":
 			objCopy := obj
+
 			s.input.AddZone(&systems.Zone{Spatial: scaled, OnClick: func() {
 				gd := s.gameData()
 				cur := fsystems.GetCursor(s.Registry)
@@ -394,6 +395,7 @@ func (s *GameScene) RegisterAppLayoutZones() {
 			}})
 		case "fingerprints-user-names":
 			objCopy := obj
+
 			s.input.AddZone(&systems.Zone{Spatial: scaled, OnClick: func() {
 				gd := s.gameData()
 				cur := fsystems.GetCursor(s.Registry)
@@ -492,6 +494,7 @@ func (s *GameScene) submitPuzzle() {
 	}
 
 	gd.ResultTick = 180
+
 	s.SaveGameState()
 }
 
@@ -553,6 +556,7 @@ func (s *GameScene) regenerateCases() {
 	gd.DescScroll = 0
 
 	_ = domain.SavePuzzles(gd.Cases, gd.PuzzleSeed, domain.DefaultPuzzlesPath())
+
 	s.RegisterAppLayoutZones()
 }
 

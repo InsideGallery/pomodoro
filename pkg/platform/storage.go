@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 )
 
+// dirPerm is the permission for directories the app creates: owner rwx, others rx.
+const dirPerm = 0o755
+
 // DataDir returns the application data directory.
 // On desktop: ~/.config/pomodoro/
 // On mobile: set by the app at startup via SetDataDir.
@@ -32,5 +35,5 @@ func GetDataDir() string {
 
 // EnsureDir creates a directory if it doesn't exist.
 func EnsureDir(path string) error {
-	return os.MkdirAll(path, 0o755)
+	return os.MkdirAll(path, dirPerm)
 }

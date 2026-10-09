@@ -42,6 +42,7 @@ func (s *StateSystem) Update(_ context.Context) error {
 		state.BootTick++
 		if state.BootTick > 90 {
 			state.Current = c.StateEnabled
+
 			s.enterEnabled(reg)
 		}
 
@@ -54,12 +55,14 @@ func (s *StateSystem) Update(_ context.Context) error {
 	case c.StateApplicationLayout:
 		if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
 			state.Current = c.StateEnabled
+
 			s.enterEnabled(reg)
 		}
 
 	case c.StateApplicationNet:
 		if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
 			state.Current = c.StateApplicationLayout
+
 			s.enterAppLayout(reg)
 		}
 
@@ -195,8 +198,8 @@ func (s *StateSystem) updateLoading(reg RegType, state *c.State) {
 			}
 
 			puzzlesPath := domain.DefaultPuzzlesPath()
-			loadedCases, loadedSeed, loadErr := domain.LoadPuzzles(puzzlesPath, gd.DB)
 
+			loadedCases, loadedSeed, loadErr := domain.LoadPuzzles(puzzlesPath, gd.DB)
 			if loadErr != nil {
 				gd.PuzzleSeed = 99
 				gd.Cases = domain.GenerateCases(gd.DB, 99)
@@ -214,9 +217,12 @@ func (s *StateSystem) updateLoading(reg RegType, state *c.State) {
 		gd.LoadStatus = "Ready"
 		gd.LoadProgress = 1.0
 		gd.SelectedCase = 0
+
 		s.scene.LoadGameState()
+
 		state.Current = c.StateDisabled
 		state.BootTick = 0
+
 		slog.Info("game ready", "cases", len(gd.Cases))
 	}
 }
@@ -230,7 +236,7 @@ func (s *StateSystem) enterEnabled(_ RegType) {
 	slog.Info("entered enabled state", "inputZones", s.scene.GetInputSystem() != nil)
 }
 
-func (s *StateSystem) enterAppLayout(reg RegType) {
+func (s *StateSystem) enterAppLayout(_ RegType) {
 	s.scene.RegisterAppLayoutZones()
 }
 

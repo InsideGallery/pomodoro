@@ -195,7 +195,6 @@ func prepareFingerprint(srcImg image.Image, degrees int, mirrored bool) *image.R
 	return cropCentered(result, puzzleSize, puzzleSize)
 }
 
-
 // scaleImage resizes src to dstW×dstH using nearest-neighbor.
 func scaleImage(src *image.RGBA, dstW, dstH int) *image.RGBA {
 	srcW := src.Bounds().Dx()

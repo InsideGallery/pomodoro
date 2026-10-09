@@ -11,6 +11,8 @@ exclude:
     - ^services/.*/cmd/
     - ^services/.*/internal/.*/scene\.go$
     - ^services/.*/internal/.*/systems/
+    - ^services/fingerprint/internal/(fsystems|scenes|entities|components)/
+    - ^services/fingerprint/mobile/
     - ^services/.*/internal/audio/
     - ^services/.*/internal/builtin/
     - ^services/.*/internal/tray/
