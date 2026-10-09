@@ -27,6 +27,54 @@ type TimerProvider interface {
 	TimerRemaining() time.Duration
 	TimerIsRunning() bool
 	OnStartPause() func()
+	Muted() bool
+	ToggleMute()
+}
+
+type miniButton int
+
+const (
+	btnNone miniButton = iota
+	btnPlay
+	btnMute
+	btnExpand
+)
+
+type rect struct{ X, Y, W, H float32 }
+
+func (r rect) contains(x, y float32) bool {
+	return x >= r.X && x < r.X+r.W && y >= r.Y && y < r.Y+r.H
+}
+
+// layout returns the click rectangles of the three buttons for a window of size w by h.
+func layout(w, h float32) (play, mute, expand rect) {
+	bw := ui.S(36)
+	gap := ui.S(8)
+	y := ui.S(8)
+	bh := h - ui.S(16)
+
+	play = rect{X: gap, Y: y, W: bw, H: bh}
+	expand = rect{X: w - gap - bw, Y: y, W: bw, H: bh}
+	mute = rect{X: w - gap - bw - gap - bw, Y: y, W: bw, H: bh}
+
+	return play, mute, expand
+}
+
+// hit returns the button under the point, or btnNone.
+func hit(w, h float32, mx, my int) miniButton {
+	play, mute, expand := layout(w, h)
+	x, y := float32(mx), float32(my)
+
+	switch {
+	case play.contains(x, y):
+		return btnPlay
+	case mute.contains(x, y):
+		return btnMute
+	case expand.contains(x, y):
+		return btnExpand
+	}
+
+	return btnNone
 }
 
 // Scene is the compact mini-mode overlay.
@@ -73,18 +121,24 @@ func (s *Scene) Update() error {
 	}
 
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		mx, _ := ebiten.CursorPosition()
+		mx, my := ebiten.CursorPosition()
 
-		if mx > s.width-int(ui.S(50)) {
+		switch hit(float32(s.width), float32(s.height), mx, my) {
+		case btnPlay:
+			if s.timer != nil {
+				if fn := s.timer.OnStartPause(); fn != nil {
+					fn()
+				}
+			}
+		case btnMute:
+			if s.timer != nil {
+				s.timer.ToggleMute()
+			}
+		case btnExpand:
 			s.onDone()
 
 			return nil
-		}
-
-		if mx < int(ui.S(44)) && s.timer != nil {
-			if fn := s.timer.OnStartPause(); fn != nil {
-				fn()
-			}
+		case btnNone:
 		}
 	}
 
@@ -99,10 +153,8 @@ func (s *Scene) Draw(screen *ebiten.Image) {
 	ui.DrawRoundedRectStroke(screen, 0, 0, w, h, ui.S(8), ui.S(1), ui.ColorCardBorder)
 
 	// Play/pause button
-	ppW := ui.S(36)
-	ppX := ui.S(8)
-	ppY := ui.S(8)
-	ppH := h - ui.S(16)
+	play, mute, expand := layout(w, h)
+	ppW, ppX, ppY, ppH := play.W, play.X, play.Y, play.H
 
 	ui.DrawRoundedRect(screen, ppX, ppY, ppW, ppH, ui.S(6), ui.ColorBgTertiary)
 
@@ -130,13 +182,21 @@ func (s *Scene) Draw(screen *ebiten.Image) {
 	timerFace := ui.Face(true, 18)
 	tw, _ := textv2.Measure(timerText, timerFace, 0)
 
-	ui.DrawText(screen, timerText, timerFace, float64(w)/2-tw/2, float64(h/2)-ui.Sf(10), ui.ColorTextPrimary)
+	centerX := float64((play.X + play.W + mute.X) / 2)
+
+	ui.DrawText(screen, timerText, timerFace, centerX-tw/2, float64(h/2)-ui.Sf(10), ui.ColorTextPrimary)
+
+	// Mute button
+	ui.DrawRoundedRect(screen, mute.X, mute.Y, mute.W, mute.H, ui.S(6), ui.ColorBgTertiary)
+
+	if s.timer != nil && s.timer.Muted() {
+		ui.DrawMutedIcon(screen, mute.X+mute.W/2, mute.Y+mute.H/2, ui.S(16), ui.ColorTextPrimary)
+	} else {
+		ui.DrawSpeakerIcon(screen, mute.X+mute.W/2, mute.Y+mute.H/2, ui.S(16), ui.ColorTextPrimary)
+	}
 
 	// Expand button
-	btnW := ui.S(36)
-	btnX := w - ui.S(8) - btnW
-	btnY := ui.S(8)
-	btnH := h - ui.S(16)
+	btnW, btnX, btnY, btnH := expand.W, expand.X, expand.Y, expand.H
 
 	ui.DrawRoundedRect(screen, btnX, btnY, btnW, btnH, ui.S(6), ui.ColorBgTertiary)
 	ui.DrawExpandIcon(screen, btnX+btnW/2, btnY+btnH/2, ui.S(16), ui.ColorTextPrimary)
