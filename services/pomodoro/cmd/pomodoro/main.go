@@ -60,8 +60,9 @@ func main() {
 }
 
 var (
-	timerScene   *timerscene.Scene
-	sceneManager *scene.Manager
+	timerScene    *timerscene.Scene
+	sceneManager  *scene.Manager
+	trayIconState string
 )
 
 func onTick() error {
@@ -71,6 +72,7 @@ func onTick() error {
 
 	if timerScene != nil {
 		timerScene.Advance()
+		syncTrayIcon(timerScene.TimerStateString())
 	}
 
 	return nil
@@ -120,9 +122,6 @@ func setupPomodoro(ctx context.Context, bus *event.Bus, manager *scene.Manager, 
 
 	manager.Add(ctx, ts, ss, mn)
 
-	// Tray icon updates via timer events
-	subscribeTrayIconUpdates(bus)
-
 	return "timer"
 }
 
@@ -148,31 +147,27 @@ func processTray() error {
 	return nil
 }
 
-func subscribeTrayIconUpdates(bus *event.Bus) {
-	setIcon := func(clr color.RGBA) {
-		tray.UpdateIcon(tray.GenerateIcon(32, clr))
+// syncTrayIcon colours the tray icon after the timer state. It runs every frame,
+// so the icon also follows a state restored at startup, which fires no event.
+func syncTrayIcon(state string) {
+	if state == trayIconState {
+		return
 	}
 
-	for _, et := range []event.Type{
-		event.FocusStarted, event.BreakStarted, event.LongBreakStarted,
-		event.Paused, event.Resumed, event.Reset,
-		event.FocusCompleted, event.BreakCompleted, event.LongBreakCompleted,
-	} {
-		bus.Subscribe(et, func(e event.Event) {
-			if state, ok := e.Data.(string); ok {
-				switch state {
-				case "Focus":
-					setIcon(color.RGBA{R: 0x6C, G: 0x5C, B: 0xE7, A: 0xFF})
-				case "Break":
-					setIcon(color.RGBA{R: 0x00, G: 0xCE, B: 0xC9, A: 0xFF})
-				case "Long Break":
-					setIcon(color.RGBA{R: 0x81, G: 0xEC, B: 0xEC, A: 0xFF})
-				case "Paused":
-					setIcon(color.RGBA{R: 0xFF, G: 0xC1, B: 0x07, A: 0xFF})
-				default:
-					setIcon(color.RGBA{R: 0x8B, G: 0x8B, B: 0x9E, A: 0xFF})
-				}
-			}
-		})
+	trayIconState = state
+
+	clr := color.RGBA{R: 0x8B, G: 0x8B, B: 0x9E, A: 0xFF}
+
+	switch state {
+	case "Focus":
+		clr = color.RGBA{R: 0x6C, G: 0x5C, B: 0xE7, A: 0xFF}
+	case "Break":
+		clr = color.RGBA{R: 0x00, G: 0xCE, B: 0xC9, A: 0xFF}
+	case "Long Break":
+		clr = color.RGBA{R: 0x81, G: 0xEC, B: 0xEC, A: 0xFF}
+	case "Paused":
+		clr = color.RGBA{R: 0xFF, G: 0xC1, B: 0x07, A: 0xFF}
 	}
+
+	tray.UpdateIcon(tray.GenerateIcon(32, clr))
 }
